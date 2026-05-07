@@ -60,9 +60,9 @@ fun resolveAuroraBorderColor(
             }
         } else {
             if (emphasized) {
-                Color(0xFF9DB4CC)
+                colors.textPrimary.copy(alpha = 0.14f)
             } else {
-                Color(0xFFB8CCE0)
+                colors.textPrimary.copy(alpha = 0.08f)
             }
         }
     }
@@ -147,7 +147,7 @@ fun resolveAuroraIconSurfaceColor(colors: AuroraColors): Color {
         EInkProfile.OFF -> if (colors.isDark) {
             colors.textPrimary.copy(alpha = 0.10f)
         } else {
-            Color(0xFFEAF1F8)
+            colors.textPrimary.copy(alpha = 0.06f)
         }
     }
 }
@@ -182,7 +182,7 @@ private fun resolveStandardSurfaceColor(
         when (level) {
             AuroraSurfaceLevel.Subtle -> Color.White.copy(alpha = 0.88f)
             AuroraSurfaceLevel.Glass -> Color(0xE6FFFFFF)
-            AuroraSurfaceLevel.Strong -> Color(0xFFF0F4F8)
+            AuroraSurfaceLevel.Strong -> colors.cardBackground
         }
     }
 }
