@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.extension.novel.runtime
 
 import android.content.Context
+import android.util.Log
 import eu.kanade.tachiyomi.network.NetworkHelper
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
