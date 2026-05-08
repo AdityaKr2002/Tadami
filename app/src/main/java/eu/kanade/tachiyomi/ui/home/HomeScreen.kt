@@ -29,6 +29,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,7 +42,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -156,41 +156,43 @@ object HomeScreen : Screen() {
                             val showBottomNav = bottomNavVisible &&
                                 bottomNavVisibilityController.isVisible &&
                                 tabNavigator.current != currentMoreTab
+                            val auroraColors = if (isAurora) AuroraTheme.colors else null
+                            val isAuroraLight = auroraColors?.isDark == false
+                            val navBarShape = RoundedCornerShape(
+                                topStart = 20.dp,
+                                topEnd = 20.dp,
+                            )
+                            val navContainerColor = if (isAurora) {
+                                if (auroraColors!!.isDark) {
+                                    auroraColors.background
+                                } else {
+                                    Color.White
+                                }
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainer
+                            }
+                            val navShadowElevation = if (isAuroraLight) {
+                                NavigationBarDefaults.Elevation
+                            } else {
+                                0.dp
+                            }
+                            val navModifier = if (isAuroraLight) {
+                                Modifier.border(
+                                    BorderStroke(
+                                        width = 1.dp,
+                                        brush = auroraMenuRimLightBrush(auroraColors!!),
+                                    ),
+                                    shape = navBarShape,
+                                )
+                            } else {
+                                Modifier
+                            }
                             if (isEInkMode) {
                                 if (showBottomNav) {
-                                    val auroraColors = if (isAurora) AuroraTheme.colors else null
-                                    val navContainerColor = if (isAurora) {
-                                        if (auroraColors!!.isDark) {
-                                            auroraColors.background
-                                        } else {
-                                            auroraColors.accent.copy(alpha = 0.04f)
-                                                .compositeOver(Color(0xFFF0F4F8))
-                                        }
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceContainer
-                                    }
                                     NavigationBar(
                                         containerColor = navContainerColor,
-                                        modifier = if (isAurora) {
-                                            Modifier.then(
-                                                if (!auroraColors!!.isDark) {
-                                                    Modifier.border(
-                                                        BorderStroke(
-                                                            width = 1.dp,
-                                                            brush = auroraMenuRimLightBrush(auroraColors),
-                                                        ),
-                                                        shape = RoundedCornerShape(
-                                                            topStart = 20.dp,
-                                                            topEnd = 20.dp,
-                                                        ),
-                                                    )
-                                                } else {
-                                                    Modifier
-                                                },
-                                            )
-                                        } else {
-                                            Modifier
-                                        },
+                                        shadowElevation = navShadowElevation,
+                                        modifier = navModifier,
                                     ) {
                                         navStyle.tabs.fastForEach {
                                             NavigationBarItem(it, isAurora)
@@ -203,39 +205,10 @@ object HomeScreen : Screen() {
                                     enter = expandVertically(expandFrom = Alignment.Bottom),
                                     exit = shrinkVertically(shrinkTowards = Alignment.Bottom),
                                 ) {
-                                    val auroraColors = if (isAurora) AuroraTheme.colors else null
-                                    val navContainerColor = if (isAurora) {
-                                        if (auroraColors!!.isDark) {
-                                            auroraColors.background
-                                        } else {
-                                            auroraColors.accent.copy(alpha = 0.04f)
-                                                .compositeOver(Color(0xFFF0F4F8))
-                                        }
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceContainer
-                                    }
                                     NavigationBar(
                                         containerColor = navContainerColor,
-                                        modifier = if (isAurora) {
-                                            Modifier.then(
-                                                if (!auroraColors!!.isDark) {
-                                                    Modifier.border(
-                                                        BorderStroke(
-                                                            width = 1.dp,
-                                                            brush = auroraMenuRimLightBrush(auroraColors),
-                                                        ),
-                                                        shape = RoundedCornerShape(
-                                                            topStart = 20.dp,
-                                                            topEnd = 20.dp,
-                                                        ),
-                                                    )
-                                                } else {
-                                                    Modifier
-                                                },
-                                            )
-                                        } else {
-                                            Modifier
-                                        },
+                                        shadowElevation = navShadowElevation,
+                                        modifier = navModifier,
                                     ) {
                                         navStyle.tabs.fastForEach {
                                             NavigationBarItem(it, isAurora)

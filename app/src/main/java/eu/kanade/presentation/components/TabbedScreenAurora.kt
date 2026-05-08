@@ -37,6 +37,9 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -575,27 +578,22 @@ internal fun AuroraTabRow(
     val scrollState = rememberScrollState()
     val menuBorderBrush = remember(colors) { auroraMenuRimLightBrush(colors) }
     val tabContainerColor = resolveAuroraTabContainerColor(colors)
+    val showBorderFinal = showBorder && (colors.isDark || colors.isEInk)
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(
-                tabContainerColor,
-                RoundedCornerShape(28.dp),
-            )
-            .then(
-                if (showBorder) {
-                    Modifier.border(
-                        width = 0.75.dp,
-                        brush = menuBorderBrush,
-                        shape = RoundedCornerShape(28.dp),
-                    )
-                } else {
-                    Modifier
-                },
-            ),
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = tabContainerColor),
+        border = if (showBorderFinal) {
+            BorderStroke(0.75.dp, menuBorderBrush)
+        } else {
+            null
+        },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (!colors.isDark && !colors.isEInk) 2.dp else 0.dp,
+        ),
     ) {
         Row(
             modifier = Modifier
@@ -788,7 +786,7 @@ internal fun resolveAuroraTabContainerColor(colors: AuroraColors): Color {
     return if (colors.isDark) {
         Color.White.copy(alpha = 0.05f)
     } else {
-        colors.accent.copy(alpha = 0.05f).compositeOver(Color(0xFFF0F4F8))
+        Color.White
     }
 }
 

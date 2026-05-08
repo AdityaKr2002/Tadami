@@ -1,6 +1,12 @@
 package eu.kanade.presentation.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import eu.kanade.domain.ui.model.EInkProfile
 
 enum class AuroraSurfaceLevel {
@@ -59,11 +65,8 @@ fun resolveAuroraBorderColor(
                 Color.White.copy(alpha = 0.08f)
             }
         } else {
-            if (emphasized) {
-                colors.textPrimary.copy(alpha = 0.14f)
-            } else {
-                colors.textPrimary.copy(alpha = 0.08f)
-            }
+            // Light mode: borders are mostly invisible; shadow provides separation
+            Color.Transparent
         }
     }
 }
@@ -179,10 +182,12 @@ private fun resolveStandardSurfaceColor(
             AuroraSurfaceLevel.Strong -> colors.cardBackground
         }
     } else {
+        // Light mode: opaque white surfaces — elevation shadow provides separation.
+        // Semi-transparent values cause "double color" with M3 Card elevation layer.
         when (level) {
-            AuroraSurfaceLevel.Subtle -> Color.White.copy(alpha = 0.88f)
-            AuroraSurfaceLevel.Glass -> Color(0xE6FFFFFF)
-            AuroraSurfaceLevel.Strong -> colors.cardBackground
+            AuroraSurfaceLevel.Subtle -> Color(0xFFF8F9FA)
+            AuroraSurfaceLevel.Glass -> Color(0xFFFDFDFD)
+            AuroraSurfaceLevel.Strong -> Color.White
         }
     }
 }
@@ -215,4 +220,59 @@ private fun resolveColorEInkSurfaceColor(
         AuroraSurfaceLevel.Glass -> colors.glass
         AuroraSurfaceLevel.Strong -> colors.cardBackground
     }
+}
+
+/**
+ * Returns the shadow elevation for floating surfaces in light mode.
+ * Dark mode and E-Ink return 0.dp (no floating effect).
+ */
+fun resolveAuroraElevation(
+    colors: AuroraColors,
+    level: AuroraSurfaceLevel = AuroraSurfaceLevel.Glass,
+    isSelected: Boolean = false,
+): Dp {
+    if (isSelected) return 0.dp
+    return when {
+        colors.isEInk -> 0.dp
+        colors.isDark -> when (level) {
+            AuroraSurfaceLevel.Subtle -> 0.5.dp
+            AuroraSurfaceLevel.Glass -> 1.dp
+            AuroraSurfaceLevel.Strong -> 2.dp
+        }
+        else -> when (level) {
+            AuroraSurfaceLevel.Subtle -> 1.dp
+            AuroraSurfaceLevel.Glass -> 2.dp
+            AuroraSurfaceLevel.Strong -> 3.dp
+        }
+    }
+}
+
+/**
+ * Shadow color for light mode floating surfaces.
+ * Returns a soft neutral shadow for depth without color cast.
+ */
+fun resolveAuroraCardShadowColor(colors: AuroraColors): Color {
+    if (colors.isDark || colors.isEInk) return Color.Transparent
+    return Color(0xFF0F172A).copy(alpha = 0.12f)
+}
+
+/**
+ * Modifier that applies the floating surface effect for light mode.
+ * Adds elevation shadow and transparent background.
+ * No-op for dark mode and E-Ink.
+ */
+fun Modifier.auroraFloatingSurface(
+    colors: AuroraColors,
+    level: AuroraSurfaceLevel = AuroraSurfaceLevel.Glass,
+    shape: Shape = RoundedCornerShape(16.dp),
+): Modifier {
+    if (colors.isDark || colors.isEInk) return this
+    val elevation = resolveAuroraElevation(colors, level)
+    val shadowColor = resolveAuroraCardShadowColor(colors)
+    return this.shadow(
+        elevation = elevation,
+        shape = shape,
+        ambientColor = shadowColor,
+        spotColor = shadowColor,
+    )
 }
