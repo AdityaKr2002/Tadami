@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.crossfade
+import kotlinx.coroutines.delay
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.AuroraCoverPlaceholderVariant
 import eu.kanade.presentation.components.relativeDateTimeText
@@ -453,9 +454,15 @@ fun NovelScreen(
                         MaterialTheme.colorScheme.background,
                     )
                     val blurRadiusPx = with(LocalDensity.current) { 4.dp.roundToPx() }
+                    var showBackdropCover by remember(state.novel.id) { mutableStateOf(false) }
                     val fallbackPainter = rememberThemeAwareCoverErrorPainter(
                         variant = AuroraCoverPlaceholderVariant.Wide,
                     )
+
+                    LaunchedEffect(state.novel.id) {
+                        delay(100)
+                        showBackdropCover = true
+                    }
 
                     Box(
                         modifier = Modifier
@@ -465,27 +472,29 @@ fun NovelScreen(
                                 vertical = MaterialTheme.padding.small,
                             ),
                     ) {
-                        AsyncImage(
-                            model = buildNovelCoverImageRequest(context, state.novel) {
-                                crossfade(true)
-                                staticBlur(blurRadiusPx, intensityFactor = 0.6f)
-                            },
-                            error = fallbackPainter,
-                            fallback = fallbackPainter,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            colorFilter = rememberAuroraPosterColorFilter(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                                .drawWithContent {
-                                    drawContent()
-                                    drawRect(
-                                        brush = Brush.verticalGradient(colors = backdropGradientColors),
-                                    )
-                                }
-                                .alpha(0.2f),
-                        )
+                        if (showBackdropCover) {
+                            AsyncImage(
+                                model = buildNovelCoverImageRequest(context, state.novel) {
+                                    crossfade(true)
+                                    staticBlur(blurRadiusPx, intensityFactor = 0.6f)
+                                },
+                                error = fallbackPainter,
+                                fallback = fallbackPainter,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                colorFilter = rememberAuroraPosterColorFilter(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp)
+                                    .drawWithContent {
+                                        drawContent()
+                                        drawRect(
+                                            brush = Brush.verticalGradient(colors = backdropGradientColors),
+                                        )
+                                    }
+                                    .alpha(0.2f),
+                            )
+                        }
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
