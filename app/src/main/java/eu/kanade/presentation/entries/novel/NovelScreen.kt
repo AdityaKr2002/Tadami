@@ -67,7 +67,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.crossfade
-import kotlinx.coroutines.delay
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.AuroraCoverPlaceholderVariant
 import eu.kanade.presentation.components.relativeDateTimeText
@@ -92,6 +91,7 @@ import eu.kanade.tachiyomi.ui.entries.novel.NovelScreenModel
 import eu.kanade.tachiyomi.ui.entries.novel.resolveNovelChapterDisplayData
 import eu.kanade.tachiyomi.ui.entries.novel.resolveNovelChapterRowIndex
 import eu.kanade.tachiyomi.ui.entries.novel.resolveNovelVisibleChapterRows
+import kotlinx.coroutines.delay
 import me.saket.swipe.SwipeableActionsBox
 import tachiyomi.domain.items.novelchapter.model.NovelChapter
 import tachiyomi.domain.library.service.LibraryPreferences

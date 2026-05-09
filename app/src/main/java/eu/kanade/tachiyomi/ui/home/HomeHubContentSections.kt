@@ -732,45 +732,45 @@ internal fun HomeHubRecentPosterCard(
                     ),
             ) {
                 AsyncImage(
-                model = resolveAuroraCoverModel(coverData),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                colorFilter = rememberAuroraPosterColorFilter(),
-                modifier = Modifier.fillMaxSize(),
-                error = fallbackPainter,
-                fallback = fallbackPainter,
-            )
-        }
-
-        Spacer(Modifier.height(posterSpec.textTopSpacingDp.dp))
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = posterSpec.textBlockMinHeightDp.dp)
-                .padding(horizontal = posterSpec.textHorizontalPaddingDp.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = title,
-                color = colors.textPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = posterSpec.titleMaxLines,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 17.sp,
-            )
-
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    color = colors.textSecondary,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    model = resolveAuroraCoverModel(coverData),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    colorFilter = rememberAuroraPosterColorFilter(),
+                    modifier = Modifier.fillMaxSize(),
+                    error = fallbackPainter,
+                    fallback = fallbackPainter,
                 )
+            }
+
+            Spacer(Modifier.height(posterSpec.textTopSpacingDp.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = posterSpec.textBlockMinHeightDp.dp)
+                    .padding(horizontal = posterSpec.textHorizontalPaddingDp.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = title,
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = posterSpec.titleMaxLines,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 17.sp,
+                )
+
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        color = colors.textSecondary,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
-}
 }

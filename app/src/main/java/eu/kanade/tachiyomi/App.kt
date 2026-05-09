@@ -19,7 +19,6 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
-import okio.Path.Companion.toOkioPath
 import coil3.annotation.DelicateCoilApi
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
@@ -87,6 +86,7 @@ import logcat.LogcatLogger
 import logcat.logcat
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.migrations
+import okio.Path.Companion.toOkioPath
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference

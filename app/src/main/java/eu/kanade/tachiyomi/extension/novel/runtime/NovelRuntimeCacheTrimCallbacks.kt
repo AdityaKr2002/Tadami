@@ -2,9 +2,9 @@ package eu.kanade.tachiyomi.extension.novel.runtime
 
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
+import eu.kanade.tachiyomi.extension.novel.NovelPluginSourceFactory
 import logcat.LogPriority
 import logcat.logcat
-import eu.kanade.tachiyomi.extension.novel.NovelPluginSourceFactory
 
 /**
  * [ComponentCallbacks2] that trims novel plugin runtime caches when the

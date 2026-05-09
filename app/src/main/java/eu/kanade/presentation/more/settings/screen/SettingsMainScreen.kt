@@ -1,13 +1,13 @@
 package eu.kanade.presentation.more.settings.screen
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,11 +50,11 @@ import eu.kanade.presentation.more.settings.canScroll
 import eu.kanade.presentation.more.settings.rememberResolvedSettingsUiStyle
 import eu.kanade.presentation.more.settings.settingsSelectionBackgroundColor
 import eu.kanade.presentation.more.settings.settingsSelectionBorderColor
+import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.presentation.theme.AuroraSurfaceLevel
 import eu.kanade.presentation.theme.AuroraTheme
 import eu.kanade.presentation.theme.LocalIsDefaultAppUiFont
 import eu.kanade.presentation.theme.resolveAuroraElevation
-import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
 import kotlinx.collections.immutable.persistentListOf

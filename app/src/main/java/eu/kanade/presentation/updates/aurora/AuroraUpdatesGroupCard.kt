@@ -23,8 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -37,8 +37,6 @@ import eu.kanade.presentation.entries.components.aurora.rememberAuroraPosterColo
 import eu.kanade.presentation.theme.AuroraTheme
 import eu.kanade.presentation.theme.resolveAuroraBorderColor
 import eu.kanade.presentation.theme.resolveAuroraControlContainerColor
-import eu.kanade.presentation.theme.resolveAuroraSurfaceColor
-import eu.kanade.presentation.theme.AuroraSurfaceLevel
 
 @Composable
 fun AuroraUpdatesGroupCard(

@@ -15,9 +15,9 @@ import eu.kanade.domain.entries.novel.interactor.GetNovelExcludedScanlators
 import eu.kanade.domain.entries.novel.interactor.NovelRatingFetcher
 import eu.kanade.domain.entries.novel.interactor.SetNovelExcludedScanlators
 import eu.kanade.domain.entries.novel.interactor.UpdateNovel
-import eu.kanade.domain.entries.novel.model.normalizeNovelDescription
 import eu.kanade.domain.entries.novel.model.chaptersFiltered
 import eu.kanade.domain.entries.novel.model.effectiveDownloadedFilter
+import eu.kanade.domain.entries.novel.model.normalizeNovelDescription
 import eu.kanade.domain.entries.novel.model.toSNovel
 import eu.kanade.domain.items.novelchapter.interactor.GetAvailableNovelScanlators
 import eu.kanade.domain.items.novelchapter.interactor.GetNovelScanlatorChapterCounts
