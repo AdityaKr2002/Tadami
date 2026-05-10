@@ -1,14 +1,14 @@
 package eu.kanade.presentation.more
 
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.Composable
 import eu.kanade.domain.ui.model.EInkProfile
 import eu.kanade.presentation.theme.AuroraColors
 import eu.kanade.presentation.theme.AuroraSurfaceLevel
 import eu.kanade.presentation.theme.resolveAuroraBorderColor
 import eu.kanade.presentation.theme.resolveAuroraSurfaceColor
-import androidx.compose.material3.SwitchDefaults
 
 internal const val AURORA_MORE_DARK_CARD_ALPHA = 0.05f
 internal const val AURORA_MORE_DARK_SWITCH_TRACK_ALPHA = 0.4f
