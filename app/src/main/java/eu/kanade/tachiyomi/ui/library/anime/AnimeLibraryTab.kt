@@ -17,6 +17,7 @@ import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +48,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -99,6 +103,7 @@ import eu.kanade.domain.ui.model.EInkProfile
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.category.visualName
 import eu.kanade.presentation.components.AuroraTabRow
+import eu.kanade.presentation.components.auroraMenuRimLightBrush
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.components.TabbedScreenAurora
 import eu.kanade.presentation.components.resolveAuroraTabContainerColor
@@ -1863,25 +1868,52 @@ private fun AuroraLibraryCategoryTabs(
     val colors = AuroraTheme.colors
     val appHaptics = LocalAppHaptics.current
     val coercedSelected = coerceAuroraLibraryCategoryIndex(selectedIndex, categories.size)
-    val rowShape = RoundedCornerShape(22.dp)
-    val tabShape = RoundedCornerShape(18.dp)
+    val rowShape = RoundedCornerShape(28.dp)
+    val tabShape = RoundedCornerShape(20.dp)
+    val isLightTheme = !colors.isDark && !colors.isEInk
     val rowContainerColor = remember(colors) { resolveAuroraLibraryCategoryTabRowContainerColor(colors) }
     val selectedTabBrush = remember(colors) { resolveAuroraLibraryCategorySelectedTabBrush(colors) }
     val selectedTabBorderColor = remember(colors) { resolveAuroraTabSelectionBorderColor(colors) }
+    val menuBorderBrush = remember(colors) { auroraMenuRimLightBrush(colors) }
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(rowShape)
-            .background(
-                color = rowContainerColor,
-                shape = rowShape,
-            )
-            .padding(horizontal = 6.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp)
+            .then(
+                if (isLightTheme) {
+                    Modifier
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = rowShape,
+                        )
+                        .background(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.70f),
+                                    Color.White.copy(alpha = 0.60f),
+                                ),
+                            ),
+                            shape = rowShape,
+                        )
+                } else {
+                    Modifier
+                },
+            ),
+        shape = rowShape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isLightTheme) Color.Transparent else rowContainerColor,
+        ),
+        border = if (colors.isDark || colors.isEInk) {
+            BorderStroke(0.75.dp, menuBorderBrush)
+        } else {
+            null
+        },
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            contentPadding = PaddingValues(horizontal = 2.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
         ) {
             itemsIndexed(
                 items = categories,
@@ -2057,7 +2089,7 @@ internal fun resolveAuroraLibraryCategorySelectedTabBrush(colors: eu.kanade.pres
                 if (colors.isDark) {
                     colors.accent.copy(alpha = 0.18f)
                 } else {
-                    Color.White.copy(alpha = 0.85f)
+                    Color.White.copy(alpha = 0.40f)
                 },
             )
         },
