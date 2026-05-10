@@ -1092,7 +1092,7 @@
     <string name="action_order_by_episode_number">By episode number</string>
     <string name="action_start_download_externally">Use external downloader</string>
     <string name="action_start_download_internally">Use internal downloader</string>
-    <string name="pref_bottom_nav_style">Bottom navigation style</string>
+    <string name="pref_bottom_nav_style">Bottom navigation layout</string>
     <string name="pref_category_motion">Motion</string>
     <string name="pref_navigation_transition_mode">Navigation transition mode</string>
     <string name="pref_navigation_transition_mode_summary">Auto uses Modern and falls back to Legacy in Battery Saver</string>

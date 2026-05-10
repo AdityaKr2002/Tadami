@@ -73,7 +73,7 @@ class UiPreferences(
 
     fun entryAutoJumpToNextNovel() = preferenceStore.getBoolean("entry_auto_jump_to_next_novel", false)
 
-    fun bottomNavAppearance() = preferenceStore.getEnum("bottom_nav_appearance", BottomNavAppearance.Classic)
+    fun bottomNavAppearance() = preferenceStore.getEnum("bottom_nav_appearance", BottomNavAppearance.Aurora)
 
     fun navStyle() = preferenceStore.getEnum("bottom_rail_nav_style", NavStyle.MOVE_HISTORY_TO_MORE)
 

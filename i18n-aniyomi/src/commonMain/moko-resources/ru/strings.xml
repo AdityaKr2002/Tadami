@@ -836,7 +836,10 @@
     <string name="action_order_by_episode_number">По номеру эпизода</string>
     <string name="action_start_download_externally">Использовать внешний загрузчик</string>
     <string name="action_start_download_internally">Использовать внутренний загрузчик</string>
-    <string name="pref_bottom_nav_style">Стиль нижней навигации</string>
+    <string name="pref_bottom_nav_appearance">Внешний вид нижней навигации</string>
+    <string name="pref_bottom_nav_classic">Классическая</string>
+    <string name="pref_bottom_nav_aurora">Aurora</string>
+    <string name="pref_bottom_nav_style">Компоновка нижней навигации</string>
     <string name="pref_category_motion">Анимация</string>
     <string name="pref_navigation_transition_mode">Режим анимации переходов</string>
     <string name="pref_navigation_transition_mode_summary">Авто использует Modern и переключается на Legacy в режиме энергосбережения</string>

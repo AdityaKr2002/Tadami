@@ -447,18 +447,20 @@ object SettingsAppearanceScreen : SearchableSettings {
                         subtitle = stringResource(AYMR.strings.pref_aurora_entry_translation_summary),
                     ),
                 )
-                add(
-                    Preference.PreferenceItem.MultiSelectListPreference(
-                        preference = auroraEntryTranslationLanguagesPref,
-                        entries = googleTranslationSourceLanguageFamilyOptions()
-                            .associate { it.code to it.label }
-                            .toImmutableMap(),
-                        title = stringResource(AYMR.strings.pref_aurora_entry_translation_source_languages),
-                        subtitle = stringResource(
-                            AYMR.strings.pref_aurora_entry_translation_source_languages_summary,
+                if (auroraEntryTranslationEnabled) {
+                    add(
+                        Preference.PreferenceItem.MultiSelectListPreference(
+                            preference = auroraEntryTranslationLanguagesPref,
+                            entries = googleTranslationSourceLanguageFamilyOptions()
+                                .associate { it.code to it.label }
+                                .toImmutableMap(),
+                            title = stringResource(AYMR.strings.pref_aurora_entry_translation_source_languages),
+                            subtitle = stringResource(
+                                AYMR.strings.pref_aurora_entry_translation_source_languages_summary,
+                            ),
                         ),
-                    ),
-                )
+                    )
+                }
                 add(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = uiPreferences.showAchievementNotifications(),
