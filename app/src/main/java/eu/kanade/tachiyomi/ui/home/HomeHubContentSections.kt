@@ -563,7 +563,7 @@ internal fun QuickSourceButton(sourceName: String?, onClick: () -> Unit) {
     val appHaptics = LocalAppHaptics.current
     val auroraAdaptiveSpec = rememberAuroraAdaptiveSpec()
     val contentMaxWidthDp = auroraAdaptiveSpec.updatesMaxWidthDp ?: auroraAdaptiveSpec.entryMaxWidthDp
-    val sourceButtonShape = RoundedCornerShape(16.dp)
+    val sourceButtonShape = RoundedCornerShape(14.dp)
     val sourceSurface = when {
         colors.isEInk -> resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Strong)
         colors.background.luminance() < 0.5f -> {
@@ -583,7 +583,7 @@ internal fun QuickSourceButton(sourceName: String?, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .auroraCenteredMaxWidth(contentMaxWidthDp)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
     ) {
         Button(
             onClick = {
@@ -603,7 +603,7 @@ internal fun QuickSourceButton(sourceName: String?, onClick: () -> Unit) {
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(48.dp)
                 .then(
                     if (sourceShowBorder) {
                         Modifier.border(sourceBorderWidth, sourceBorderBrush, sourceButtonShape)
@@ -612,12 +612,12 @@ internal fun QuickSourceButton(sourceName: String?, onClick: () -> Unit) {
                     },
                 ),
         ) {
-            Icon(Icons.Filled.Search, null, tint = colors.accent, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(10.dp))
+            Icon(Icons.Filled.Search, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
                 text = sourceName ?: stringResource(AYMR.strings.aurora_open_source),
                 color = colors.textPrimary,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
