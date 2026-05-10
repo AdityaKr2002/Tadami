@@ -63,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -591,21 +592,45 @@ internal fun AuroraTabRow(
     val scrollState = rememberScrollState()
     val menuBorderBrush = remember(colors) { auroraMenuRimLightBrush(colors) }
     val tabContainerColor = resolveAuroraTabContainerColor(colors)
+    val isLightTheme = !colors.isDark && !colors.isEInk
     val showBorderFinal = showBorder && (colors.isDark || colors.isEInk)
+    val tabShape = RoundedCornerShape(28.dp)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = tabContainerColor),
+            .padding(horizontal = 16.dp)
+            .then(
+                if (isLightTheme) {
+                    Modifier
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = tabShape,
+                        )
+                        .background(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.70f),
+                                    Color.White.copy(alpha = 0.60f),
+                                ),
+                            ),
+                            shape = tabShape,
+                        )
+                } else {
+                    Modifier
+                },
+            ),
+        shape = tabShape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isLightTheme) Color.Transparent else tabContainerColor,
+        ),
         border = if (showBorderFinal) {
             BorderStroke(0.75.dp, menuBorderBrush)
         } else {
             null
         },
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (!colors.isDark && !colors.isEInk) 2.dp else 0.dp,
+            defaultElevation = 0.dp,
         ),
     ) {
         Row(
@@ -658,7 +683,7 @@ internal fun AuroraTab(
                 if (colors.isDark) {
                     colors.accent.copy(alpha = 0.18f)
                 } else {
-                    Color.White.copy(alpha = 0.85f)
+                    Color.White.copy(alpha = 0.40f)
                 },
             ),
             start = androidx.compose.ui.geometry.Offset.Zero,
@@ -799,7 +824,7 @@ internal fun resolveAuroraTabContainerColor(colors: AuroraColors): Color {
     return if (colors.isDark) {
         Color.White.copy(alpha = 0.05f)
     } else {
-        Color.White
+        Color.Transparent
     }
 }
 
