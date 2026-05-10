@@ -183,18 +183,18 @@ object HomeScreen : Screen() {
                                 if (colors.isDark) {
                                     colors.surface.copy(alpha = 0.96f)
                                 } else {
-                                    Color.White
+                                    Color.Transparent
                                 }
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainer
                             }
                             val navShadowElevation = if (useAuroraBottomNav) {
-                                if (auroraColors!!.isDark) 20.dp else 8.dp
+                                if (auroraColors!!.isDark) 20.dp else 0.dp
                             } else {
                                 0.dp
                             }
-                            val navTonalElevation = if (useAuroraBottomNav && auroraColors!!.isDark) {
-                                6.dp
+                            val navTonalElevation = if (useAuroraBottomNav) {
+                                if (auroraColors!!.isDark) 6.dp else 0.dp
                             } else {
                                 0.dp
                             }
@@ -223,6 +223,26 @@ object HomeScreen : Screen() {
                                         )
                                 } else {
                                     baseModifier
+                                        .shadow(
+                                            elevation = 16.dp,
+                                            shape = navBarShape,
+                                        )
+                                        .background(
+                                            brush = Brush.verticalGradient(
+                                                listOf(
+                                                    Color.White.copy(alpha = 0.98f),
+                                                    Color.White.copy(alpha = 0.94f),
+                                                ),
+                                            ),
+                                            shape = navBarShape,
+                                        )
+                                        .border(
+                                            BorderStroke(
+                                                width = 1.dp,
+                                                color = Color.White,
+                                            ),
+                                            shape = navBarShape,
+                                        )
                                 }
                             } else {
                                 Modifier
