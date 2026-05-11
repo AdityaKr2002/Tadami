@@ -1939,7 +1939,6 @@ private fun AuroraLibraryCategoryTabs(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
             .then(
                 if (isLightTheme) {
                     Modifier
