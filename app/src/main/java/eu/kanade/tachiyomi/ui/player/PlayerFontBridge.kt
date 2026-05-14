@@ -2,8 +2,11 @@ package eu.kanade.tachiyomi.ui.player
 
 import com.hippo.unifile.UniFile
 import `is`.xyz.mpv.MPVLib
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.storage.service.StorageManager
 import java.io.File
+import java.io.IOException
 
 internal object PlayerFontBridge {
     private const val MPV_FONTS_DIR = "fonts"
@@ -33,10 +36,20 @@ internal object PlayerFontBridge {
             targetFontsDirectory.mkdirs()
         }
         sourceFonts.forEach { font ->
-            val outFile = File(targetFontsDirectory, font.name)
-            font.inputStream().use { input ->
-                outFile.outputStream().use { output ->
-                    input.copyTo(output)
+            runCatching {
+                val outFile = File(targetFontsDirectory, font.name)
+                font.inputStream().use { input ->
+                    outFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }.onFailure { error ->
+                if (error is IOException) {
+                    logcat(LogPriority.WARN, error) {
+                        "Skipping unreadable MPV font: ${font.absolutePath}"
+                    }
+                } else {
+                    throw error
                 }
             }
         }

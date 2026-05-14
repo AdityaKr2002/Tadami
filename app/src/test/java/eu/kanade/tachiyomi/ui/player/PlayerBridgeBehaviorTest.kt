@@ -56,6 +56,25 @@ class PlayerBridgeBehaviorTest {
     }
 
     @Test
+    fun `copy fonts helper skips unreadable fonts and keeps copying the rest`() {
+        val sourceFonts = tempDir.resolve("source-fonts").apply { mkdirs() }
+        val missingFont = sourceFonts.resolve("MissingFont.ttf")
+        val readableFont = sourceFonts.resolve("ReadableFont.ttf").apply {
+            writeText("readable-font")
+        }
+        val targetDir = tempDir.resolve("mpv-fonts")
+
+        PlayerFontBridge.copyFontFiles(
+            sourceFonts = listOf(missingFont, readableFont),
+            targetFontsDirectory = targetDir.resolve("fonts"),
+        )
+
+        val copiedFiles = targetDir.resolve("fonts").listFiles()?.map { it.name }?.sorted()
+        copiedFiles shouldBe listOf("ReadableFont.ttf")
+        targetDir.resolve("fonts").resolve("ReadableFont.ttf").readText() shouldBe "readable-font"
+    }
+
+    @Test
     fun `setup custom buttons returns null when disabled`() {
         val result = PlayerCustomButtonBridge::class.java
             .getMethod(
