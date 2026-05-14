@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.extension.novel.runtime
 
 import eu.kanade.tachiyomi.novelsource.model.SNovel
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -121,6 +122,7 @@ class NovelJsSourceTest {
         val runtimeFactory = mockk<NovelJsRuntimeFactory>()
         val runtime = mockk<NovelJsRuntime>()
         val parsePageCalls = AtomicInteger(0)
+        val delays = mutableListOf<Long>()
 
         every { runtimeFactory.create(any()) } returns runtime
         every { runtime.evaluate(any(), any(), any()) } answers {
@@ -131,6 +133,10 @@ class NovelJsSourceTest {
             hasSettings = false,
             runtimeFactory = runtimeFactory,
             runtimeOverride = NovelPluginRuntimeOverride(pluginId = "jaomix"),
+            chapterRequestDelay = { delayMs ->
+                delays.add(delayMs)
+                Unit
+            },
         )
         val novel = SNovel.create().apply {
             url = "/novel"
@@ -143,6 +149,46 @@ class NovelJsSourceTest {
 
         chapters.size shouldBe 3
         chapters.map { it.name } shouldBe listOf("Ch 3", "Ch 2", "Ch 1")
+        parsePageCalls.get() shouldBe 2
+        delays.size shouldBe 2
+        delays.all { it > 0L } shouldBe true
+    }
+
+    @Test
+    fun `getChapterList retries jaomix parsePage after a transient empty response`() {
+        val runtimeFactory = mockk<NovelJsRuntimeFactory>()
+        val runtime = mockk<NovelJsRuntime>()
+        val parsePageCalls = AtomicInteger(0)
+        val delays = mutableListOf<Long>()
+
+        every { runtimeFactory.create(any()) } returns runtime
+        every { runtime.evaluate(any(), any(), any()) } answers {
+            evaluateJaomixRetryScript(firstArg(), parsePageCalls)
+        }
+
+        val source = createSource(
+            hasSettings = false,
+            runtimeFactory = runtimeFactory,
+            runtimeOverride = NovelPluginRuntimeOverride(pluginId = "jaomix"),
+            chapterRequestDelay = { delayMs ->
+                delays.add(delayMs)
+                Unit
+            },
+        )
+        val novel = SNovel.create().apply {
+            url = "/novel"
+            title = "Novel"
+        }
+
+        val chapters = kotlinx.coroutines.runBlocking {
+            source.getChapterList(novel)
+        }
+
+        chapters.size shouldBe 3
+        chapters.map { it.name } shouldBe listOf("Ch 3", "Ch 2", "Ch 1")
+        parsePageCalls.get() shouldBe 3
+        delays.size shouldBe 3
+        delays[1] shouldBeGreaterThan delays[0]
     }
 
     @Test
@@ -213,6 +259,7 @@ class NovelJsSourceTest {
         hasSettings: Boolean,
         runtimeFactory: NovelJsRuntimeFactory = mockk(relaxed = true),
         runtimeOverride: NovelPluginRuntimeOverride = NovelPluginRuntimeOverride(pluginId = "test-plugin"),
+        chapterRequestDelay: suspend (Long) -> Unit = {},
     ): NovelJsSource {
         val plugin = NovelPlugin.Installed(
             id = runtimeOverride.pluginId,
@@ -243,6 +290,7 @@ class NovelJsSourceTest {
                 keyValueStore = keyValueStore,
                 json = json,
             ),
+            chapterRequestDelay = chapterRequestDelay,
         )
     }
 
@@ -399,6 +447,85 @@ class NovelJsSourceTest {
                         }
                     """.trimIndent()
                     1 -> """
+                        {
+                            "chapters": [
+                                {
+                                    "name": "Ch 2",
+                                    "path": "/c2",
+                                    "chapterNumber": 2
+                                }
+                            ]
+                        }
+                    """.trimIndent()
+                    else -> """
+                        {
+                            "chapters": [
+                                {
+                                    "name": "Ch 3",
+                                    "path": "/c3",
+                                    "chapterNumber": 3
+                                }
+                            ]
+                        }
+                    """.trimIndent()
+                }
+            }
+
+            // Polling: setup script with wrapped plugin method call
+            script.contains("(function()") && script.contains("__plugin.parseNovel") -> {
+                null
+            }
+            script.contains("(function()") && script.contains("__plugin.parsePage") -> {
+                parsePageCalls.incrementAndGet()
+                null
+            }
+            script.contains("(function()") -> null
+
+            else -> null
+        }
+    }
+
+    private fun evaluateJaomixRetryScript(
+        script: String,
+        parsePageCalls: AtomicInteger,
+    ): Any? {
+        return when {
+            script.contains("Array.isArray(__plugin && __plugin.settings)") -> false
+            script.contains("JSON.stringify(__plugin.settings || [])") -> "[]"
+            script.contains("typeof __plugin.parsePage") -> true
+            script.contains("typeof __plugin.resolveUrl") -> false
+            script.contains("typeof __plugin.fetchImage") -> false
+
+            // Polling: drain job queue
+            script.contains("__drainJobs") -> null
+
+            // Polling: cleanup
+            script.contains("delete globalThis") -> null
+
+            // Polling: done check
+            script.startsWith("globalThis.__d_") -> true
+
+            // Polling: error read - keep this path clean so the test exercises an empty
+            // page response rather than an exception-only retry.
+            script.startsWith("globalThis.__e_") -> null
+
+            // Polling: result read
+            script.startsWith("globalThis.__r_") -> {
+                when (parsePageCalls.get()) {
+                    0 -> """
+                        {
+                            "totalPages": 3,
+                            "chapters": [
+                                {
+                                    "name": "Ch 1",
+                                    "path": "/c1",
+                                    "chapterNumber": 1
+                                }
+                            ]
+                        }
+                    """.trimIndent()
+                    1 -> "[]"
+                    2 -> """
                         {
                             "chapters": [
                                 {

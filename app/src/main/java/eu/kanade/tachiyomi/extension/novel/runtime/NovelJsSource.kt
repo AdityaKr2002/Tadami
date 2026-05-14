@@ -19,6 +19,7 @@ import eu.kanade.tachiyomi.source.novel.NovelPluginImageSource
 import eu.kanade.tachiyomi.source.novel.NovelSiteSource
 import eu.kanade.tachiyomi.source.novel.NovelWebUrlSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -49,6 +50,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Base64
+import kotlin.random.Random
 
 class NovelJsSource internal constructor(
     private val plugin: NovelPlugin.Installed,
@@ -60,6 +62,9 @@ class NovelJsSource internal constructor(
     private val resultNormalizer: NovelPluginResultNormalizer,
     private val runtimeOverride: NovelPluginRuntimeOverride,
     private val settingsBridge: NovelPluginSettingsBridge,
+    private val chapterRequestDelay: suspend (Long) -> Unit = { delayMs ->
+        if (delayMs > 0L) delay(delayMs)
+    },
 ) : NovelCatalogueSource,
     NovelSiteSource,
     NovelWebUrlSource,
@@ -723,6 +728,8 @@ class NovelJsSource internal constructor(
         settingsSchema = emptyList()
         settingsBridge.clearSettingsSchema()
         capabilities = null
+        settingsDiscoveryAttempted = false
+        cachedHasSettings = false
     }
 
     private fun loadFiltersLocked(): NovelFilterList {
@@ -867,7 +874,8 @@ class NovelJsSource internal constructor(
             )
             return result as? String ?: ""
         }
-        val maxCycles = (timeoutMs / 50L).toInt().coerceIn(1, 600)
+        val pollSleepMs = 10L
+        val maxCycles = ((timeoutMs + pollSleepMs - 1L) / pollSleepMs).toInt().coerceIn(1, 3_000)
         return callPluginPolling(runtime, functionName, maxCycles = maxCycles, args = args.asList())
     }
 
@@ -1641,11 +1649,12 @@ class NovelJsSource internal constructor(
         if (pages.isEmpty() || capabilities?.hasParsePage != true) return emptyList()
         val collected = mutableListOf<ParsedPluginChapter>()
         for (page in pages) {
-            val payload = mutex.withLock {
-                callPlugin(runtime, "parsePage", toJsString(novelPath), toJsString(page.toString()))
+            val pageResult = if (isJaomixPlugin()) {
+                parseSinglePageWithRetry(runtime, novelPath, page)
+            } else {
+                parseSinglePageOnce(runtime, novelPath, page)
             }
-            val pageResult = NovelJsPayloadParser.parsePage(json, payload) ?: continue
-            collected.addAll(pageResult.chapters)
+            collected.addAll(pageResult?.chapters.orEmpty())
         }
         return collected
     }
@@ -1700,10 +1709,57 @@ class NovelJsSource internal constructor(
         pageNumber: Int,
     ): ParsedPluginPage? {
         if (capabilities?.hasParsePage != true) return null
+        return if (isJaomixPlugin()) {
+            parseSinglePageWithRetry(runtime, novelPath, pageNumber)
+        } else {
+            parseSinglePageOnce(runtime, novelPath, pageNumber)
+        }
+    }
+
+    private suspend fun parseSinglePageOnce(
+        runtime: NovelJsRuntime,
+        novelPath: String,
+        pageNumber: Int,
+    ): ParsedPluginPage? {
         val payload = mutex.withLock {
             callPlugin(runtime, "parsePage", toJsString(novelPath), toJsString(pageNumber.toString()))
         }
         return NovelJsPayloadParser.parsePage(json, payload)
+    }
+
+    private suspend fun parseSinglePageWithRetry(
+        runtime: NovelJsRuntime,
+        novelPath: String,
+        pageNumber: Int,
+    ): ParsedPluginPage? {
+        if (capabilities?.hasParsePage != true) return null
+
+        var attempt = 0
+        var lastFailure: Throwable? = null
+        while (attempt < JAOMIX_PARSE_PAGE_MAX_ATTEMPTS) {
+            val delayMs = jaomixParsePageDelayMs(attempt)
+            chapterRequestDelay(delayMs)
+
+            try {
+                val pageResult = parseSinglePageOnce(runtime, novelPath, pageNumber)
+                if (pageResult?.chapters?.isNotEmpty() == true) {
+                    return pageResult
+                }
+                lastFailure = RuntimeException(
+                    "Empty jaomix parsePage response for page=$pageNumber attempt=${attempt + 1}",
+                )
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                lastFailure = error
+            }
+
+            attempt++
+        }
+
+        throw RuntimeException(
+            "Failed to fetch jaomix parsePage page=$pageNumber after $JAOMIX_PARSE_PAGE_MAX_ATTEMPTS attempts",
+            lastFailure,
+        )
     }
 
     private fun isNovelUpdatesPlugin(): Boolean {
@@ -1747,6 +1803,7 @@ class NovelJsSource internal constructor(
         private const val LOG_TAG = "NovelJsSource"
         private const val FETCH_IMAGE_RUNTIME_TIMEOUT_MS = 15_000L
         private const val PARSE_NOVEL_TIMEOUT_MS = 30_000L
+        private const val JAOMIX_PARSE_PAGE_MAX_ATTEMPTS = 9
     }
 
     private enum class WuxiaworldSort(val value: String) {
@@ -1812,6 +1869,16 @@ class NovelJsSource internal constructor(
                 2 -> WuxiaworldStatus.Finished
                 else -> WuxiaworldStatus.All
             }
+        }
+    }
+
+    private fun jaomixParsePageDelayMs(attempt: Int): Long {
+        return if (attempt == 0) {
+            120L + Random.nextLong(0L, 120L)
+        } else {
+            val backoff = (1_000L shl (attempt - 1)).coerceAtMost(300_000L)
+            val jitter = (backoff / 4L).coerceIn(250L, 5_000L)
+            backoff + Random.nextLong(0L, jitter)
         }
     }
 }
