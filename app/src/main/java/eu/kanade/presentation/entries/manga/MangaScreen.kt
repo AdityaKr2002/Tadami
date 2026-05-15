@@ -132,6 +132,7 @@ fun MangaScreen(
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
     onEditCategoryClicked: (() -> Unit)?,
     onEditFetchIntervalClicked: (() -> Unit)?,
+    onEditNotesClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
 
     // For bottom action menu
@@ -196,6 +197,7 @@ fun MangaScreen(
             onDownloadActionClicked = onDownloadActionClicked,
             onEditCategoryClicked = onEditCategoryClicked,
             onEditFetchIntervalClicked = onEditFetchIntervalClicked,
+            onEditNotesClicked = onEditNotesClicked,
             onMigrateClicked = onMigrateClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,

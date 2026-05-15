@@ -85,11 +85,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.domain.entries.novel.interactor.UpdateNovel
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.NavigatorAdaptiveSheet
 import eu.kanade.presentation.entries.EditCoverAction
+import eu.kanade.presentation.entries.components.aurora.AuroraNoteEditorDialog
 import eu.kanade.presentation.entries.novel.NovelChapterSettingsDialog
 import eu.kanade.presentation.entries.novel.NovelScreen
+import eu.kanade.presentation.entries.novel.NovelTranslationBatchSheet
 import eu.kanade.presentation.entries.novel.TranslatedDownloadOptionsDialog
 import eu.kanade.presentation.entries.novel.components.NovelCoverDialog
 import eu.kanade.presentation.entries.novel.components.NovelTranslatedDownloadFormatSelector
@@ -119,6 +122,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import logcat.logcat
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.domain.entries.novel.model.NovelUpdate
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -140,6 +145,7 @@ class NovelScreen(
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current
+        val updateNovel = remember { Injekt.get<UpdateNovel>() }
         val screenModel = rememberScreenModel {
             NovelScreenModel(lifecycleOwner.lifecycle, novelId)
         }
@@ -168,6 +174,7 @@ class NovelScreen(
         var translatedOptionsChapterId by remember { mutableStateOf<Long?>(null) }
         var showEpubExportDialog by remember { mutableStateOf(false) }
         var epubExportProgress by remember { mutableStateOf<NovelEpubExportProgress?>(null) }
+        var showNotesDialog by remember { mutableStateOf(false) }
         val epubExportPreferences = screenModel.getEpubExportPreferences()
         BackHandler(enabled = screenModel.isAnyChapterSelected) {
             screenModel.toggleAllSelection(false)
@@ -379,6 +386,9 @@ class NovelScreen(
             isReading = isReading,
             onToggleFavorite = screenModel::toggleFavorite,
             onEditCategoryClicked = screenModel::showChangeCategoryDialog.takeIf { successState.novel.favorite },
+            onEditNotesClicked = {
+                showNotesDialog = true
+            },
             onRefresh = screenModel::refreshChapters,
             onSearch = { query, global ->
                 coroutineScope.launch {
@@ -440,6 +450,11 @@ class NovelScreen(
             onChapterTranslateClick = { chapterId ->
                 if (isTranslatorEnabled) {
                     screenModel.addToTranslationQueue(chapterId)
+                }
+            },
+            onChapterTranslateLongClick = { chapterId ->
+                if (isTranslatorEnabled) {
+                    screenModel.showTranslationBatchDialog(chapterId)
                 }
             },
             onChapterTranslatedDownloadClick = { chapterId ->
@@ -575,6 +590,23 @@ class NovelScreen(
                         )
                     }
                     showTranslatedChapterPickerDialog = false
+                },
+            )
+        }
+
+        if (showNotesDialog) {
+            AuroraNoteEditorDialog(
+                initialText = successState.novel.notes,
+                onDismissRequest = { showNotesDialog = false },
+                onSave = { notes ->
+                    coroutineScope.launchIO {
+                        updateNovel.await(
+                            NovelUpdate(
+                                id = successState.novel.id,
+                                notes = notes,
+                            ),
+                        )
+                    }
                 },
             )
         }
@@ -735,6 +767,27 @@ class NovelScreen(
                     ),
                     enableSwipeDismiss = { it.lastItem is MangaTrackInfoDialogHomeScreen },
                     onDismissRequest = screenModel::dismissDialog,
+                )
+            }
+            is NovelScreenModel.Dialog.TranslationBatchSheet -> {
+                val anchorChapter = successState.chapters.find { it.id == dialog.anchorChapterId }
+                NovelTranslationBatchSheet(
+                    onDismissRequest = screenModel::dismissDialog,
+                    chapterTitle = anchorChapter?.name.orEmpty(),
+                    anchorChapterId = dialog.anchorChapterId,
+                    chapters = successState.processedChapters,
+                    selectedChapterIds = successState.selectedChapterIds,
+                    downloadedChapterIds = successState.downloadedChapterIds,
+                    onStartBatch = { scope, limit, rangeStart, rangeEnd, forceRetranslate ->
+                        screenModel.enqueueTranslationBatch(
+                            anchorChapterId = dialog.anchorChapterId,
+                            scope = scope,
+                            limit = limit,
+                            rangeStart = rangeStart,
+                            rangeEnd = rangeEnd,
+                            forceRetranslate = forceRetranslate,
+                        )
+                    },
                 )
             }
             NovelScreenModel.Dialog.FullCover -> {

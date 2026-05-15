@@ -25,6 +25,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.core.util.ifMangaSourcesLoaded
+import eu.kanade.domain.entries.manga.interactor.UpdateManga
 import eu.kanade.domain.entries.manga.model.hasCustomCover
 import eu.kanade.domain.entries.manga.model.toSManga
 import eu.kanade.domain.ui.UiPreferences
@@ -34,6 +35,7 @@ import eu.kanade.presentation.entries.EditCoverAction
 import eu.kanade.presentation.entries.components.AuthRequiredDialog
 import eu.kanade.presentation.entries.components.DeleteItemsDialog
 import eu.kanade.presentation.entries.components.SetIntervalDialog
+import eu.kanade.presentation.entries.components.aurora.AuroraNoteEditorDialog
 import eu.kanade.presentation.entries.manga.ChapterSettingsDialog
 import eu.kanade.presentation.entries.manga.DuplicateMangaDialog
 import eu.kanade.presentation.entries.manga.MangaScreen
@@ -65,9 +67,11 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.entries.manga.model.Manga
+import tachiyomi.domain.entries.manga.model.MangaUpdate
 import tachiyomi.domain.items.chapter.model.Chapter
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.LoadingScreen
@@ -97,6 +101,7 @@ class MangaScreen(
         val scope = rememberCoroutineScope()
         val lifecycleOwner = LocalLifecycleOwner.current
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val updateManga = remember { Injekt.get<UpdateManga>() }
         val screenModel =
             rememberScreenModel { MangaScreenModel(context, lifecycleOwner.lifecycle, mangaId, fromSource) }
 
@@ -110,6 +115,7 @@ class MangaScreen(
 
         val successState = state as MangaScreenModel.State.Success
         val isHttpSource = remember { successState.source is HttpSource }
+        var showNotesDialog by remember { mutableStateOf(false) }
         val showScanlatorSelector = successState.showScanlatorSelector &&
             shouldShowMangaScanlatorSelector(
                 isPreferenceEnabled = showMangaScanlatorBranches,
@@ -184,6 +190,9 @@ class MangaScreen(
             onEditCategoryClicked = screenModel::showChangeCategoryDialog.takeIf { successState.manga.favorite },
             onEditFetchIntervalClicked = screenModel::showSetMangaFetchIntervalDialog.takeIf {
                 successState.manga.favorite
+            },
+            onEditNotesClicked = {
+                showNotesDialog = true
             },
             onMigrateClicked = {
                 navigator.push(MigrateMangaSearchScreen(successState.manga.id))
@@ -336,6 +345,23 @@ class MangaScreen(
                 excludedScanlators = successState.excludedScanlators,
                 onDismissRequest = { showScanlatorsDialog = false },
                 onConfirm = screenModel::setExcludedScanlators,
+            )
+        }
+
+        if (showNotesDialog) {
+            AuroraNoteEditorDialog(
+                initialText = successState.manga.notes,
+                onDismissRequest = { showNotesDialog = false },
+                onSave = { notes ->
+                    scope.launchIO {
+                        updateManga.await(
+                            MangaUpdate(
+                                id = successState.manga.id,
+                                notes = notes,
+                            ),
+                        )
+                    }
+                },
             )
         }
     }

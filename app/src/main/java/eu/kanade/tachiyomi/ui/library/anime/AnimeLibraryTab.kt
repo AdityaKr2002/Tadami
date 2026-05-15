@@ -20,10 +20,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,11 +32,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -64,6 +62,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -81,6 +81,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -513,12 +515,19 @@ data object AnimeLibraryTab : Tab {
                     initialPage = animeCategoryIndex,
                     pageCount = { state.categories.size },
                 )
+                val isProgrammaticScroll = remember { mutableStateOf(false) }
+                // When pager changes from user swipe → sync to model
                 LaunchedEffect(pagerState.currentPage) {
-                    screenModel.activeCategoryIndex = pagerState.currentPage
+                    if (!isProgrammaticScroll.value) {
+                        screenModel.activeCategoryIndex = pagerState.currentPage
+                    }
                 }
+                // When model changes from tap → animate pager
                 LaunchedEffect(animeCategoryIndex) {
-                    if (!pagerState.isScrollInProgress && animeCategoryIndex != pagerState.currentPage) {
+                    if (animeCategoryIndex != pagerState.currentPage) {
+                        isProgrammaticScroll.value = true
                         pagerState.animateScrollToPage(animeCategoryIndex)
+                        isProgrammaticScroll.value = false
                     }
                 }
                 HorizontalPager(
@@ -565,12 +574,17 @@ data object AnimeLibraryTab : Tab {
                     initialPage = mangaCategoryIndex,
                     pageCount = { mangaState.categories.size },
                 )
+                val isProgrammaticScroll = remember { mutableStateOf(false) }
                 LaunchedEffect(pagerState.currentPage) {
-                    mangaScreenModel.activeCategoryIndex = pagerState.currentPage
+                    if (!isProgrammaticScroll.value) {
+                        mangaScreenModel.activeCategoryIndex = pagerState.currentPage
+                    }
                 }
                 LaunchedEffect(mangaCategoryIndex) {
-                    if (!pagerState.isScrollInProgress && mangaCategoryIndex != pagerState.currentPage) {
+                    if (mangaCategoryIndex != pagerState.currentPage) {
+                        isProgrammaticScroll.value = true
                         pagerState.animateScrollToPage(mangaCategoryIndex)
+                        isProgrammaticScroll.value = false
                     }
                 }
                 HorizontalPager(
@@ -651,12 +665,17 @@ data object AnimeLibraryTab : Tab {
                     initialPage = novelCategoryIndex,
                     pageCount = { novelCategories.size },
                 )
+                val isProgrammaticScroll = remember { mutableStateOf(false) }
                 LaunchedEffect(pagerState.currentPage) {
-                    novelScreenModel.activeCategoryIndex = pagerState.currentPage
+                    if (!isProgrammaticScroll.value) {
+                        novelScreenModel.activeCategoryIndex = pagerState.currentPage
+                    }
                 }
                 LaunchedEffect(novelCategoryIndex) {
-                    if (!pagerState.isScrollInProgress && novelCategoryIndex != pagerState.currentPage) {
+                    if (novelCategoryIndex != pagerState.currentPage) {
+                        isProgrammaticScroll.value = true
                         pagerState.animateScrollToPage(novelCategoryIndex)
+                        isProgrammaticScroll.value = false
                     }
                 }
                 HorizontalPager(
@@ -1876,10 +1895,50 @@ private fun AuroraLibraryCategoryTabs(
     val selectedTabBorderColor = remember(colors) { resolveAuroraTabSelectionBorderColor(colors) }
     val menuBorderBrush = remember(colors) { auroraMenuRimLightBrush(colors) }
 
+    val scrollState = rememberScrollState()
+    val tabWidths = remember { mutableMapOf<Int, Int>() }
+    var containerWidthPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+
+    // Auto-scroll to center the selected category (except first two which stay at start).
+    // Keys: selection change, categories change, or container laid out (first time / resize).
+    LaunchedEffect(coercedSelected, categories.size, containerWidthPx) {
+        if (containerWidthPx <= 0) return@LaunchedEffect
+
+        if (coercedSelected <= 1) {
+            if (scrollState.value != 0) {
+                scrollState.animateScrollTo(0, animationSpec = tween(durationMillis = 350))
+            }
+            return@LaunchedEffect
+        }
+
+        val spacingPx = with(density) { 6.dp.toPx() }
+        val leftPaddingPx = with(density) { 6.dp.toPx() }
+        val tabContentWidth = tabWidths[coercedSelected] ?: 0
+        if (tabContentWidth == 0) return@LaunchedEffect
+
+        // tabWidths from onGloballyPositioned measure content only (no padding).
+        // Each tab occupies contentWidth + 14dp left + 14dp right (= 28dp total).
+        val tabPaddingTotalPx = with(density) { 14.dp.toPx() * 2 }
+        val accumulatedWidth = (0 until coercedSelected).sumOf {
+            (tabWidths[it] ?: 0) + tabPaddingTotalPx.toInt()
+        }
+        val currentTabFullWidth = tabContentWidth + tabPaddingTotalPx.toInt()
+        val numSpacers = coercedSelected
+
+        val tabCenter =
+            leftPaddingPx + accumulatedWidth + numSpacers * spacingPx + currentTabFullWidth / 2f
+        val targetScroll =
+            (tabCenter - containerWidthPx / 2f).coerceAtLeast(0f).toInt()
+
+        if (scrollState.value != targetScroll) {
+            scrollState.animateScrollTo(targetScroll, animationSpec = tween(durationMillis = 350))
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
             .then(
                 if (isLightTheme) {
                     Modifier
@@ -1911,14 +1970,15 @@ private fun AuroraLibraryCategoryTabs(
         },
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        LazyRow(
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { containerWidthPx = it.width }
+                .horizontalScroll(scrollState)
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
         ) {
-            itemsIndexed(
-                items = categories,
-                key = { _, category -> category.id },
-            ) { index, category ->
+            categories.forEachIndexed { index, category ->
                 val isSelected = index == coercedSelected
                 val badgeCount = getCountForCategory(category)
                 val tabColors = auroraLibraryCategoryTabColors(
@@ -1937,60 +1997,65 @@ private fun AuroraLibraryCategoryTabs(
                     label = "tabBorder",
                 )
 
-                Row(
-                    modifier = Modifier
-                        .clip(tabShape)
-                        .background(
-                            brush = if (isSelected && colors.eInkProfile != EInkProfile.MONOCHROME) {
-                                selectedTabBrush
-                            } else {
-                                Brush.linearGradient(
-                                    colors = listOf(tabColors.tabBackground, tabColors.tabBackground),
-                                )
-                            },
-                            shape = tabShape,
-                        )
-                        .then(
-                            if (isSelected || animatedBorderColor.alpha > 0f) {
-                                Modifier.border(1.dp, animatedBorderColor, tabShape)
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .clickable {
-                            appHaptics.tap()
-                            onCategorySelected(index)
-                        }
-                        .padding(horizontal = 14.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = category.visualName,
-                        color = tabColors.tabTextColor,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-
-                    if (badgeCount != null) {
-                        Box(
-                            modifier = Modifier
-                                .size(18.dp)
-                                .background(
-                                    color = tabColors.badgeBackground,
-                                    shape = CircleShape,
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = formatAuroraLibraryCategoryBadgeCount(badgeCount),
-                                color = tabColors.badgeTextColor,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
+                key(category.id) {
+                    Row(
+                        modifier = Modifier
+                            .clip(tabShape)
+                            .background(
+                                brush = if (isSelected && colors.eInkProfile != EInkProfile.MONOCHROME) {
+                                    selectedTabBrush
+                                } else {
+                                    Brush.linearGradient(
+                                        colors = listOf(tabColors.tabBackground, tabColors.tabBackground),
+                                    )
+                                },
+                                shape = tabShape,
                             )
+                            .then(
+                                if (isSelected || animatedBorderColor.alpha > 0f) {
+                                    Modifier.border(1.dp, animatedBorderColor, tabShape)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .clickable {
+                                appHaptics.tap()
+                                onCategorySelected(index)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 9.dp)
+                            .onGloballyPositioned { coordinates ->
+                                tabWidths[index] = coordinates.size.width
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = category.visualName,
+                            color = tabColors.tabTextColor,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+
+                        if (badgeCount != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .background(
+                                        color = tabColors.badgeBackground,
+                                        shape = CircleShape,
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = formatAuroraLibraryCategoryBadgeCount(badgeCount),
+                                    color = tabColors.badgeTextColor,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                )
+                            }
                         }
                     }
                 }

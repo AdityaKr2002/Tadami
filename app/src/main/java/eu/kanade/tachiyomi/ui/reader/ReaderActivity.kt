@@ -60,6 +60,7 @@ import eu.kanade.presentation.reader.ReaderChapterListSheet
 import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
+import eu.kanade.presentation.reader.appbars.BottomBarButtonFlags
 import eu.kanade.presentation.reader.appbars.ReaderAppBars
 import eu.kanade.presentation.reader.components.AutoScrollActionFab
 import eu.kanade.presentation.reader.manga.MangaSeriesInterstitialOverlay
@@ -454,6 +455,14 @@ class ReaderActivity : BaseActivity() {
                     val navigatorHeight by readerPreferences.navigatorHeight().collectAsState()
                     val navigatorCornerRadius by readerPreferences.navigatorCornerRadius().collectAsState()
                     val navigatorShowTickMarks by readerPreferences.navigatorShowTickMarks().collectAsState()
+
+                    // Bottom bar button visibility preferences
+                    val showBottomBarReadingMode by readerPreferences.showBottomBarReadingMode().collectAsState()
+                    val showBottomBarOrientation by readerPreferences.showBottomBarOrientation().collectAsState()
+                    val showBottomBarCropBorders by readerPreferences.showBottomBarCropBorders().collectAsState()
+                    val showBottomBarChapterList by readerPreferences.showBottomBarChapterList().collectAsState()
+                    val showBottomBarSettings by readerPreferences.showBottomBarSettings().collectAsState()
+
                     val showAutoScrollFloatingButton by
                         readerPreferences.showAutoScrollFloatingButton().collectAsState()
                     val pageActionButtonColorPref = remember { readerPreferences.pageActionButtonColor() }
@@ -540,6 +549,15 @@ class ReaderActivity : BaseActivity() {
                         },
                         isAutoScrollExpanded = state.isAutoScrollExpanded,
                         onToggleExpand = viewModel::toggleAutoScrollExpand,
+
+                        // Bottom bar button visibility
+                        visibleButtons = BottomBarButtonFlags(
+                            readingMode = showBottomBarReadingMode,
+                            orientation = showBottomBarOrientation,
+                            cropBorders = showBottomBarCropBorders,
+                            chapterList = showBottomBarChapterList,
+                            settings = showBottomBarSettings,
+                        ),
 
                         // Navigator customization options
                         showNavigator = showNavigator,

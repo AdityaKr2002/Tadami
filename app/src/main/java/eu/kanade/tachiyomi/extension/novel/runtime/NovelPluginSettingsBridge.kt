@@ -58,6 +58,31 @@ class NovelPluginSettingsBridge(
         )
     }
 
+    /**
+     * Writes a string setting value into the plugin's **storage** namespace
+     * (key prefix `storage:`) in addition to the settings namespace (`setting:`).
+     *
+     * This is required for plugins (e.g. Komga) that read their configuration
+     * at class-initialisation time via `storage.get(key)` rather than through
+     * a dedicated settings-read API.  Without this sync, changing a setting in
+     * the UI has no effect on subsequent `storage.get()` calls inside the plugin
+     * runtime.
+     *
+     * Call [clearInMemoryCaches][NovelJsSource.clearInMemoryCaches] after this
+     * so the plugin is re-initialised with the new storage value.
+     */
+    fun syncSettingToStorage(key: String, value: String) {
+        storeStorageValue(key, JsonPrimitive(value))
+    }
+
+    /**
+     * Writes a multi-value setting into the plugin's **storage** namespace.
+     * @see syncSettingToStorage
+     */
+    fun syncSettingValuesToStorage(key: String, values: Collection<String>) {
+        storeStorageValue(key, JsonArray(values.map { JsonPrimitive(it) }))
+    }
+
     fun getSetting(key: String): String? {
         return readSettingValue(key)?.let { displayValue(it) }
     }
@@ -120,6 +145,28 @@ class NovelPluginSettingsBridge(
 
     private fun namespacedKey(key: String): String {
         return SETTING_PREFIX + key
+    }
+
+    /**
+     * Writes [value] to the plugin-scoped **storage** namespace (`storage:<key>`).
+     *
+     * The serialisation format mirrors what the JS `storage.set(key, value)` call
+     * produces — a JSON object with `value`, `created`, and `expires` fields — so
+     * that `storage.get(key)` in the plugin runtime transparently reads the updated
+     * value without any JS-side changes.
+     */
+    private fun storeStorageValue(key: String, value: JsonElement) {
+        keyValueStore.set(
+            pluginId,
+            STORAGE_PREFIX + key,
+            json.encodeToString(
+                StoredSettingPayload.serializer(),
+                StoredSettingPayload(
+                    value = value,
+                    created = System.currentTimeMillis(),
+                ),
+            ),
+        )
     }
 
     private fun storeSettingValue(key: String, value: JsonElement) {
@@ -239,6 +286,13 @@ class NovelPluginSettingsBridge(
 
     companion object {
         private const val SETTING_PREFIX = "setting:"
+
+        /**
+         * Key prefix used by the JS `storage` module (backed by
+         * [NativeApiImpl.storageGet]/[storageSet] in [NovelJsRuntimeFactory]).
+         * Must stay in sync with the `storageKey()` helper in that class.
+         */
+        private const val STORAGE_PREFIX = "storage:"
     }
 }
 

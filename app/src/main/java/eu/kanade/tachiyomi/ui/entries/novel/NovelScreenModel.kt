@@ -40,12 +40,13 @@ import eu.kanade.tachiyomi.data.export.novel.NovelEpubExportOptions
 import eu.kanade.tachiyomi.data.export.novel.NovelEpubExportProgress
 import eu.kanade.tachiyomi.data.export.novel.NovelEpubExporter
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.data.translation.TranslationBatchRequest
 import eu.kanade.tachiyomi.data.translation.TranslationJob
 import eu.kanade.tachiyomi.data.translation.TranslationQueueManager
 import eu.kanade.tachiyomi.data.translation.TranslationStatus
+import eu.kanade.tachiyomi.data.translation.toTranslationQueueProfileSnapshot
 import eu.kanade.tachiyomi.extension.novel.runtime.NovelJsSource
 import eu.kanade.tachiyomi.novelsource.NovelSource
-import eu.kanade.tachiyomi.novelsource.model.SNovelChapter
 import eu.kanade.tachiyomi.source.novel.NovelSiteSource
 import eu.kanade.tachiyomi.source.novel.NovelWebUrlSource
 import eu.kanade.tachiyomi.ui.entries.mergeNewItemIds
@@ -55,7 +56,6 @@ import eu.kanade.tachiyomi.ui.novel.resolveNovelResumeChapter
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderSettings
 import eu.kanade.tachiyomi.ui.reader.novel.translation.NovelReaderTranslationDiskCacheStore
-import eu.kanade.tachiyomi.ui.reader.novel.translation.toTranslationCacheRequirements
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -186,6 +186,9 @@ class NovelScreenModel(
     }.getOrElse { emptyFlow() },
     private val downloadQueueState:
     Flow<eu.kanade.tachiyomi.data.download.novel.NovelDownloadQueueState> = NovelDownloadQueueManager.state,
+    private val downloadCache: NovelDownloadCache? = runCatching {
+        Injekt.get<NovelDownloadCache>()
+    }.getOrNull(),
     private val resolveDownloadedChapterIds: (Novel, List<NovelChapter>) -> Set<Long> = { novel, chapters ->
         novelDownloadManager.getDownloadedChapterIds(novel, chapters)
     },
@@ -424,7 +427,7 @@ class NovelScreenModel(
             readerSettingsCache = readerSettings
             val translatedDownloadFormat = novelReaderPreferences.translatedDownloadFormat(novel.id)
             val isJaomixPagedSource = source.isJaomixPagedSource()
-            val shouldAutoRefreshNovel = !novel.initialized
+            val shouldAutoRefreshNovel = !novel.initialized || chapters.isEmpty()
             val shouldAutoRefreshChapters = chapters.isEmpty() || isJaomixPagedSource
             val currentDownloadedIds = (state.value as? State.Success)
                 ?.downloadedChapterIds
@@ -455,18 +458,10 @@ class NovelScreenModel(
                     isTranslatedDownloading = { false },
                     isTranslating = { false },
                 ),
-                chapterPageEnabled = isJaomixPagedSource,
-                chapterPageEstimatedTotal = if (isJaomixPagedSource && chapters.isNotEmpty()) {
-                    chapters.size
-                } else {
-                    0
-                },
-                chapterPageNominalSize = if (isJaomixPagedSource) chapters.size else 0,
-                chapterPageVisibleUrls = if (isJaomixPagedSource) {
-                    chapters.mapTo(mutableSetOf()) { it.url }
-                } else {
-                    emptySet()
-                },
+                chapterPageEnabled = false,
+                chapterPageEstimatedTotal = 0,
+                chapterPageNominalSize = 0,
+                chapterPageVisibleUrls = emptySet(),
                 resumeChapterId = resumeChapterId,
                 hasCompletedChapterRefresh = chapters.isNotEmpty(),
             )
@@ -728,7 +723,6 @@ class NovelScreenModel(
 
             var downloadedIds = emptySet<Long>()
 
-            val downloadCache = runCatching { Injekt.get<NovelDownloadCache>() }.getOrNull()
             val cachedIds = downloadCache?.getDownloadedChapterIds(state.novel.id)
             if (cachedIds != null) {
                 downloadedIds = cachedIds.intersect(state.chapters.map { it.id }.toSet())
@@ -819,14 +813,13 @@ class NovelScreenModel(
     ): State.Success {
         val readerSettings = novelReaderPreferences.resolveSettings(novel.source)
         readerSettingsCache = readerSettings
-        val translationCacheRequirements = readerSettings.toTranslationCacheRequirements()
+        val translatedCacheChapterIds = NovelReaderTranslationDiskCacheStore.chapterIds(readerSettings.geminiTargetLang)
         val translatedDownloadFormat = novelReaderPreferences.translatedDownloadFormat(novel.id)
         val translatedQueueChapterIds = resolveTranslatedQueueChapterIds(
             queueState = queueState,
             novelId = novel.id,
             format = translatedDownloadFormat,
         )
-        val translatedCacheChapterIds = NovelReaderTranslationDiskCacheStore.chapterIds(translationCacheRequirements)
         val translatedDownloadedIds = novelTranslatedDownloadManager.getTranslatedChapterIds(
             novel = novel,
             chapters = chapters,
@@ -1262,118 +1255,11 @@ class NovelScreenModel(
         page: Int,
         manualFetch: Boolean,
     ): Boolean {
-        val source = state.source as? NovelJsSource ?: return false
-        if (!source.isJaomixPagedPlugin()) return false
-
-        val pageResult = source.getChapterListPage(
-            novel = state.novel.toSNovel(),
-            page = page,
-        ) ?: run {
-            updateSuccessState { current ->
-                current.copy(
-                    chapterPageEnabled = true,
-                    chapterPageLoading = false,
-                )
-            }
-            return true
-        }
-
-        val pageChapters = normalizeJaomixPageChapters(pageResult.chapters)
-        logcat {
-            "Fetched jaomix chapter page for id=${state.novel.id} source=${state.source.name}, " +
-                "page=${pageResult.page}/${pageResult.totalPages}, count=${pageChapters.size}, manualFetch=$manualFetch"
-        }
-        if (isLikelyWebViewLoginRequired(state.source, state.novel, pageChapters.size)) {
-            logcat(LogPriority.WARN) {
-                "Novel ${state.novel.id} (${state.source.name}) likely requires " +
-                    "WebView login after page fetch: page=${pageResult.page}, chapters=0, descriptionBlank=true"
-            }
-        }
-
-        if (pageChapters.isNotEmpty()) {
-            val newChapters = syncNovelChaptersWithSource.await(
-                rawSourceChapters = pageChapters,
-                novel = state.novel,
-                source = state.source,
-                manualFetch = manualFetch,
-                retainMissingChapters = true,
-                sourceOrderOffset = (pageResult.page - 1L) * JAOMIX_PAGE_SOURCE_ORDER_STRIDE,
-            )
-            updateNewChapterIds(
-                addedIds = newChapters.asSequence()
-                    .filterNot { it.read }
-                    .map { it.id }
-                    .toList(),
-            )
-        }
-
-        updateSuccessState { current ->
-            current.copy(
-                chapterPageEnabled = true,
-                chapterPageCurrent = pageResult.page,
-                chapterPageTotal = pageResult.totalPages.coerceAtLeast(1),
-                chapterPageLoading = false,
-                chapterPageNominalSize = resolveJaomixNominalPageSize(
-                    currentNominalSize = current.chapterPageNominalSize,
-                    loadedPageSize = pageChapters.size,
-                ),
-                chapterPageEstimatedTotal = resolveJaomixEstimatedChapterTotal(
-                    totalPages = pageResult.totalPages.coerceAtLeast(1),
-                    currentPage = pageResult.page,
-                    loadedPageSize = pageChapters.size,
-                    currentNominalSize = current.chapterPageNominalSize,
-                ),
-                chapterPageVisibleUrls = if (pageChapters.isNotEmpty()) {
-                    pageChapters.mapTo(mutableSetOf()) { chapter -> chapter.url }
-                } else {
-                    current.chapterPageVisibleUrls
-                },
-            )
-        }
-
-        return true
+        return false
     }
 
     private fun NovelSource.isJaomixPagedSource(): Boolean {
         return (this as? NovelJsSource)?.isJaomixPagedPlugin() == true
-    }
-
-    private fun normalizeJaomixPageChapters(chapters: List<SNovelChapter>): List<SNovelChapter> {
-        if (chapters.size < 2) return chapters
-
-        val hasChapterNumbers = chapters.any { it.chapter_number > 0f }
-        return if (hasChapterNumbers) {
-            chapters.sortedWith(
-                compareBy<SNovelChapter> { it.chapter_number }
-                    .thenBy { it.name },
-            )
-        } else {
-            chapters.asReversed()
-        }
-    }
-
-    private fun resolveJaomixNominalPageSize(
-        currentNominalSize: Int,
-        loadedPageSize: Int,
-    ): Int {
-        return maxOf(currentNominalSize, loadedPageSize).coerceAtLeast(0)
-    }
-
-    private fun resolveJaomixEstimatedChapterTotal(
-        totalPages: Int,
-        currentPage: Int,
-        loadedPageSize: Int,
-        currentNominalSize: Int,
-    ): Int {
-        val safeTotalPages = totalPages.coerceAtLeast(1)
-        val nominalSize = resolveJaomixNominalPageSize(currentNominalSize, loadedPageSize)
-        if (nominalSize <= 0) return 0
-
-        return if (currentPage >= safeTotalPages) {
-            ((safeTotalPages - 1) * nominalSize + loadedPageSize).coerceAtLeast(loadedPageSize)
-        } else {
-            (safeTotalPages * nominalSize).coerceAtLeast(loadedPageSize)
-        }
     }
 
     fun toggleChapterRead(chapterId: Long) {
@@ -1895,8 +1781,9 @@ class NovelScreenModel(
         if (chapterIds.isEmpty()) return
 
         updateSuccessState { current ->
-            val translationCacheRequirements = resolveReaderSettings(current.novel.source)
-                .toTranslationCacheRequirements()
+            val translatedCacheChapterIds = NovelReaderTranslationDiskCacheStore.chapterIds(
+                resolveReaderSettings(current.novel.source).geminiTargetLang,
+            )
             val updatedChapterActionStates = current.chapterActionStates.toMutableMap()
             var changed = false
 
@@ -1904,10 +1791,7 @@ class NovelScreenModel(
                 val chapterActionState = updatedChapterActionStates[chapterId] ?: return@forEach
                 val translatedState = when {
                     isTranslating -> NovelChapterActionIconState.InProgress
-                    NovelReaderTranslationDiskCacheStore.has(
-                        chapterId = chapterId,
-                        requirements = translationCacheRequirements,
-                    ) -> NovelChapterActionIconState.Active
+                    chapterId in translatedCacheChapterIds -> NovelChapterActionIconState.Active
                     else -> NovelChapterActionIconState.Neutral
                 }
                 val updatedState = chapterActionState.copy(translateState = translatedState)
@@ -2118,6 +2002,9 @@ class NovelScreenModel(
             val novel: Novel,
             val initialSelection: ImmutableList<CheckboxState<Category>>,
         ) : Dialog
+        data class TranslationBatchSheet(
+            val anchorChapterId: Long,
+        ) : Dialog
         data object SettingsSheet : Dialog
         data object TrackSheet : Dialog
         data object FullCover : Dialog
@@ -2212,13 +2099,96 @@ class NovelScreenModel(
         updateSuccessState { it.copy(dialog = Dialog.FullCover) }
     }
 
+    fun showTranslationBatchDialog(chapterId: Long) {
+        updateSuccessState { it.copy(dialog = Dialog.TranslationBatchSheet(chapterId)) }
+    }
+
+    fun enqueueTranslationBatch(
+        anchorChapterId: Long,
+        scope: TranslationBatchScope,
+        limit: Int,
+        rangeStart: Int,
+        rangeEnd: Int,
+        forceRetranslate: Boolean,
+    ) {
+        val state = successState ?: return
+        screenModelScope.launchIO {
+            try {
+                val readerSettings = resolveReaderSettings(state.novel.source)
+                val selectedChapterIds = state.selectedChapterIds.ifEmpty { setOf(anchorChapterId) }
+                val resolvedChapterIds = resolveTranslationBatchChapterIds(
+                    scope = scope,
+                    limit = limit,
+                    chapters = state.processedChapters,
+                    selectedChapterIds = selectedChapterIds,
+                    downloadedChapterIds = state.downloadedChapterIds,
+                    rangeStart = rangeStart,
+                    rangeEnd = rangeEnd,
+                )
+                if (resolvedChapterIds.isEmpty()) {
+                    snackbarHostState.showSnackbar(
+                        message = "Для выбранного режима не нашлось глав для перевода.",
+                    )
+                    return@launchIO
+                }
+
+                val alreadyTranslatedChapterIds = resolvedChapterIds.filterTo(mutableSetOf()) { chapterId ->
+                    NovelReaderTranslationDiskCacheStore.has(
+                        chapterId = chapterId,
+                        targetLang = readerSettings.geminiTargetLang,
+                    )
+                }
+                val filteredSelection = filterTranslationBatchChapterIds(
+                    chapterIds = resolvedChapterIds,
+                    alreadyTranslatedChapterIds = alreadyTranslatedChapterIds,
+                    forceRetranslate = forceRetranslate,
+                )
+                if (filteredSelection.chapterIdsToEnqueue.isEmpty()) {
+                    snackbarHostState.showSnackbar(
+                        message = "Все выбранные главы уже переведены.",
+                    )
+                    return@launchIO
+                }
+
+                val result = translationQueueManager.enqueueTranslationBatch(
+                    TranslationBatchRequest(
+                        novelId = state.novel.id,
+                        batchToken = "",
+                        chapterIds = filteredSelection.chapterIdsToEnqueue,
+                        profileSnapshot = readerSettings.toTranslationQueueProfileSnapshot(),
+                        forceRetranslate = forceRetranslate,
+                    ),
+                )
+                if (result.enqueuedCount > 0) {
+                    TranslationJob.runImmediately(context.applicationContext)
+                    dismissDialog()
+                    val skippedText = if (filteredSelection.skippedAlreadyTranslatedCount > 0) {
+                        " Пропущено уже переведённых: ${filteredSelection.skippedAlreadyTranslatedCount}."
+                    } else {
+                        ""
+                    }
+                    snackbarHostState.showSnackbar(
+                        message = "Поставлено в очередь: ${result.enqueuedCount} глав.$skippedText",
+                    )
+                } else {
+                    snackbarHostState.showSnackbar(
+                        message = "Не удалось добавить главы в очередь.",
+                    )
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(
+                    message = "Не удалось запустить очередь перевода: ${e.message}",
+                )
+            }
+        }
+    }
+
     fun saveScrollPosition(index: Int, offset: Int) {
         updateSuccessState { it.copy(scrollIndex = index, scrollOffset = offset) }
     }
 
     companion object {
         private const val FAST_CACHE_MAX_ITEMS = 24
-        private const val JAOMIX_PAGE_SOURCE_ORDER_STRIDE = 1_000L
         private val stateCache = object : LinkedHashMap<Long, State.Success>(
             FAST_CACHE_MAX_ITEMS + 1,
             1f,
@@ -2409,7 +2379,7 @@ internal fun resolveNovelRefreshErrorMessage(
     likelyWebViewLoginRequired: Boolean,
 ): String? {
     val isConnectivityLikeError = error.message?.contains("Could not reach", ignoreCase = true) == true
-    if (likelyWebViewLoginRequired && (error is NoChaptersException || isConnectivityLikeError)) {
+    if (likelyWebViewLoginRequired && (isConnectivityLikeError || error is NoChaptersException)) {
         return null
     }
     return when (error) {

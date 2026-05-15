@@ -119,6 +119,7 @@
     <string name="action_open_in_web_view">Open in WebView</string>
     <string name="action_web_view" translatable="false">WebView</string>
     <string name="action_migrate">Migrate</string>
+    <string name="action_notes">Notes</string>
     <string name="action_display_mode">Display mode</string>
     <string name="pref_library_display_mode_per_media">Separate display mode for anime, manga, and novels</string>
     <string name="pref_aurora_library_card_style">Aurora card style</string>
@@ -412,6 +413,7 @@
     <string name="pref_double_tap_zoom">Double tap to zoom</string>
     <string name="pref_cutout_short">Show content in cutout area</string>
     <string name="pref_page_transitions">Animate page transitions</string>
+    <string name="pref_category_eink">E-ink</string>
     <string name="pref_flash_page">Flash on page change</string>
     <string name="pref_flash_page_summ">Reduces ghosting on e-ink displays</string>
     <string name="pref_flash_duration">Flash duration</string>
@@ -541,6 +543,14 @@
     <string name="navigator_height_large">Large</string>
     <string name="pref_use_theme_color">Use theme color</string>
     <string name="pref_navigator_show_tick_marks">Show page markers</string>
+
+      <!-- Reader bottom bar section -->
+    <string name="pref_bottom_bar">Reader toolbar</string>
+    <string name="pref_bottom_bar_show_reading_mode">Reading mode</string>
+    <string name="pref_bottom_bar_show_orientation">Rotation</string>
+    <string name="pref_bottom_bar_show_crop_borders">Crop borders</string>
+    <string name="pref_bottom_bar_show_chapter_list">Chapter list</string>
+    <string name="pref_bottom_bar_show_settings">Settings</string>
 
       <!-- Downloads section -->
     <string name="pref_category_delete_chapters">Delete chapters</string>
@@ -922,6 +932,14 @@
     <string name="migration_selected_sources">Selected</string>
     <string name="migration_available_sources">Available</string>
     <string name="migration_extra_search_query">Extra search query</string>
+    <string name="migration_extra">Extra settings</string>
+    <string name="migration_hide_not_found">Hide not found</string>
+    <string name="migration_only_new_chapters">Only show entries with new chapters</string>
+    <string name="migration_skip_next_time">Skip this step next time</string>
+    <string name="migration_extra_search_param">Auto-add metadata to search</string>
+    <string name="migration_strategy">Source strategy</string>
+    <string name="migration_strategy_first_source">First source</string>
+    <string name="migration_strategy_most_chapters">Most chapters</string>
     <string name="migration_hide_unmatched">Hide unmatched</string>
     <string name="migration_hide_without_updates">Hide without updates</string>
     <string name="migration_deep_search_mode">Deep search mode</string>
@@ -1192,4 +1210,24 @@
     <string name="snackbar_translation_queued">Translation queued</string>
     <string name="snackbar_translation_start_error">Failed to start translation:</string>
     <string name="notification_action_open">Open</string>
+
+    <!-- OmniBuilder -->
+    <string name="action_train_parser">⚙️ Train Parser (Builder)</string>
+    <string name="omnibuilder_title">Tadami Builder</string>
+    <string name="omnibuilder_loading">Loading page...</string>
+    <string name="omnibuilder_step_1_title">Step 1: Tap the Novel Title</string>
+    <string name="omnibuilder_step_2_title">Step 2: Tap the Cover Image</string>
+    <string name="omnibuilder_step_3_title">Step 3: Tap any Chapter Link</string>
+    <string name="omnibuilder_step_3_desc">This is mandatory to find the chapter list.</string>
+    <string name="omnibuilder_step_4_title">Step 4: Tap Pagination</string>
+    <string name="omnibuilder_step_4_desc">(e.g. 'Next' button or a Dropdown)</string>
+    <string name="omnibuilder_step_pagination_type">What kind of pagination is this?</string>
+    <string name="omnibuilder_pagination_dropdown">Dropdown</string>
+    <string name="omnibuilder_pagination_next">Next Link</string>
+    <string name="omnibuilder_review_title">Ready to save rules!</string>
+    <string name="omnibuilder_action_save">Save &amp; Finish</string>
+    <string name="omnibuilder_action_skip">Skip</string>
+    <string name="omnibuilder_action_back">Back</string>
+    <string name="omnibuilder_mode_select">Selection Mode</string>
+    <string name="omnibuilder_mode_interact">Interaction Mode</string>
 </resources>

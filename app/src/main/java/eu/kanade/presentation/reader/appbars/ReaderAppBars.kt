@@ -113,6 +113,9 @@ fun ReaderAppBars(
     onClickChapterList: () -> Unit,
     onClickSettings: () -> Unit,
 
+    // Bottom bar button visibility
+    visibleButtons: BottomBarButtonFlags = BottomBarButtonFlags(),
+
     // Navigator customization options
     showNavigator: Boolean = true,
     navigatorShowPageNumbers: Boolean = true,
@@ -449,6 +452,7 @@ fun ReaderAppBars(
                     onClickCropBorder = onClickCropBorder,
                     onClickChapterList = onClickChapterList,
                     onClickSettings = onClickSettings,
+                    visibleButtons = visibleButtons,
                 )
             }
         }

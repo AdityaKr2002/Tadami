@@ -12,7 +12,7 @@ class NovelDatabaseMigrationTest {
 
     @Test
     fun `schema version increments for narrowed novel triggers`() {
-        NovelDatabase.Schema.version shouldBe 11L
+        NovelDatabase.Schema.version shouldBe 13L
     }
 
     @Test
@@ -47,6 +47,11 @@ class NovelDatabaseMigrationTest {
         columnNames(driver, "translation_queue") shouldContain "_id"
         columnNames(driver, "translation_queue") shouldContain "chapter_id"
         columnNames(driver, "translation_queue") shouldContain "novel_id"
+        columnNames(driver, "translation_queue") shouldContain "batch_token"
+        columnNames(driver, "translation_queue") shouldContain "batch_order"
+        columnNames(driver, "translation_queue") shouldContain "profile_snapshot_json"
+        columnNames(driver, "translation_batch_state") shouldContain "batch_token"
+        columnNames(driver, "translation_batch_state") shouldContain "last_successful_chapter_id"
     }
 
     private fun createLegacyNovelVersionTables(driver: JdbcSqliteDriver) {

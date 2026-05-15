@@ -82,6 +82,7 @@ private fun Anime.toBackupAnime() =
         artist = this.artist,
         author = this.author,
         description = this.description,
+        notes = this.notes.takeIf { it.isNotBlank() },
         genre = this.genre.orEmpty(),
         status = this.status.toInt(),
         thumbnailUrl = this.thumbnailUrl,

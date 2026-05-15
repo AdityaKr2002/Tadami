@@ -16,6 +16,7 @@ data class BackupManga(
     @ProtoNumber(4) var artist: String? = null,
     @ProtoNumber(5) var author: String? = null,
     @ProtoNumber(6) var description: String? = null,
+    @ProtoNumber(111) var notes: String? = null,
     @ProtoNumber(7) var genre: List<String> = emptyList(),
     @ProtoNumber(8) var status: Int = 0,
     // thumbnailUrl is called cover in 1.x
@@ -49,6 +50,7 @@ data class BackupManga(
             artist = this@BackupManga.artist,
             author = this@BackupManga.author,
             description = this@BackupManga.description,
+            notes = this@BackupManga.notes ?: "",
             genre = this@BackupManga.genre,
             status = this@BackupManga.status.toLong(),
             rating = this@BackupManga.rating,

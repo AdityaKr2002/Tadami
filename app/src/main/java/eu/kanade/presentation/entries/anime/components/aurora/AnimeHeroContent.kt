@@ -40,6 +40,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.entries.components.aurora.AuroraNotePreviewCard
 import eu.kanade.presentation.entries.components.aurora.AuroraTitleHeroActionButton
 import eu.kanade.presentation.entries.components.aurora.resolveAuroraHeroChipBorderColor
 import eu.kanade.presentation.entries.components.aurora.resolveAuroraHeroChipContainerColor
@@ -92,6 +93,8 @@ fun AnimeHeroContent(
     ratingText: String,
     episodeCount: Int,
     statusText: String,
+    note: String,
+    onEditNotesClicked: (() -> Unit)?,
     onContinueWatching: () -> Unit,
     onDubbingClicked: (() -> Unit)?,
     selectedDubbing: String?,
@@ -252,6 +255,12 @@ fun AnimeHeroContent(
                     modifier = Modifier.weight(1.4f, fill = false),
                 )
             }
+
+            AuroraNotePreviewCard(
+                note = note,
+                onClick = onEditNotesClicked,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             Spacer(modifier = Modifier.height(4.dp))
 

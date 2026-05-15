@@ -602,9 +602,15 @@ private fun NovelReaderSettings.translationRequestConfigLog(): String {
         NovelTranslationProvider.DEEPSEEK -> {
             val presencePenalty = DEEPSEEK_DEFAULT_PRESENCE_PENALTY.toLogFloat()
             val frequencyPenalty = DEEPSEEK_DEFAULT_FREQUENCY_PENALTY.toLogFloat()
+            val reasoning = normalizeTranslationReasoningEffort(
+                provider = NovelTranslationProvider.DEEPSEEK,
+                model = deepSeekModel,
+                value = geminiReasoningEffort,
+            ) ?: "none"
             "baseUrl=${deepSeekBaseUrl.trim()}, temp=${geminiTemperature.toLogFloat()}, " +
                 "topP=${geminiTopP.toLogFloat()}, " +
                 "presencePenalty=$presencePenalty, frequencyPenalty=$frequencyPenalty, " +
+                "reasoning=$reasoning, thinking=${if (reasoning == "none") "disabled" else "enabled"}, " +
                 "stream=false"
         }
         NovelTranslationProvider.MISTRAL -> {

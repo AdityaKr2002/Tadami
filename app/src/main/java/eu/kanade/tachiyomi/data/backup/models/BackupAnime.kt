@@ -17,6 +17,7 @@ data class BackupAnime(
     @ProtoNumber(4) var artist: String? = null,
     @ProtoNumber(5) var author: String? = null,
     @ProtoNumber(6) var description: String? = null,
+    @ProtoNumber(108) var notes: String? = null,
     @ProtoNumber(7) var genre: List<String> = emptyList(),
     @ProtoNumber(8) var status: Int = 0,
     // thumbnailUrl is called cover in 1.x
@@ -57,6 +58,7 @@ data class BackupAnime(
             artist = this@BackupAnime.artist,
             author = this@BackupAnime.author,
             description = this@BackupAnime.description,
+            notes = this@BackupAnime.notes ?: "",
             genre = this@BackupAnime.genre,
             status = this@BackupAnime.status.toLong(),
             thumbnailUrl = this@BackupAnime.thumbnailUrl,

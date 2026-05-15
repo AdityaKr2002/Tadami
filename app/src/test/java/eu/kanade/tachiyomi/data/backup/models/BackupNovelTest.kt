@@ -11,8 +11,10 @@ class BackupNovelTest {
             source = 1L,
             url = "/novel",
             excludedScanlators = listOf("Team A", "Team B"),
+            notes = "Check chapter 12",
         )
 
         backup.excludedScanlators shouldBe listOf("Team A", "Team B")
+        backup.notes shouldBe "Check chapter 12"
     }
 }

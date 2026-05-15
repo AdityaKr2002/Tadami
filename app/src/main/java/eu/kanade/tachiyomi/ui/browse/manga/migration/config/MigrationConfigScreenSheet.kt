@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.browse.manga.migration.config
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -42,8 +43,10 @@ import tachiyomi.presentation.core.util.collectAsState
 
 private const val CHAPTERS = 0b00001
 private const val CATEGORIES = 0b00010
+private const val TRACKING = 0b00100
 private const val CUSTOM_COVER = 0b01000
 private const val DELETE_DOWNLOADED = 0b10000
+private const val EXTRA = 0b100000
 
 @Composable
 fun MigrationConfigScreenSheet(
@@ -92,6 +95,20 @@ fun MigrationConfigScreenSheet(
                         },
                     )
                     MigrationFlagChip(
+                        selected = migrationFlags and TRACKING != 0,
+                        label = stringResource(MR.strings.track),
+                        onClick = {
+                            preferences.migrationFlags().set(migrationFlags xor TRACKING)
+                        },
+                    )
+                    MigrationFlagChip(
+                        selected = migrationFlags and EXTRA != 0,
+                        label = stringResource(MR.strings.migration_extra),
+                        onClick = {
+                            preferences.migrationFlags().set(migrationFlags xor EXTRA)
+                        },
+                    )
+                    MigrationFlagChip(
                         selected = migrationFlags and CUSTOM_COVER != 0,
                         label = stringResource(MR.strings.custom_cover),
                         onClick = {
@@ -121,14 +138,19 @@ fun MigrationConfigScreenSheet(
                 )
 
                 MigrationSwitchItem(
-                    title = stringResource(MR.strings.migration_hide_unmatched),
+                    title = stringResource(MR.strings.migration_hide_not_found),
                     subtitle = null,
-                    preference = preferences.migrationHideUnmatched(),
+                    preference = preferences.migrationHideNotFound(),
                 )
                 MigrationSwitchItem(
-                    title = stringResource(MR.strings.migration_hide_without_updates),
+                    title = stringResource(MR.strings.migration_only_new_chapters),
                     subtitle = null,
-                    preference = preferences.migrationHideWithoutUpdates(),
+                    preference = preferences.migrationOnlyNewChapters(),
+                )
+                MigrationSwitchItem(
+                    title = stringResource(MR.strings.migration_skip_next_time),
+                    subtitle = null,
+                    preference = preferences.migrationSkipNextTime(),
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = MaterialTheme.padding.extraSmall))
                 MigrationWarningItem(text = stringResource(MR.strings.migration_advanced_options_warning))
@@ -138,10 +160,44 @@ fun MigrationConfigScreenSheet(
                     preference = preferences.migrationDeepSearchMode(),
                 )
                 MigrationSwitchItem(
-                    title = stringResource(MR.strings.migration_prioritize_by_chapters),
+                    title = stringResource(MR.strings.migration_extra_search_param),
                     subtitle = null,
-                    preference = preferences.migrationPrioritizeByChapters(),
+                    preference = preferences.migrationExtraSearchParam(),
                 )
+
+                Text(
+                    text = stringResource(MR.strings.migration_strategy),
+                    style = MaterialTheme.typography.header,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = MaterialTheme.padding.medium,
+                            vertical = MaterialTheme.padding.small,
+                        ),
+                )
+                val prioritizeByChapters by preferences.migrationPrioritizeByChapters().collectAsState()
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = MaterialTheme.padding.medium),
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                ) {
+                    MigrationFlagChip(
+                        selected = !prioritizeByChapters,
+                        label = stringResource(MR.strings.migration_strategy_first_source),
+                        onClick = {
+                            preferences.migrationPrioritizeByChapters().set(false)
+                        },
+                    )
+                    MigrationFlagChip(
+                        selected = prioritizeByChapters,
+                        label = stringResource(MR.strings.migration_strategy_most_chapters),
+                        onClick = {
+                            preferences.migrationPrioritizeByChapters().set(true)
+                        },
+                    )
+                }
+                Spacer(modifier = Modifier.height(MaterialTheme.padding.small))
             }
             HorizontalDivider()
             Button(
@@ -193,11 +249,13 @@ private fun MigrationSwitchItem(
         trailingContent = {
             Switch(
                 checked = checked,
-                onCheckedChange = null,
+                onCheckedChange = { preference.set(it) },
             )
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.padding(horizontal = MaterialTheme.padding.small),
+        modifier = Modifier
+            .padding(horizontal = MaterialTheme.padding.small)
+            .clickable { preference.set(!checked) },
     )
 }
 

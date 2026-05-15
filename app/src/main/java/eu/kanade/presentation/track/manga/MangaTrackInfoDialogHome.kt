@@ -1,6 +1,5 @@
 package eu.kanade.presentation.track.manga
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -81,7 +80,6 @@ fun MangaTrackInfoDialogHome(
 ) {
     Column(
         modifier = Modifier
-            .animateContentSize()
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)

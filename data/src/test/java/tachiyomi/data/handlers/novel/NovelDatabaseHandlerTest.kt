@@ -50,6 +50,7 @@ class NovelDatabaseHandlerTest {
             url = "/novel",
             author = "Author",
             description = "Desc",
+            notes = "",
             genre = listOf("Action"),
             title = "Title",
             status = 1,

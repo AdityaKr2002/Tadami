@@ -30,12 +30,25 @@ class DeepSeekTranslationService(
         params: DeepSeekTranslationParams,
         onLog: ((String) -> Unit)? = null,
     ): List<String?>? {
-        if (segments.isEmpty()) return emptyList()
-        if (params.apiKey.isBlank()) return null
-        if (params.model.isBlank()) return null
+        if (segments.isEmpty()) {
+            onLog?.invoke("DeepSeek translateBatch skipped: no segments")
+            return emptyList()
+        }
+        if (params.apiKey.isBlank()) {
+            onLog?.invoke("DeepSeek translateBatch skipped: API key is blank")
+            return null
+        }
+        val model = params.model.trim()
+        if (model.isBlank()) {
+            onLog?.invoke("DeepSeek translateBatch skipped: model is blank")
+            return null
+        }
 
         val baseUrl = normalizeDeepSeekBaseUrl(params.baseUrl)
-        if (baseUrl.isBlank()) return null
+        if (baseUrl.isBlank()) {
+            onLog?.invoke("DeepSeek translateBatch skipped: baseUrl is blank")
+            return null
+        }
 
         val taggedInput = segments.mapIndexed { index, text ->
             "<s i='$index'>$text</s>"
@@ -52,8 +65,19 @@ class DeepSeekTranslationService(
             taggedInput = taggedInput,
             family = promptFamily,
         )
+        val reasoningEffort = params.reasoningEffort.trim().lowercase()
+        val thinkingEnabled = reasoningEffort != "none"
+        val effectiveReasoningEffort = if (thinkingEnabled) {
+            if (reasoningEffort == "max") "max" else "high"
+        } else {
+            "none"
+        }
+        val maxTokens = computeTranslationMaxTokens(
+            segments = segments,
+            thinkingEnabled = thinkingEnabled,
+        )
         val requestBody = buildJsonObject {
-            put("model", params.model.trim())
+            put("model", model)
             put(
                 "messages",
                 buildJsonArray {
@@ -71,8 +95,6 @@ class DeepSeekTranslationService(
                     )
                 },
             )
-            val reasoningEffort = params.reasoningEffort.trim().lowercase()
-            val thinkingEnabled = reasoningEffort != "none"
             put(
                 "thinking",
                 buildJsonObject {
@@ -80,22 +102,35 @@ class DeepSeekTranslationService(
                 },
             )
             if (thinkingEnabled) {
-                put("reasoning_effort", if (reasoningEffort == "max") "max" else "high")
+                put("reasoning_effort", effectiveReasoningEffort)
             }
             put("temperature", params.temperature)
             put("top_p", params.topP)
             put("presence_penalty", params.presencePenalty)
             put("frequency_penalty", params.frequencyPenalty)
-            put("max_tokens", 4096)
+            put("max_tokens", maxTokens)
             put("stream", false)
         }
+        val requestBodyText = requestBody.toString()
+        val thinkingState = if (thinkingEnabled) "enabled" else "disabled"
+        onLog?.invoke(
+            "DeepSeek request: baseUrl=$baseUrl, model=$model, segments=${segments.size}, " +
+                "lang=${params.sourceLang}->${params.targetLang}, prompt=${params.promptMode.name}, " +
+                "reasoningEffort=$effectiveReasoningEffort, thinking=$thinkingState, " +
+                "temp=${params.temperature}, topP=${params.topP}, " +
+                "presencePenalty=${params.presencePenalty}, frequencyPenalty=${params.frequencyPenalty}, " +
+                "maxTokens=$maxTokens",
+        )
+        val requestPreview = requestBodyText.take(1200)
+        onLog?.invoke("DeepSeek request payload preview: $requestPreview")
 
         for (attempt in 1..MAX_ATTEMPTS) {
+            onLog?.invoke("DeepSeek request attempt $attempt/$MAX_ATTEMPTS")
             when (
                 val outcome = executeRequest(
                     baseUrl = baseUrl,
                     apiKey = params.apiKey,
-                    requestBody = requestBody.toString(),
+                    requestBody = requestBodyText,
                     attempt = attempt,
                 )
             ) {
@@ -117,6 +152,7 @@ class DeepSeekTranslationService(
                     retryDelay(outcome.waitMs)
                 }
                 is DeepSeekRequestOutcome.Success -> {
+                    onLog?.invoke("DeepSeek response body size: ${outcome.body.length} chars")
                     val payload = runCatching { json.parseToJsonElement(outcome.body) as? JsonObject }
                         .getOrNull()
                         ?: run {
@@ -147,6 +183,15 @@ class DeepSeekTranslationService(
                         val finishReason = choice["finish_reason"].asStringOrNull()
                         if (!finishReason.isNullOrBlank()) {
                             onLog?.invoke("DeepSeek empty candidate, finish_reason=$finishReason")
+                            if (finishReason.equals("length", ignoreCase = true)) {
+                                val tokenLimitHintPrefix =
+                                    "DeepSeek hit the token limit before final content;"
+                                val tokenLimitHintSuffix =
+                                    "try a larger max_tokens value or a smaller chunk size"
+                                onLog?.invoke(
+                                    "$tokenLimitHintPrefix $tokenLimitHintSuffix",
+                                )
+                            }
                         } else {
                             onLog?.invoke("DeepSeek returned empty message content")
                         }
@@ -357,6 +402,17 @@ private fun String.trimNonXmlTail(): String {
     val end = xmlSegmentEndRegex.findAll(source).lastOrNull()?.range?.last ?: return source
     if (end < start) return source
     return source.substring(start, end + 1).trim()
+}
+
+private fun computeTranslationMaxTokens(
+    segments: List<String>,
+    thinkingEnabled: Boolean,
+): Int {
+    if (thinkingEnabled) {
+        return 32_768
+    }
+    val estimated = segments.sumOf { (it.length / 2).coerceAtLeast(32) } + segments.size * 24
+    return estimated.coerceIn(4_096, 8_192)
 }
 
 private const val MAX_ATTEMPTS = 3

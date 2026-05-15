@@ -139,6 +139,43 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
         pref = screenModel.preferences.pageTransitions(),
     )
 
+    Text(
+        text = stringResource(MR.strings.pref_bottom_bar),
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_bottom_bar_show_reading_mode),
+        pref = screenModel.preferences.showBottomBarReadingMode(),
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_bottom_bar_show_orientation),
+        pref = screenModel.preferences.showBottomBarOrientation(),
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_bottom_bar_show_crop_borders),
+        pref = screenModel.preferences.showBottomBarCropBorders(),
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_bottom_bar_show_chapter_list),
+        pref = screenModel.preferences.showBottomBarChapterList(),
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_bottom_bar_show_settings),
+        pref = screenModel.preferences.showBottomBarSettings(),
+    )
+
+    Text(
+        text = stringResource(MR.strings.pref_category_eink),
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+    )
+
     CheckboxItem(
         label = stringResource(MR.strings.pref_flash_page),
         pref = screenModel.preferences.flashOnPageChange(),

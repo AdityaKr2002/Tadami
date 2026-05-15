@@ -50,6 +50,7 @@ class NovelUpdatesRepositoryImplTest {
             url = "/novel",
             author = "Author",
             description = null,
+            notes = "",
             genre = null,
             title = "Novel",
             status = 1L,

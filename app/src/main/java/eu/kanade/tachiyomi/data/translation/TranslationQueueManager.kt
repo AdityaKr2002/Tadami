@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.translation
 
+import eu.kanade.tachiyomi.ui.reader.novel.translation.NovelReaderTranslationDiskCacheStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,14 +11,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.handlers.novel.NovelDatabaseHandler
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.util.UUID
 
 class TranslationQueueManager(
     private val handler: NovelDatabaseHandler = Injekt.get(),
+    private val json: Json = Injekt.get(),
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -49,10 +54,21 @@ class TranslationQueueManager(
         }
     }
 
-    suspend fun addToQueue(chapterIds: List<Long>, novelId: Long): Int {
+    suspend fun addToQueue(
+        chapterIds: List<Long>,
+        novelId: Long,
+        targetLang: String? = null,
+    ): Int {
+        if (chapterIds.isEmpty()) return 0
+
         val currentTime = System.currentTimeMillis()
+        val batchToken = ""
         var addedCount = 0
-        chapterIds.forEach { chapterId ->
+        chapterIds.distinct().forEach { chapterId ->
+            if (targetLang != null && NovelReaderTranslationDiskCacheStore.has(chapterId, targetLang)) {
+                return@forEach
+            }
+
             val existing = getQueueItemByChapterId(chapterId)
             if (
                 shouldSkipTranslationQueueInsert(
@@ -63,20 +79,100 @@ class TranslationQueueManager(
             ) {
                 return@forEach
             }
-            handler.await { db ->
-                db.translation_queueQueries.insert(
-                    chapterId = chapterId,
-                    novelId = novelId,
-                    createdAt = currentTime,
-                )
-            }
+
+            insertQueueItem(
+                chapterId = chapterId,
+                novelId = novelId,
+                batchToken = batchToken,
+                batchOrder = 0,
+                profileSnapshotJson = null,
+                createdAt = currentTime,
+            )
             addedCount++
         }
+
         refreshQueue()
         logcat(LogPriority.DEBUG) {
-            "Added $addedCount/${chapterIds.size} chapters to translation queue"
+            "Added $addedCount/${chapterIds.distinct().size} chapters to translation queue"
         }
         return addedCount
+    }
+
+    suspend fun enqueueTranslationBatch(request: TranslationBatchRequest): TranslationBatchEnqueueResult {
+        val distinctChapterIds = request.chapterIds.distinct()
+        if (distinctChapterIds.isEmpty()) {
+            return TranslationBatchEnqueueResult(
+                batchToken = request.batchToken,
+                requestedCount = 0,
+                enqueuedCount = 0,
+                skippedAlreadyTranslatedCount = 0,
+            )
+        }
+
+        val batchToken = request.batchToken.ifBlank { UUID.randomUUID().toString() }
+        val currentTime = System.currentTimeMillis()
+        val profileSnapshotJson = json.encodeToString(request.profileSnapshot)
+        var enqueuedCount = 0
+        var skippedAlreadyTranslatedCount = 0
+
+        distinctChapterIds.forEachIndexed { index, chapterId ->
+            if (
+                !request.forceRetranslate &&
+                NovelReaderTranslationDiskCacheStore.has(chapterId, request.profileSnapshot.geminiTargetLang)
+            ) {
+                skippedAlreadyTranslatedCount++
+                return@forEachIndexed
+            }
+
+            val existing = getQueueItemByChapterId(chapterId)
+            val canReplacePendingItem = request.forceRetranslate && existing?.status == TranslationStatus.PENDING
+            if (
+                !canReplacePendingItem &&
+                shouldSkipTranslationQueueInsert(
+                    existingStatus = existing?.status,
+                    activeChapterId = activeTranslation.value?.chapterId,
+                    chapterId = chapterId,
+                )
+            ) {
+                return@forEachIndexed
+            }
+
+            insertQueueItem(
+                chapterId = chapterId,
+                novelId = request.novelId,
+                batchToken = batchToken,
+                batchOrder = index,
+                profileSnapshotJson = profileSnapshotJson,
+                createdAt = currentTime,
+            )
+            enqueuedCount++
+        }
+
+        upsertBatchState(
+            TranslationBatchState(
+                batchToken = batchToken,
+                novelId = request.novelId,
+                status = if (enqueuedCount > 0) TranslationBatchStatus.RUNNING else TranslationBatchStatus.COMPLETED,
+                total = distinctChapterIds.size,
+                enqueued = enqueuedCount,
+                skipped = skippedAlreadyTranslatedCount,
+                completed = 0,
+                failed = 0,
+                lastSuccessfulChapterId = null,
+                createdAt = currentTime,
+                updatedAt = currentTime,
+            ),
+        )
+        refreshQueue()
+        logcat(LogPriority.DEBUG) {
+            "Added $enqueuedCount/${distinctChapterIds.size} chapters to translation batch $batchToken"
+        }
+        return TranslationBatchEnqueueResult(
+            batchToken = batchToken,
+            requestedCount = distinctChapterIds.size,
+            enqueuedCount = enqueuedCount,
+            skippedAlreadyTranslatedCount = skippedAlreadyTranslatedCount,
+        )
     }
 
     fun removeFromQueue(chapterId: Long) {
@@ -97,6 +193,9 @@ class TranslationQueueManager(
                         id,
                         chapterId,
                         novelId,
+                        batchToken,
+                        batchOrder,
+                        profileSnapshotJson,
                         status,
                         progress,
                         errorMessage,
@@ -114,6 +213,9 @@ class TranslationQueueManager(
                         retryCount = retryCount.toInt(),
                         createdAt = createdAt,
                         updatedAt = updatedAt,
+                        batchToken = batchToken,
+                        batchOrder = batchOrder.toInt(),
+                        profileSnapshotJson = profileSnapshotJson,
                     )
                 }
             }
@@ -270,7 +372,7 @@ class TranslationQueueManager(
     suspend fun hasNext(): Boolean {
         return try {
             handler.awaitOneOrNull { db ->
-                db.translation_queueQueries.getNextPending { _, _, _, _, _, _, _, _, _ -> }
+                db.translation_queueQueries.getNextPending { _, _, _, _, _, _, _, _, _, _, _, _ -> }
             } != null
         } catch (e: Exception) {
             logcat(LogPriority.ERROR) { "Failed to check for next item: ${e.message}" }
@@ -287,6 +389,142 @@ class TranslationQueueManager(
             logcat(LogPriority.ERROR) { "Failed to check chapter $chapterId queue state: ${e.message}" }
             false
         }
+    }
+
+    suspend fun getBatchState(batchToken: String): TranslationBatchState? {
+        if (batchToken.isBlank()) return null
+        return try {
+            handler.awaitOneOrNull { db ->
+                db.translation_queueQueries.getBatchState(batchToken) {
+                        batchToken,
+                        novelId,
+                        status,
+                        total,
+                        enqueued,
+                        skipped,
+                        completed,
+                        failed,
+                        lastSuccessfulChapterId,
+                        createdAt,
+                        updatedAt,
+                    ->
+                    TranslationBatchState(
+                        batchToken = batchToken,
+                        novelId = novelId,
+                        status = TranslationBatchStatus.entries[status.toInt()],
+                        total = total.toInt(),
+                        enqueued = enqueued.toInt(),
+                        skipped = skipped.toInt(),
+                        completed = completed.toInt(),
+                        failed = failed.toInt(),
+                        lastSuccessfulChapterId = lastSuccessfulChapterId,
+                        createdAt = createdAt,
+                        updatedAt = updatedAt,
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) { "Failed to get batch state for $batchToken: ${e.message}" }
+            null
+        }
+    }
+
+    suspend fun isBatchPaused(batchToken: String): Boolean {
+        return getBatchState(batchToken)?.status == TranslationBatchStatus.PAUSED
+    }
+
+    suspend fun pauseBatch(batchToken: String): Boolean {
+        val state = getBatchState(batchToken) ?: return false
+        if (state.status == TranslationBatchStatus.CANCELLED || state.status == TranslationBatchStatus.COMPLETED) {
+            return false
+        }
+        upsertBatchState(state.copy(status = TranslationBatchStatus.PAUSED, updatedAt = System.currentTimeMillis()))
+        return true
+    }
+
+    suspend fun resumeBatch(batchToken: String): Boolean {
+        val state = getBatchState(batchToken) ?: return false
+        if (state.status == TranslationBatchStatus.CANCELLED || state.status == TranslationBatchStatus.COMPLETED) {
+            return false
+        }
+        upsertBatchState(state.copy(status = TranslationBatchStatus.RUNNING, updatedAt = System.currentTimeMillis()))
+        return true
+    }
+
+    suspend fun cancelBatch(batchToken: String): Boolean {
+        val state = getBatchState(batchToken) ?: return false
+        val wasActive = activeTranslation.value?.batchToken == batchToken
+        handler.await { db ->
+            db.translation_queueQueries.upsertBatchState(
+                batchToken = state.batchToken,
+                novelId = state.novelId,
+                status = TranslationBatchStatus.CANCELLED.ordinal.toLong(),
+                total = state.total.toLong(),
+                enqueued = state.enqueued.toLong(),
+                skipped = state.skipped.toLong(),
+                completed = state.completed.toLong(),
+                failed = state.failed.toLong(),
+                lastSuccessfulChapterId = state.lastSuccessfulChapterId,
+                createdAt = state.createdAt,
+                updatedAt = System.currentTimeMillis(),
+            )
+            db.translation_queueQueries.deleteByBatchToken(batchToken)
+        }
+        if (wasActive) {
+            setActiveTranslation(null)
+        }
+        refreshQueue()
+        return wasActive
+    }
+
+    suspend fun recoverStaleInProgressRows(): Int {
+        return try {
+            val staleItems = handler.awaitList { db ->
+                db.translation_queueQueries.getInProgress(::mapQueueItem)
+            }
+            if (staleItems.isEmpty()) {
+                return 0
+            }
+            handler.await { db ->
+                db.translation_queueQueries.recoverInProgress(System.currentTimeMillis())
+            }
+            refreshQueue()
+            logcat(LogPriority.DEBUG) {
+                "Recovered ${staleItems.size} stale in-progress translation row(s)"
+            }
+            staleItems.size
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) { "Failed to recover in-progress rows: ${e.message}" }
+            0
+        }
+    }
+
+    suspend fun recordBatchItemResult(
+        batchToken: String,
+        chapterId: Long,
+        succeeded: Boolean,
+    ): TranslationBatchState? {
+        val state = getBatchState(batchToken) ?: return null
+        if (state.status == TranslationBatchStatus.CANCELLED) {
+            return state
+        }
+
+        val updatedState = state.copy(
+            status = when {
+                state.completed + state.failed + 1 >= state.enqueued && state.enqueued > 0 ->
+                    TranslationBatchStatus.COMPLETED
+                state.status == TranslationBatchStatus.PAUSED ->
+                    TranslationBatchStatus.PAUSED
+                else ->
+                    TranslationBatchStatus.RUNNING
+            },
+            completed = state.completed + if (succeeded) 1 else 0,
+            failed = state.failed + if (succeeded) 0 else 1,
+            lastSuccessfulChapterId = if (succeeded) chapterId else state.lastSuccessfulChapterId,
+            updatedAt = System.currentTimeMillis(),
+        )
+        upsertBatchState(updatedState)
+        return updatedState
     }
 
     fun setActiveTranslation(item: TranslationQueueItem?) {
@@ -336,6 +574,9 @@ class TranslationQueueManager(
             handler.await { db ->
                 db.translation_queueQueries.delete(item.chapterId)
             }
+        }
+        handler.await { db ->
+            db.translation_queueQueries.deleteAllBatchStates()
         }
         setActiveTranslation(null)
         refreshQueue()
@@ -388,12 +629,53 @@ class TranslationQueueManager(
         }
     }
 
+    private suspend fun insertQueueItem(
+        chapterId: Long,
+        novelId: Long,
+        batchToken: String,
+        batchOrder: Int,
+        profileSnapshotJson: String?,
+        createdAt: Long,
+    ) {
+        handler.await { db ->
+            db.translation_queueQueries.insert(
+                chapterId = chapterId,
+                novelId = novelId,
+                batchToken = batchToken,
+                batchOrder = batchOrder.toLong(),
+                profileSnapshotJson = profileSnapshotJson,
+                createdAt = createdAt,
+            )
+        }
+    }
+
+    private suspend fun upsertBatchState(state: TranslationBatchState) {
+        handler.await { db ->
+            db.translation_queueQueries.upsertBatchState(
+                batchToken = state.batchToken,
+                novelId = state.novelId,
+                status = state.status.ordinal.toLong(),
+                total = state.total.toLong(),
+                enqueued = state.enqueued.toLong(),
+                skipped = state.skipped.toLong(),
+                completed = state.completed.toLong(),
+                failed = state.failed.toLong(),
+                lastSuccessfulChapterId = state.lastSuccessfulChapterId,
+                createdAt = state.createdAt,
+                updatedAt = state.updatedAt,
+            )
+        }
+    }
+
     private suspend fun getQueueItemByChapterId(chapterId: Long): TranslationQueueItem? {
         return handler.awaitOneOrNull { db ->
             db.translation_queueQueries.getByChapterId(chapterId) {
                     id,
                     chapterId,
                     novelId,
+                    batchToken,
+                    batchOrder,
+                    profileSnapshotJson,
                     status,
                     progress,
                     errorMessage,
@@ -405,6 +687,9 @@ class TranslationQueueManager(
                     id = id,
                     chapterId = chapterId,
                     novelId = novelId,
+                    batchToken = batchToken,
+                    batchOrder = batchOrder,
+                    profileSnapshotJson = profileSnapshotJson,
                     status = status,
                     progress = progress,
                     errorMessage = errorMessage,
@@ -420,6 +705,9 @@ class TranslationQueueManager(
         id: Long,
         chapterId: Long,
         novelId: Long,
+        batchToken: String,
+        batchOrder: Long,
+        profileSnapshotJson: String?,
         status: Long,
         progress: Long,
         errorMessage: String?,
@@ -438,6 +726,9 @@ class TranslationQueueManager(
             retryCount = retryCount.toInt().coerceAtLeast(0),
             createdAt = createdAt,
             updatedAt = updatedAt,
+            batchToken = batchToken,
+            batchOrder = batchOrder.toInt(),
+            profileSnapshotJson = profileSnapshotJson,
         )
     }
 }

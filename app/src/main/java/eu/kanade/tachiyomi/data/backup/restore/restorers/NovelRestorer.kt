@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupNovel
+import eu.kanade.tachiyomi.data.backup.restore.resolveRestoredText
 import tachiyomi.data.MangaUpdateStrategyColumnAdapter
 import tachiyomi.data.handlers.novel.NovelDatabaseHandler
 import tachiyomi.domain.category.novel.interactor.GetNovelCategories
@@ -44,7 +45,7 @@ class NovelRestorer(
             val restoredNovel = if (dbNovel == null) {
                 restoreNewNovel(novel)
             } else {
-                restoreExistingNovel(novel, dbNovel)
+                restoreExistingNovel(backupNovel, novel, dbNovel)
             }
 
             restoreNovelDetails(
@@ -62,11 +63,12 @@ class NovelRestorer(
         return getNovelByUrlAndSourceId.await(backupNovel.url, backupNovel.source)
     }
 
-    private suspend fun restoreExistingNovel(novel: Novel, dbNovel: Novel): Novel {
+    private suspend fun restoreExistingNovel(backupNovel: BackupNovel, novel: Novel, dbNovel: Novel): Novel {
+        val notes = resolveRestoredText(backupNovel.notes, novel.version, dbNovel.notes, dbNovel.version)
         return if (novel.version > dbNovel.version) {
-            updateNovel(dbNovel.copyFrom(novel).copy(id = dbNovel.id))
+            updateNovel(dbNovel.copyFrom(novel).copy(id = dbNovel.id, notes = notes))
         } else {
-            updateNovel(novel.copyFrom(dbNovel).copy(id = dbNovel.id))
+            updateNovel(novel.copyFrom(dbNovel).copy(id = dbNovel.id, notes = notes))
         }
     }
 
@@ -91,6 +93,7 @@ class NovelRestorer(
                 url = novel.url,
                 author = novel.author,
                 description = novel.description,
+                notes = novel.notes,
                 genre = novel.genre?.joinToString(separator = ", "),
                 title = novel.title,
                 status = novel.status,
@@ -228,6 +231,7 @@ class NovelRestorer(
                 url = novel.url,
                 author = novel.author,
                 description = novel.description,
+                notes = novel.notes,
                 genre = novel.genre,
                 title = novel.title,
                 status = novel.status,

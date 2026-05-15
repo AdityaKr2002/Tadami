@@ -1,6 +1,7 @@
 package eu.kanade.presentation.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -70,6 +71,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -590,6 +593,34 @@ internal fun AuroraTabRow(
 ) {
     val colors = AuroraTheme.colors
     val scrollState = rememberScrollState()
+    val tabWidths = remember { mutableMapOf<Int, Int>() }
+    var containerWidthPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+
+    // Auto-scroll to center the selected tab when scrollable (except first two).
+    LaunchedEffect(selectedIndex) {
+        if (!scrollable || containerWidthPx <= 0) return@LaunchedEffect
+
+        if (selectedIndex <= 1) {
+            if (scrollState.value != 0) {
+                scrollState.animateScrollTo(0, animationSpec = tween(durationMillis = 350))
+            }
+            return@LaunchedEffect
+        }
+
+        val leftPaddingPx = with(density) { 4.dp.toPx() }
+        val accumulatedWidth = (0 until selectedIndex).sumOf { tabWidths[it] ?: 0 }
+        val currentTabWidth = tabWidths[selectedIndex] ?: 0
+        if (currentTabWidth == 0) return@LaunchedEffect
+
+        val tabCenter = leftPaddingPx + accumulatedWidth + currentTabWidth / 2f
+        val targetScroll = (tabCenter - containerWidthPx / 2f).coerceAtLeast(0f).toInt()
+
+        if (scrollState.value != targetScroll) {
+            scrollState.animateScrollTo(targetScroll, animationSpec = tween(durationMillis = 350))
+        }
+    }
+
     val menuBorderBrush = remember(colors) { auroraMenuRimLightBrush(colors) }
     val tabContainerColor = resolveAuroraTabContainerColor(colors)
     val isLightTheme = !colors.isDark && !colors.isEInk
@@ -636,20 +667,38 @@ internal fun AuroraTabRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .onSizeChanged { containerWidthPx = it.width }
                 .padding(horizontal = 4.dp, vertical = 4.dp)
                 .then(if (scrollable) Modifier.horizontalScroll(scrollState) else Modifier),
             horizontalArrangement = if (scrollable) Arrangement.Start else Arrangement.SpaceEvenly,
         ) {
             tabs.forEachIndexed { index, tab ->
                 val isSelected = index == selectedIndex
-                AuroraTab(
-                    text = stringResource(tab.titleRes),
-                    isSelected = isSelected,
-                    badgeCount = tab.badgeNumber,
-                    onClick = { onTabSelected(index) },
-                    fillAvailableWidth = !scrollable,
-                    modifier = if (scrollable) Modifier.padding(horizontal = 4.dp) else Modifier.weight(1f),
-                )
+                val tabModifier = if (scrollable) {
+                    Modifier.padding(horizontal = 4.dp)
+                } else {
+                    Modifier.weight(1f)
+                }
+                val posModifier = if (scrollable) {
+                    Modifier.onGloballyPositioned { coords ->
+                        tabWidths[index] = coords.size.width
+                    }
+                } else {
+                    Modifier
+                }
+                Box(
+                    modifier = Modifier
+                        .then(posModifier)
+                        .then(tabModifier),
+                ) {
+                    AuroraTab(
+                        text = stringResource(tab.titleRes),
+                        isSelected = isSelected,
+                        badgeCount = tab.badgeNumber,
+                        onClick = { onTabSelected(index) },
+                        fillAvailableWidth = !scrollable,
+                    )
+                }
             }
         }
     }

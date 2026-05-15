@@ -10,4 +10,7 @@ data class TranslationQueueItem(
     val retryCount: Int,
     val createdAt: Long,
     val updatedAt: Long,
+    val batchToken: String = "",
+    val batchOrder: Int = 0,
+    val profileSnapshotJson: String? = null,
 )

@@ -11,6 +11,11 @@ class SourcePreferences(
     private val preferenceStore: PreferenceStore,
 ) {
 
+    enum class MigrationStrategy {
+        FIRST_SOURCE,
+        MOST_CHAPTERS,
+    }
+
     // Common options
 
     fun sourceDisplayMode() = preferenceStore.getObject(
@@ -41,11 +46,27 @@ class SourcePreferences(
 
     fun migrationSources() = preferenceStore.getStringSet("migration_sources", emptySet())
 
-    fun migrationHideUnmatched() = preferenceStore.getBoolean("migration_hide_unmatched", false)
+    fun migrationStrategy() = if (migrationPrioritizeByChapters().get()) {
+        MigrationStrategy.MOST_CHAPTERS
+    } else {
+        MigrationStrategy.FIRST_SOURCE
+    }
 
-    fun migrationHideWithoutUpdates() = preferenceStore.getBoolean("migration_hide_without_updates", false)
+    fun migrationSearchKeywords() = preferenceStore.getBoolean("migration_search_keywords", true)
 
-    fun migrationDeepSearchMode() = preferenceStore.getBoolean("migration_deep_search_mode", false)
+    fun migrationExtraSearchParam() = preferenceStore.getBoolean("migration_extra_search_param", true)
+
+    fun migrationSkipNextTime() = preferenceStore.getBoolean("migration_skip_next_time", false)
+
+    fun migrationHideNotFound() = preferenceStore.getBoolean("migration_hide_not_found", false)
+
+    fun migrationOnlyNewChapters() = preferenceStore.getBoolean("migration_only_new_chapters", false)
+
+    fun migrationHideUnmatched() = migrationHideNotFound()
+
+    fun migrationHideWithoutUpdates() = migrationOnlyNewChapters()
+
+    fun migrationDeepSearchMode() = migrationSearchKeywords()
 
     fun migrationPrioritizeByChapters() = preferenceStore.getBoolean("migration_prioritize_by_chapters", false)
 

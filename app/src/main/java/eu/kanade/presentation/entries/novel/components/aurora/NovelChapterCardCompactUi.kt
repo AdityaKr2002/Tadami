@@ -66,6 +66,7 @@ object NovelChapterCardCompactUi {
         onClick: () -> Unit,
         onLongClick: () -> Unit,
         onTranslateClick: () -> Unit,
+        onTranslateLongClick: () -> Unit,
         onTranslatedDownloadClick: () -> Unit,
         onTranslatedDownloadLongClick: () -> Unit,
         onTranslatedDownloadOpenFolder: () -> Unit,
@@ -177,6 +178,7 @@ object NovelChapterCardCompactUi {
                                             else -> colors.textSecondary
                                         },
                                         onClick = onTranslateClick,
+                                        onLongClick = onTranslateLongClick,
                                         backgroundColor = colors.surface.copy(alpha = 0.24f),
                                         showProgress = translateState == NovelChapterActionIconState.InProgress,
                                         progressColor = colors.accent,

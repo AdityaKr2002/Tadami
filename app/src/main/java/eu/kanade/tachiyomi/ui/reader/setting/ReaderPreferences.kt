@@ -30,6 +30,20 @@ class ReaderPreferences(
 
     fun showReadingMode() = preferenceStore.getBoolean("pref_show_reading_mode", true)
 
+    // region Bottom bar button visibility
+
+    fun showBottomBarReadingMode() = preferenceStore.getBoolean("pref_bottom_bar_reading_mode", true)
+
+    fun showBottomBarOrientation() = preferenceStore.getBoolean("pref_bottom_bar_orientation", true)
+
+    fun showBottomBarCropBorders() = preferenceStore.getBoolean("pref_bottom_bar_crop_borders", true)
+
+    fun showBottomBarChapterList() = preferenceStore.getBoolean("pref_bottom_bar_chapter_list", true)
+
+    fun showBottomBarSettings() = preferenceStore.getBoolean("pref_bottom_bar_settings", true)
+
+    // endregion
+
     fun useAutoWebtoon() = preferenceStore.getBoolean("reader_use_auto_webtoon", true)
 
     fun autoWebtoonPromptDismissedMangaIds() =

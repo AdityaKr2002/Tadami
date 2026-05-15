@@ -25,6 +25,7 @@ class MangaScreenAuroraLayoutTest {
             hasGlobalSearch = true,
             hasShare = true,
             hasSettings = true,
+            hasNotes = false,
             hasMigrate = true,
         ).contains(AuroraMangaOverflowAction.Migrate) shouldBe true
     }

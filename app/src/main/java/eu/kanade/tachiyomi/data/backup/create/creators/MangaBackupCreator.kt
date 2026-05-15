@@ -88,6 +88,7 @@ private fun Manga.toBackupManga() =
         artist = this.artist,
         author = this.author,
         description = this.description,
+        notes = this.notes.takeIf { it.isNotBlank() },
         genre = this.genre.orEmpty(),
         status = this.status.toInt(),
         rating = this.rating,

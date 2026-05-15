@@ -23,6 +23,8 @@ import eu.kanade.tachiyomi.util.system.setForegroundSafely
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
@@ -40,6 +42,7 @@ class TranslationJob(
     private val chapterRepository: NovelTtsChapterRepository = NovelTtsChapterRepository()
     private val readerPreferences: NovelReaderPreferences = Injekt.get()
     private val translationProcessor: NovelChapterTranslationProcessor = NovelChapterTranslationProcessor()
+    private val json: Json = Injekt.get()
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = applicationContext.notificationBuilder(Notifications.CHANNEL_TRANSLATION_PROGRESS) {
@@ -62,14 +65,28 @@ class TranslationJob(
 
         // Set foreground first - required for foreground service workers
         setForegroundSafely()
+        queueManager.recoverStaleInProgressRows()
 
         try {
+            var pausedBatchState: TranslationBatchState? = null
             while (!isStopped) {
                 val item = queueManager.getNextPending() ?: break
+                if (queueManager.isBatchPaused(item.batchToken)) {
+                    pausedBatchState = queueManager.getBatchState(item.batchToken)
+                    break
+                }
 
                 logcat(LogPriority.DEBUG) { "Processing translation for chapter ${item.chapterId}" }
                 try {
                     processItem(item)
+                    val batchState = queueManager.recordBatchItemResult(
+                        batchToken = item.batchToken,
+                        chapterId = item.chapterId,
+                        succeeded = true,
+                    )
+                    if (batchState?.status == TranslationBatchStatus.COMPLETED) {
+                        notificationManager.showBatchComplete(batchState)
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -97,19 +114,31 @@ class TranslationJob(
                         error = message,
                         chapterName = chapterName,
                     )
+                    val batchState = queueManager.recordBatchItemResult(
+                        batchToken = item.batchToken,
+                        chapterId = item.chapterId,
+                        succeeded = false,
+                    )
                     queueManager.setActiveTranslation(null)
                     notificationManager.showError(
                         chapterName = chapterName,
                         error = message,
                         chapterId = item.chapterId,
                     )
+                    if (batchState?.status == TranslationBatchStatus.COMPLETED) {
+                        notificationManager.showBatchComplete(batchState)
+                    }
                     logcat(LogPriority.ERROR, e) {
                         "Translation failed for chapter ${item.chapterId}"
                     }
                 }
             }
 
-            notificationManager.showQueueComplete()
+            if (pausedBatchState != null) {
+                notificationManager.showBatchPaused(pausedBatchState)
+            } else {
+                notificationManager.showQueueComplete()
+            }
             return Result.success()
         } catch (_: CancellationException) {
             val activeItem = queueManager.activeTranslation.value
@@ -145,7 +174,17 @@ class TranslationJob(
         queueManager.updateStatusAwait(item.chapterId, TranslationStatus.IN_PROGRESS)
 
         val snapshot = chapterRepository.loadChapterSnapshot(item.chapterId)
-        val settings = readerPreferences.resolveSettings(snapshot.novel.source)
+        val liveSettings = readerPreferences.resolveSettings(snapshot.novel.source)
+        val settings = item.profileSnapshotJson?.let { snapshotJson ->
+            runCatching {
+                json.decodeFromString<TranslationQueueProfileSnapshot>(snapshotJson)
+                    .toReaderSettings(liveSettings)
+            }.onFailure { error ->
+                logcat(LogPriority.WARN, error) {
+                    "Failed to decode translation snapshot for chapter ${item.chapterId}; falling back to live settings"
+                }
+            }.getOrNull()
+        } ?: liveSettings
         val textSegments = snapshot.contentBlocks
             .asSequence()
             .filterIsInstance<NovelReaderScreenModel.ContentBlock.Text>()
@@ -161,6 +200,7 @@ class TranslationJob(
         notificationManager.showProgress(
             chapterName = chapterName,
             chapterId = item.chapterId,
+            batchToken = item.batchToken,
             progress = 0,
             pendingCount = queueManager.queue.value.size,
         )
@@ -180,6 +220,7 @@ class TranslationJob(
                 notificationManager.showProgress(
                     chapterName = chapterName,
                     chapterId = item.chapterId,
+                    batchToken = item.batchToken,
                     progress = progress,
                     pendingCount = queueManager.queue.value.size,
                 )

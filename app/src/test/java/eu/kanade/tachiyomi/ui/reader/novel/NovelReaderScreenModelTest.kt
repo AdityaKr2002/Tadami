@@ -109,11 +109,14 @@ class NovelReaderScreenModelTest {
 
     @AfterEach
     fun tearDown() {
-        activeScreenModels.forEach { it.onDispose() }
-        activeScreenModels.clear()
         runBlocking {
+            activeScreenModels.forEach {
+                it.onDispose()
+                it.awaitDisposalCleanup()
+            }
             yield()
         }
+        activeScreenModels.clear()
         NovelReaderChapterPrefetchCache.clear()
         NovelReaderTranslationDiskCacheStore.clear()
         io.mockk.unmockkAll()
@@ -646,6 +649,7 @@ class NovelReaderScreenModelTest {
                     yield()
                 }
             }
+            yield()
 
             val initialState = screenModel.state.value.shouldBeInstanceOf<NovelReaderScreenModel.State.Success>()
             NovelReaderTranslationDiskCacheStore.put(
@@ -1653,6 +1657,54 @@ class NovelReaderScreenModelTest {
     }
 
     @Test
+    fun `incognito mode does not persist completed chapter progress`() {
+        runBlocking {
+            val basePreferences = Injekt.get<BasePreferences>()
+            basePreferences.incognitoMode().set(true)
+            try {
+                val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel")
+                val chapter = NovelChapter.create().copy(
+                    id = 5L,
+                    novelId = 1L,
+                    name = "Chapter 1",
+                    url = "https://example.org/ch1",
+                )
+                val chapterRepo = FakeNovelChapterRepository(chapter)
+                val historyRepository = FakeNovelHistoryRepository()
+
+                val screenModel = trackedNovelReaderScreenModel(
+                    chapterId = chapter.id,
+                    novelChapterRepository = chapterRepo,
+                    getNovel = GetNovel(FakeNovelRepository(novel)),
+                    sourceManager = FakeNovelSourceManager(
+                        sourceId = novel.source,
+                        chapterHtml = "<p>Hello</p>",
+                    ),
+                    pluginStorage = FakeNovelPluginStorage(emptyList()),
+                    historyRepository = historyRepository,
+                    novelReaderPreferences = createNovelReaderPreferences(),
+                    isSystemDark = { false },
+                )
+
+                withTimeout(1_000) {
+                    while (screenModel.state.value is NovelReaderScreenModel.State.Loading) {
+                        yield()
+                    }
+                }
+
+                screenModel.updateReadingProgress(currentIndex = 9, totalItems = 10)
+                screenModel.awaitPendingProgressPersistence()
+                yield()
+
+                chapterRepo.lastUpdate shouldBe null
+                historyRepository.updates shouldBe emptyList()
+            } finally {
+                basePreferences.incognitoMode().set(false)
+            }
+        }
+    }
+
+    @Test
     fun `update reading progress marks single page chapter as read`() {
         runBlocking {
             val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel")
@@ -1969,7 +2021,7 @@ class NovelReaderScreenModelTest {
     }
 
     @Test
-    fun `defers history writes for progress updates until reader is disposed`() {
+    fun `persists history writes when exit state is flushed`() {
         runBlocking {
             val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel")
             val chapter = NovelChapter.create().copy(
@@ -2008,12 +2060,13 @@ class NovelReaderScreenModelTest {
             historyRepository.updates.size shouldBe 1
 
             delay(5)
-            screenModel.onDispose()
-            yield()
+            screenModel.persistCurrentChapterExitState()
 
             historyRepository.lastUpdate?.chapterId shouldBe chapter.id
             historyRepository.updates.size shouldBe 2
             (historyRepository.lastUpdate?.readAt != null) shouldBe true
+
+            screenModel.onDispose()
         }
     }
 

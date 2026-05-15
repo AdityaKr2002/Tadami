@@ -11,6 +11,7 @@ CREATE TABLE animes(
     artist TEXT,
     author TEXT,
     description TEXT,
+    notes TEXT NOT NULL DEFAULT '',
     genre TEXT AS List<String>,
     title TEXT NOT NULL,
     status INTEGER NOT NULL,
@@ -65,10 +66,11 @@ CREATE TRIGGER update_anime_version AFTER UPDATE ON animes
 BEGIN
     UPDATE animes SET version = version + 1
     WHERE _id = new._id AND new.is_syncing = 0 AND (
-        new.url != old.url OR
-        new.description != old.description OR
-        new.favorite != old.favorite
-    );
+    new.url != old.url OR
+    new.description != old.description OR
+    new.notes != old.notes OR
+    new.favorite != old.favorite
+);
 END;
 
 getAnimeById:
@@ -170,8 +172,8 @@ DELETE FROM animes
 WHERE favorite = 0 AND _id IN :animeIds;
 
 insert:
-INSERT INTO animes(source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, pinned, last_update, next_update, initialized, viewer, episode_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, fetch_type, parent_id, season_flags, season_number, season_source_order, background_url, background_last_modified)
-VALUES (:source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :pinned, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :episodeFlags, :coverLastModified,:dateAdded, :updateStrategy, :calculateInterval, 0, :version, :fetchType, :parentId, :seasonFlags, :seasonNumber, :seasonSourceOrder, :backgroundUrl, :backgroundLastModified);
+INSERT INTO animes(source, url, artist, author, description, notes, genre, title, status, thumbnail_url, favorite, pinned, last_update, next_update, initialized, viewer, episode_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, fetch_type, parent_id, season_flags, season_number, season_source_order, background_url, background_last_modified)
+VALUES (:source, :url, :artist, :author, :description, :notes, :genre, :title, :status, :thumbnailUrl, :favorite, :pinned, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :episodeFlags, :coverLastModified,:dateAdded, :updateStrategy, :calculateInterval, 0, :version, :fetchType, :parentId, :seasonFlags, :seasonNumber, :seasonSourceOrder, :backgroundUrl, :backgroundLastModified);
 
 update:
 UPDATE animes SET
@@ -180,6 +182,7 @@ UPDATE animes SET
     artist = coalesce(:artist, artist),
     author = coalesce(:author, author),
     description = coalesce(:description, description),
+    notes = coalesce(:notes, notes),
     genre = coalesce(:genre, genre),
     title = coalesce(:title, title),
     status = coalesce(:status, status),

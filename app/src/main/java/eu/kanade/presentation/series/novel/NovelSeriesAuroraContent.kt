@@ -335,6 +335,7 @@ fun NovelSeriesAuroraContent(
                                 onClick = { onChapterClicked(libraryNovel, chapter) },
                                 onLongClick = {},
                                 onTranslateClick = {},
+                                onTranslateLongClick = {},
                                 onTranslatedDownloadClick = {},
                                 onTranslatedDownloadLongClick = {},
                                 onTranslatedDownloadOpenFolder = {},

@@ -67,6 +67,7 @@ class SetExcludedScanlatorsTest {
             artist = null,
             author = null,
             description = null,
+            notes = "",
             genre = null,
             title = "Test manga",
             status = 0L,

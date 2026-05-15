@@ -28,8 +28,10 @@ object MangaMigrationFlags {
 
     private const val CHAPTERS = 0b00001
     private const val CATEGORIES = 0b00010
+    private const val TRACKING = 0b00100
     private const val CUSTOM_COVER = 0b01000
     private const val DELETE_DOWNLOADED = 0b10000
+    private const val EXTRA = 0b100000
 
     private val coverCache: MangaCoverCache by injectLazy()
     private val downloadCache: MangaDownloadCache by injectLazy()
@@ -42,6 +44,10 @@ object MangaMigrationFlags {
         return value and CATEGORIES != 0
     }
 
+    fun hasTracking(value: Int): Boolean {
+        return value and TRACKING != 0
+    }
+
     fun hasCustomCover(value: Int): Boolean {
         return value and CUSTOM_COVER != 0
     }
@@ -50,11 +56,17 @@ object MangaMigrationFlags {
         return value and DELETE_DOWNLOADED != 0
     }
 
+    fun hasExtra(value: Int): Boolean {
+        return value and EXTRA != 0
+    }
+
     /** Returns information about applicable flags with default selections. */
     fun getFlags(manga: Manga?, defaultSelectedBitMap: Int): List<MangaMigrationFlag> {
         val flags = mutableListOf<MangaMigrationFlag>()
         flags += MangaMigrationFlag.create(CHAPTERS, defaultSelectedBitMap, MR.strings.chapters)
         flags += MangaMigrationFlag.create(CATEGORIES, defaultSelectedBitMap, MR.strings.categories)
+        flags += MangaMigrationFlag.create(TRACKING, defaultSelectedBitMap, MR.strings.track)
+        flags += MangaMigrationFlag.create(EXTRA, defaultSelectedBitMap, MR.strings.migration_extra)
 
         if (manga != null) {
             if (manga.hasCustomCover(coverCache)) {

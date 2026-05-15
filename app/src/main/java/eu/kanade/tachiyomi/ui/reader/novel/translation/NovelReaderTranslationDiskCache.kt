@@ -65,6 +65,15 @@ internal class NovelReaderTranslationDiskCache(
         }
     }
 
+    fun has(
+        chapterId: Long,
+        targetLang: String,
+    ): Boolean {
+        synchronized(lock) {
+            return readEntryLocked(chapterId)?.targetLang == targetLang
+        }
+    }
+
     fun chapterIds(): Set<Long> {
         synchronized(lock) {
             if (!directory.exists()) return emptySet()
@@ -75,6 +84,23 @@ internal class NovelReaderTranslationDiskCache(
                     val chapterId = file.nameWithoutExtension.toLongOrNull() ?: return@mapNotNull null
                     readEntryLocked(chapterId)
                         ?.takeIf { it.translatedByIndex.isNotEmpty() }
+                        ?.chapterId
+                }
+                ?.toSet()
+                ?: emptySet()
+        }
+    }
+
+    fun chapterIds(targetLang: String): Set<Long> {
+        synchronized(lock) {
+            if (!directory.exists()) return emptySet()
+            return directory.listFiles()
+                ?.asSequence()
+                ?.filter { it.isFile }
+                ?.mapNotNull { file ->
+                    val chapterId = file.nameWithoutExtension.toLongOrNull() ?: return@mapNotNull null
+                    readEntryLocked(chapterId)
+                        ?.takeIf { cached -> cached.targetLang == targetLang }
                         ?.chapterId
                 }
                 ?.toSet()
@@ -189,7 +215,14 @@ internal object NovelReaderTranslationDiskCacheStore {
         requirements: NovelReaderTranslationCacheRequirements,
     ): Boolean = cache.has(chapterId, requirements)
 
+    fun has(
+        chapterId: Long,
+        targetLang: String,
+    ): Boolean = cache.has(chapterId, targetLang)
+
     fun chapterIds(): Set<Long> = cache.chapterIds()
+
+    fun chapterIds(targetLang: String): Set<Long> = cache.chapterIds(targetLang)
 
     fun chapterIds(requirements: NovelReaderTranslationCacheRequirements): Set<Long> = cache.chapterIds(requirements)
 

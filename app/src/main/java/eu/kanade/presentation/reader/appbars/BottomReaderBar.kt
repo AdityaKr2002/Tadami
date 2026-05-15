@@ -24,6 +24,17 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.LocalAppHaptics
 
+data class BottomBarButtonFlags(
+    val readingMode: Boolean = true,
+    val orientation: Boolean = true,
+    val cropBorders: Boolean = true,
+    val chapterList: Boolean = true,
+    val settings: Boolean = true,
+) {
+    fun hasAnyVisible(): Boolean =
+        readingMode || orientation || cropBorders || chapterList || settings
+}
+
 @Composable
 fun BottomReaderBar(
     backgroundColor: Color,
@@ -35,68 +46,83 @@ fun BottomReaderBar(
     onClickCropBorder: () -> Unit,
     onClickChapterList: () -> Unit,
     onClickSettings: () -> Unit,
+    visibleButtons: BottomBarButtonFlags = BottomBarButtonFlags(),
 ) {
     val appHaptics = LocalAppHaptics.current
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = backgroundColor,
-                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-            )
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = {
-            appHaptics.tap()
-            onClickReadingMode()
-        }) {
-            Icon(
-                painter = painterResource(readingMode.iconRes),
-                contentDescription = stringResource(MR.strings.viewer),
-            )
-        }
+    if (visibleButtons.hasAnyVisible()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = backgroundColor,
+                    shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
+                )
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (visibleButtons.readingMode) {
+                IconButton(onClick = {
+                    appHaptics.tap()
+                    onClickReadingMode()
+                }) {
+                    Icon(
+                        painter = painterResource(readingMode.iconRes),
+                        contentDescription = stringResource(MR.strings.viewer),
+                    )
+                }
+            }
 
-        IconButton(onClick = {
-            appHaptics.tap()
-            onClickOrientation()
-        }) {
-            Icon(
-                imageVector = orientation.icon,
-                contentDescription = stringResource(MR.strings.rotation_type),
-            )
-        }
+            if (visibleButtons.orientation) {
+                IconButton(onClick = {
+                    appHaptics.tap()
+                    onClickOrientation()
+                }) {
+                    Icon(
+                        imageVector = orientation.icon,
+                        contentDescription = stringResource(MR.strings.rotation_type),
+                    )
+                }
+            }
 
-        IconButton(onClick = {
-            appHaptics.tap()
-            onClickCropBorder()
-        }) {
-            Icon(
-                painter = painterResource(if (cropEnabled) R.drawable.ic_crop_24dp else R.drawable.ic_crop_off_24dp),
-                contentDescription = stringResource(MR.strings.pref_crop_borders),
-            )
-        }
+            if (visibleButtons.cropBorders) {
+                IconButton(onClick = {
+                    appHaptics.tap()
+                    onClickCropBorder()
+                }) {
+                    Icon(
+                        painter = painterResource(
+                            if (cropEnabled) R.drawable.ic_crop_24dp else R.drawable.ic_crop_off_24dp,
+                        ),
+                        contentDescription = stringResource(MR.strings.pref_crop_borders),
+                    )
+                }
+            }
 
-        IconButton(onClick = {
-            appHaptics.tap()
-            onClickChapterList()
-        }) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ViewList,
-                contentDescription = stringResource(MR.strings.chapters),
-            )
-        }
+            if (visibleButtons.chapterList) {
+                IconButton(onClick = {
+                    appHaptics.tap()
+                    onClickChapterList()
+                }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ViewList,
+                        contentDescription = stringResource(MR.strings.chapters),
+                    )
+                }
+            }
 
-        IconButton(onClick = {
-            appHaptics.tap()
-            onClickSettings()
-        }) {
-            Icon(
-                imageVector = Icons.Outlined.Settings,
-                contentDescription = stringResource(MR.strings.action_settings),
-            )
+            if (visibleButtons.settings) {
+                IconButton(onClick = {
+                    appHaptics.tap()
+                    onClickSettings()
+                }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Settings,
+                        contentDescription = stringResource(MR.strings.action_settings),
+                    )
+                }
+            }
         }
     }
 }

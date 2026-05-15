@@ -9,6 +9,7 @@ CREATE TABLE novels(
     url TEXT NOT NULL,
     author TEXT,
     description TEXT,
+    notes TEXT NOT NULL DEFAULT '',
     genre TEXT AS List<String>,
     title TEXT NOT NULL,
     status INTEGER NOT NULL,
@@ -42,7 +43,7 @@ BEGIN
 END;
 
 CREATE TRIGGER update_last_modified_at_novels
-AFTER UPDATE OF source, url, author, description, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval ON novels
+AFTER UPDATE OF source, url, author, description, notes, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval ON novels
 FOR EACH ROW
 BEGIN
   UPDATE novels
@@ -56,6 +57,7 @@ BEGIN
     WHERE _id = new._id AND new.is_syncing = 0 AND (
         new.url != old.url OR
         new.description != old.description OR
+        new.notes != old.notes OR
         new.favorite != old.favorite
     );
 END;
@@ -150,8 +152,8 @@ WHERE favorite = 0
 AND source IN :sourceIds;
 
 insert:
-INSERT INTO novels(source, url, author, description, genre, title, status, thumbnail_url, favorite, pinned, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, is_syncing)
-VALUES (:source, :url, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :pinned, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version, 0);
+INSERT INTO novels(source, url, author, description, notes, genre, title, status, thumbnail_url, favorite, pinned, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, is_syncing)
+VALUES (:source, :url, :author, :description, :notes, :genre, :title, :status, :thumbnailUrl, :favorite, :pinned, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version, 0);
 
 update:
 UPDATE novels SET
@@ -159,6 +161,7 @@ UPDATE novels SET
     url = coalesce(:url, url),
     author = coalesce(:author, author),
     description = coalesce(:description, description),
+    notes = coalesce(:notes, notes),
     genre = coalesce(:genre, genre),
     title = coalesce(:title, title),
     status = coalesce(:status, status),

@@ -162,6 +162,133 @@ class AppModule(val app: Application) : InjektModule {
         }
     }
 
+    private fun ensureNotesSchema(
+        db: SupportSQLiteDatabase,
+        tableName: String,
+        addColumnSql: String,
+        triggerStatements: List<Pair<String, String>>,
+    ) {
+        var hasNotesColumn = false
+        val cursor = db.query("PRAGMA table_info($tableName)")
+        try {
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == "notes") {
+                    hasNotesColumn = true
+                    break
+                }
+            }
+        } finally {
+            cursor.close()
+        }
+
+        if (!hasNotesColumn) {
+            db.execSQL(addColumnSql)
+        }
+
+        // Recreate the triggers on every open so upgrades and fresh installs stay aligned.
+        triggerStatements.forEach { (dropSql, createSql) ->
+            db.execSQL(dropSql)
+            db.execSQL(createSql)
+        }
+    }
+
+    private fun migrateMangaNotesSchema(db: SupportSQLiteDatabase) {
+        ensureNotesSchema(
+            db = db,
+            tableName = "mangas",
+            addColumnSql = "ALTER TABLE mangas ADD COLUMN notes TEXT NOT NULL DEFAULT '';",
+            triggerStatements = listOf(
+                "DROP TRIGGER IF EXISTS update_last_modified_at_mangas;" to """
+                    CREATE TRIGGER update_last_modified_at_mangas
+                    AFTER UPDATE ON mangas
+                    FOR EACH ROW
+                    BEGIN
+                      UPDATE mangas
+                      SET last_modified_at = strftime('%s', 'now')
+                      WHERE _id = new._id;
+                    END;
+                """.trimIndent(),
+                "DROP TRIGGER IF EXISTS update_manga_version;" to """
+                    CREATE TRIGGER update_manga_version AFTER UPDATE ON mangas
+                    BEGIN
+                        UPDATE mangas SET version = version + 1
+                        WHERE _id = new._id AND new.is_syncing = 0 AND (
+                        new.url != old.url OR
+                        new.description != old.description OR
+                        new.notes != old.notes OR
+                        new.favorite != old.favorite
+                    );
+                    END;
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    private fun migrateAnimeNotesSchema(db: SupportSQLiteDatabase) {
+        ensureNotesSchema(
+            db = db,
+            tableName = "animes",
+            addColumnSql = "ALTER TABLE animes ADD COLUMN notes TEXT NOT NULL DEFAULT '';",
+            triggerStatements = listOf(
+                "DROP TRIGGER IF EXISTS update_last_modified_at_animes;" to """
+                    CREATE TRIGGER update_last_modified_at_animes
+                    AFTER UPDATE ON animes
+                    FOR EACH ROW
+                    BEGIN
+                      UPDATE animes
+                      SET last_modified_at = strftime('%s', 'now')
+                      WHERE _id = new._id;
+                    END;
+                """.trimIndent(),
+                "DROP TRIGGER IF EXISTS update_anime_version;" to """
+                    CREATE TRIGGER update_anime_version AFTER UPDATE ON animes
+                    BEGIN
+                        UPDATE animes SET version = version + 1
+                        WHERE _id = new._id AND new.is_syncing = 0 AND (
+                        new.url != old.url OR
+                        new.description != old.description OR
+                        new.notes != old.notes OR
+                        new.favorite != old.favorite
+                    );
+                    END;
+                """.trimIndent(),
+            ),
+        )
+    }
+
+    private fun migrateNovelNotesSchema(db: SupportSQLiteDatabase) {
+        ensureNotesSchema(
+            db = db,
+            tableName = "novels",
+            addColumnSql = "ALTER TABLE novels ADD COLUMN notes TEXT NOT NULL DEFAULT '';",
+            triggerStatements = listOf(
+                "DROP TRIGGER IF EXISTS update_last_modified_at_novels;" to """
+                    CREATE TRIGGER update_last_modified_at_novels
+                    AFTER UPDATE OF source, url, author, description, notes, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval ON novels
+                    FOR EACH ROW
+                    BEGIN
+                      UPDATE novels
+                      SET last_modified_at = strftime('%s', 'now')
+                      WHERE _id = new._id;
+                    END;
+                """.trimIndent(),
+                "DROP TRIGGER IF EXISTS update_novel_version;" to """
+                    CREATE TRIGGER update_novel_version AFTER UPDATE ON novels
+                    BEGIN
+                        UPDATE novels SET version = version + 1
+                        WHERE _id = new._id AND new.is_syncing = 0 AND (
+                            new.url != old.url OR
+                            new.description != old.description OR
+                            new.notes != old.notes OR
+                            new.favorite != old.favorite
+                        );
+                    END;
+                """.trimIndent(),
+            ),
+        )
+    }
+
     private fun loadNovelPluginRuntimeOverrides(json: Json): NovelPluginRuntimeOverrides {
         val payload = runCatching {
             app.assets.open("novel-plugin-overrides.json").bufferedReader().use { it.readText() }
@@ -191,6 +318,7 @@ class AppModule(val app: Application) : InjektModule {
                     setPragma(db, "foreign_keys = ON")
                     setPragma(db, "journal_mode = WAL")
                     setPragma(db, "synchronous = NORMAL")
+                    migrateMangaNotesSchema(db)
                 }
                 private fun setPragma(db: SupportSQLiteDatabase, pragma: String) {
                     val cursor = db.query("PRAGMA $pragma")
@@ -218,6 +346,7 @@ class AppModule(val app: Application) : InjektModule {
                     setPragma(db, "foreign_keys = ON")
                     setPragma(db, "journal_mode = WAL")
                     setPragma(db, "synchronous = NORMAL")
+                    migrateAnimeNotesSchema(db)
                 }
                 private fun setPragma(db: SupportSQLiteDatabase, pragma: String) {
                     val cursor = db.query("PRAGMA $pragma")
@@ -268,6 +397,7 @@ class AppModule(val app: Application) : InjektModule {
                     setPragma(db, "foreign_keys = ON")
                     setPragma(db, "journal_mode = WAL")
                     setPragma(db, "synchronous = NORMAL")
+                    migrateNovelNotesSchema(db)
                 }
                 private fun setPragma(db: SupportSQLiteDatabase, pragma: String) {
                     val cursor = db.query("PRAGMA $pragma")

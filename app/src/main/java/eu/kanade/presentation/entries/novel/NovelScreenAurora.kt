@@ -131,11 +131,13 @@ fun NovelScreenAuroraImpl(
     isReading: Boolean,
     onToggleFavorite: () -> Unit,
     onEditCategoryClicked: (() -> Unit)? = null,
+    onEditNotesClicked: (() -> Unit)? = null,
     onRefresh: () -> Unit,
     onSearch: (query: String, global: Boolean) -> Unit,
     onPosterLongClicked: (() -> Unit)? = null,
     onShare: (() -> Unit)?,
     onWebView: (() -> Unit)?,
+    onClickOmniBuilder: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     onTrackingClicked: () -> Unit,
     trackingCount: Int,
@@ -144,6 +146,7 @@ fun NovelScreenAuroraImpl(
     onOpenEpubExportDialog: (() -> Unit)?,
     onChapterClick: (Long) -> Unit,
     onChapterTranslateClick: (Long) -> Unit,
+    onChapterTranslateLongClick: (Long) -> Unit,
     onChapterTranslatedDownloadClick: (Long) -> Unit,
     onChapterTranslatedDownloadLongClick: (Long) -> Unit,
     onChapterTranslatedDownloadOpenFolder: (Long) -> Unit,
@@ -376,6 +379,8 @@ fun NovelScreenAuroraImpl(
                                     translation = auroraEntryTranslation,
                                     chapterCount = totalChapterCount,
                                     rating = state.rating,
+                                    note = novel.notes,
+                                    onEditNotesClicked = onEditNotesClicked,
                                     onContinueReading = onStartReading,
                                     isReading = isReading,
                                     modifier = Modifier.fillMaxWidth(),
@@ -553,6 +558,7 @@ fun NovelScreenAuroraImpl(
                                                     onClick = { onChapterClick(chapter.id) },
                                                     onLongClick = { onChapterLongClick(chapter.id) },
                                                     onTranslateClick = { onChapterTranslateClick(chapter.id) },
+                                                    onTranslateLongClick = { onChapterTranslateLongClick(chapter.id) },
                                                     onTranslatedDownloadClick = {
                                                         onChapterTranslatedDownloadClick(chapter.id)
                                                     },
@@ -630,6 +636,7 @@ fun NovelScreenAuroraImpl(
                                                     onClick = { onChapterClick(chapter.id) },
                                                     onLongClick = { onChapterLongClick(chapter.id) },
                                                     onTranslateClick = { onChapterTranslateClick(chapter.id) },
+                                                    onTranslateLongClick = { onChapterTranslateLongClick(chapter.id) },
                                                     onTranslatedDownloadClick = {
                                                         onChapterTranslatedDownloadClick(chapter.id)
                                                     },
@@ -747,6 +754,15 @@ fun NovelScreenAuroraImpl(
                                         showMenu = false
                                     },
                                 )
+                                if (onClickOmniBuilder != null) {
+                                    AuroraEntryDropdownMenuItem(
+                                        text = stringResource(MR.strings.action_train_parser),
+                                        onClick = {
+                                            onClickOmniBuilder()
+                                            showMenu = false
+                                        },
+                                    )
+                                }
                                 if (isFromSource) {
                                     AuroraEntryDropdownMenuItem(
                                         text = stringResource(MR.strings.action_webview_refresh),
@@ -773,6 +789,15 @@ fun NovelScreenAuroraImpl(
                                             },
                                         )
                                     }
+                                    if (onEditNotesClicked != null) {
+                                        AuroraEntryDropdownMenuItem(
+                                            text = stringResource(MR.strings.action_notes),
+                                            onClick = {
+                                                onEditNotesClicked()
+                                                showMenu = false
+                                            },
+                                        )
+                                    }
                                 } else {
                                     AuroraEntryDropdownMenuItem(
                                         text = stringResource(MR.strings.action_webview_refresh),
@@ -795,6 +820,15 @@ fun NovelScreenAuroraImpl(
                                             text = stringResource(MR.strings.action_share),
                                             onClick = {
                                                 onShare()
+                                                showMenu = false
+                                            },
+                                        )
+                                    }
+                                    if (onEditNotesClicked != null) {
+                                        AuroraEntryDropdownMenuItem(
+                                            text = stringResource(MR.strings.action_notes),
+                                            onClick = {
+                                                onEditNotesClicked()
                                                 showMenu = false
                                             },
                                         )
@@ -1047,6 +1081,7 @@ fun NovelScreenAuroraImpl(
                                         onClick = { onChapterClick(chapter.id) },
                                         onLongClick = { onChapterLongClick(chapter.id) },
                                         onTranslateClick = { onChapterTranslateClick(chapter.id) },
+                                        onTranslateLongClick = { onChapterTranslateLongClick(chapter.id) },
                                         onTranslatedDownloadClick = {
                                             onChapterTranslatedDownloadClick(chapter.id)
                                         },
@@ -1126,6 +1161,7 @@ fun NovelScreenAuroraImpl(
                                         onClick = { onChapterClick(chapter.id) },
                                         onLongClick = { onChapterLongClick(chapter.id) },
                                         onTranslateClick = { onChapterTranslateClick(chapter.id) },
+                                        onTranslateLongClick = { onChapterTranslateLongClick(chapter.id) },
                                         onTranslatedDownloadClick = {
                                             onChapterTranslatedDownloadClick(chapter.id)
                                         },
@@ -1205,6 +1241,8 @@ fun NovelScreenAuroraImpl(
                         translation = auroraEntryTranslation,
                         chapterCount = totalChapterCount,
                         rating = state.rating,
+                        note = novel.notes,
+                        onEditNotesClicked = onEditNotesClicked,
                         onContinueReading = onStartReading,
                         isReading = isReading,
                     )
@@ -1293,6 +1331,15 @@ fun NovelScreenAuroraImpl(
                                     showMenu = false
                                 },
                             )
+                            if (onClickOmniBuilder != null) {
+                                AuroraEntryDropdownMenuItem(
+                                    text = stringResource(MR.strings.action_train_parser),
+                                    onClick = {
+                                        onClickOmniBuilder()
+                                        showMenu = false
+                                    },
+                                )
+                            }
                             if (isFromSource) {
                                 AuroraEntryDropdownMenuItem(
                                     text = stringResource(MR.strings.action_webview_refresh),
@@ -1341,6 +1388,15 @@ fun NovelScreenAuroraImpl(
                                         text = stringResource(MR.strings.action_share),
                                         onClick = {
                                             onShare()
+                                            showMenu = false
+                                        },
+                                    )
+                                }
+                                if (onEditNotesClicked != null) {
+                                    AuroraEntryDropdownMenuItem(
+                                        text = stringResource(MR.strings.action_notes),
+                                        onClick = {
+                                            onEditNotesClicked()
                                             showMenu = false
                                         },
                                     )

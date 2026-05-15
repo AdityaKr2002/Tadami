@@ -75,10 +75,13 @@ class MigrateMangaUseCase(
     ) {
         val migrateChapters = eu.kanade.tachiyomi.ui.browse.manga.migration.MangaMigrationFlags.hasChapters(flags)
         val migrateCategories = eu.kanade.tachiyomi.ui.browse.manga.migration.MangaMigrationFlags.hasCategories(flags)
+        val migrateTracking = eu.kanade.tachiyomi.ui.browse.manga.migration.MangaMigrationFlags.hasTracking(flags)
+        val migrateExtra = eu.kanade.tachiyomi.ui.browse.manga.migration.MangaMigrationFlags.hasExtra(flags)
         val migrateCustomCover = eu.kanade.tachiyomi.ui.browse.manga.migration.MangaMigrationFlags.hasCustomCover(flags)
         val deleteDownloaded = eu.kanade.tachiyomi.ui.browse.manga.migration.MangaMigrationFlags.hasDeleteDownloaded(
             flags,
         )
+        var matchedChapters = 0
 
         try {
             syncChaptersWithSource.await(sourceChapters, newManga, newSource)
@@ -101,6 +104,7 @@ class MigrateMangaUseCase(
                         .find { it.isRecognizedNumber && it.chapterNumber == updatedChapter.chapterNumber }
 
                     if (prevChapter != null) {
+                        matchedChapters++
                         updatedChapter = updatedChapter.copy(
                             dateFetch = prevChapter.dateFetch,
                             bookmark = prevChapter.bookmark,
@@ -123,20 +127,22 @@ class MigrateMangaUseCase(
             setMangaCategories.await(newManga.id, categoryIds)
         }
 
-        getTracks.await(oldManga.id)
-            .mapNotNull { track ->
-                val updatedTrack = track.copy(mangaId = newManga.id)
-                val service = enhancedServices.firstOrNull { it.isTrackFrom(updatedTrack, oldManga, oldSource) }
-                if (service != null) {
-                    service.migrateTrack(updatedTrack, newManga, newSource)
-                } else {
-                    updatedTrack
+        if (migrateTracking) {
+            getTracks.await(oldManga.id)
+                .mapNotNull { track ->
+                    val updatedTrack = track.copy(mangaId = newManga.id)
+                    val service = enhancedServices.firstOrNull { it.isTrackFrom(updatedTrack, oldManga, oldSource) }
+                    if (service != null) {
+                        service.migrateTrack(updatedTrack, newManga, newSource)
+                    } else {
+                        updatedTrack
+                    }
                 }
-            }
-            .takeIf { it.isNotEmpty() }
-            ?.let { insertTrack.awaitAll(it) }
+                .takeIf { it.isNotEmpty() }
+                ?.let { insertTrack.awaitAll(it) }
+        }
 
-        if (deleteDownloaded && oldSource != null) {
+        if (deleteDownloaded && migrateChapters && matchedChapters > 0 && oldSource != null) {
             downloadManager.deleteManga(oldManga, oldSource)
         }
 
@@ -155,8 +161,8 @@ class MigrateMangaUseCase(
             MangaUpdate(
                 id = newManga.id,
                 favorite = true,
-                chapterFlags = oldManga.chapterFlags,
-                viewerFlags = oldManga.viewerFlags,
+                chapterFlags = if (migrateExtra) oldManga.chapterFlags else null,
+                viewerFlags = if (migrateExtra) oldManga.viewerFlags else null,
                 dateAdded = if (replace) oldManga.dateAdded else Instant.now().toEpochMilli(),
             ),
         )

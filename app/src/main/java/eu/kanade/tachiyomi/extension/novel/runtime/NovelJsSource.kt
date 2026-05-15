@@ -19,6 +19,7 @@ import eu.kanade.tachiyomi.source.novel.NovelPluginImageSource
 import eu.kanade.tachiyomi.source.novel.NovelSiteSource
 import eu.kanade.tachiyomi.source.novel.NovelWebUrlSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -49,6 +50,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Base64
+import kotlin.random.Random
 
 class NovelJsSource internal constructor(
     private val plugin: NovelPlugin.Installed,
@@ -60,6 +62,9 @@ class NovelJsSource internal constructor(
     private val resultNormalizer: NovelPluginResultNormalizer,
     private val runtimeOverride: NovelPluginRuntimeOverride,
     private val settingsBridge: NovelPluginSettingsBridge,
+    private val chapterRequestDelay: suspend (Long) -> Unit = { delayMs ->
+        if (delayMs > 0L) delay(delayMs)
+    },
 ) : NovelCatalogueSource,
     NovelSiteSource,
     NovelWebUrlSource,
@@ -72,7 +77,18 @@ class NovelJsSource internal constructor(
     override val name: String = plugin.name
     override val lang: String = plugin.lang
     override val supportsLatest: Boolean = true
-    override val siteUrl: String? = plugin.site
+    override val siteUrl: String?
+        get() {
+            // Prefer the user-configured URL from settings (e.g. Komga's "url" setting).
+            // This allows plugins whose site is dynamically configured (stored via
+            // storage.get/set) to expose the correct base URL without requiring a
+            // static value baked into the plugin manifest.
+            val userConfiguredUrl = settingsBridge.getSettingWithDefault("url")
+                ?.let { value ->
+                    value.trim().takeIf { it.isNotBlank() && (it.startsWith("http://") || it.startsWith("https://")) }
+                }
+            return userConfiguredUrl ?: plugin.site.takeIf { it.isNotBlank() }
+        }
     override val pluginId: String = plugin.id
 
     private val mutex = Mutex()
@@ -83,6 +99,8 @@ class NovelJsSource internal constructor(
     private var settingsSchema: List<PluginSettingDefinition> = emptyList()
     private var cachedParseNovelUrl: String? = null
     private var cachedParseNovelResult: ParsedPluginNovel? = null
+    private var settingsDiscoveryAttempted = false
+    private var cachedHasSettings = false
 
     override val pluginCapabilities: NovelPluginCapabilities?
         get() = capabilities
@@ -133,6 +151,11 @@ class NovelJsSource internal constructor(
                     summary = settingsBridge.getSettingWithDefault(definition.key) ?: ""
                     setOnPreferenceChangeListener { _, newValue ->
                         settingsBridge.setSetting(definition.key, newValue.toString())
+                        // Sync to storage namespace so storage.get(key) reads the updated
+                        // value after the runtime is reloaded, and clear the cached runtime
+                        // so the plugin reinitialises with the new setting.
+                        settingsBridge.syncSettingToStorage(definition.key, newValue.toString())
+                        clearInMemoryCaches()
                         summary = newValue.toString()
                         true
                     }
@@ -143,6 +166,8 @@ class NovelJsSource internal constructor(
                     isChecked = settingsBridge.getSettingBooleanWithDefault(definition.key)
                     setOnPreferenceChangeListener { _, newValue ->
                         settingsBridge.setSetting(definition.key, newValue.toString())
+                        settingsBridge.syncSettingToStorage(definition.key, newValue.toString())
+                        clearInMemoryCaches()
                         true
                     }
                 }
@@ -160,6 +185,8 @@ class NovelJsSource internal constructor(
                             setOnPreferenceChangeListener { _, newValue ->
                                 val selected = (newValue as? Set<*>)?.mapNotNull { it as? String }.orEmpty()
                                 settingsBridge.setSettingValues(definition.key, selected)
+                                settingsBridge.syncSettingValuesToStorage(definition.key, selected)
+                                clearInMemoryCaches()
                                 summary = selected.joinToString(", ")
                                 true
                             }
@@ -171,6 +198,8 @@ class NovelJsSource internal constructor(
                             isChecked = settingsBridge.getSettingBooleanWithDefault(definition.key)
                             setOnPreferenceChangeListener { _, newValue ->
                                 settingsBridge.setSetting(definition.key, newValue.toString())
+                                settingsBridge.syncSettingToStorage(definition.key, newValue.toString())
+                                clearInMemoryCaches()
                                 true
                             }
                         }
@@ -187,6 +216,8 @@ class NovelJsSource internal constructor(
                     summary = currentValue ?: ""
                     setOnPreferenceChangeListener { _, newValue ->
                         settingsBridge.setSetting(definition.key, newValue.toString())
+                        settingsBridge.syncSettingToStorage(definition.key, newValue.toString())
+                        clearInMemoryCaches()
                         summary = newValue.toString()
                         true
                     }
@@ -210,12 +241,19 @@ class NovelJsSource internal constructor(
             return false
         }
 
-        return runCatching {
+        if (settingsDiscoveryAttempted) {
+            return cachedHasSettings
+        }
+
+        settingsDiscoveryAttempted = true
+        cachedHasSettings = runCatching {
             runBlocking {
                 mutex.withLock { ensureRuntimeLocked() }
             }
             settingsSchema.isNotEmpty()
         }.getOrDefault(false)
+
+        return cachedHasSettings
     }
 
     @Deprecated("Use the non-RxJava API instead.")
@@ -417,16 +455,31 @@ class NovelJsSource internal constructor(
             }
 
             val directChapters = sourceNovel.chapters ?: emptyList()
+            val totalPages = sourceNovel.totalPages
+            if (isJaomixPlugin() && totalPages != null && capabilities?.hasParsePage == true) {
+                val startPage = if (directChapters.isEmpty()) 1 else 2
+                val collected = buildList {
+                    addAll(directChapters)
+                    if (startPage <= totalPages) {
+                        addAll(collectChaptersFromParsePage(runtime, novel.url, startPage..totalPages))
+                    }
+                }
+                logcat(LogPriority.DEBUG) {
+                    "Novel chapterList jaomix auto-load plugin=${plugin.id} url=${novel.url} " +
+                        "count=${collected.size} totalPages=$totalPages startPage=$startPage"
+                }
+                return@runPluginSafe normalizeChapters(collected.asReversed()).mapNotNull { it.toSChapterOrNull() }
+            }
+
             if (directChapters.isNotEmpty()) {
                 logcat(LogPriority.DEBUG) {
                     "Novel chapterList direct plugin=${plugin.id} url=${novel.url} " +
-                        "count=${directChapters.size} totalPages=${sourceNovel.totalPages?.toString() ?: "null"}"
+                        "count=${directChapters.size} totalPages=${totalPages?.toString() ?: "null"}"
                 }
                 return@runPluginSafe normalizeChapters(directChapters).mapNotNull { it.toSChapterOrNull() }
             }
 
             // Standard parsePage-based chapter collection (not a fallback)
-            val totalPages = sourceNovel.totalPages
             if (totalPages != null && capabilities?.hasParsePage == true) {
                 val collected = collectChaptersFromParsePage(runtime, novel.url, totalPages)
                 logcat(LogPriority.DEBUG) {
@@ -676,6 +729,8 @@ class NovelJsSource internal constructor(
         settingsSchema = emptyList()
         settingsBridge.clearSettingsSchema()
         capabilities = null
+        settingsDiscoveryAttempted = false
+        cachedHasSettings = false
     }
 
     private fun loadFiltersLocked(): NovelFilterList {
@@ -710,7 +765,11 @@ class NovelJsSource internal constructor(
     }
 
     private fun ensureRuntimeLocked(): NovelJsRuntime {
-        runtime?.let { return it }
+        runtime?.let {
+            if (!it.released) return it
+            // Runtime was disposed (e.g. by clearInMemoryCaches), create a fresh one
+            runtime = null
+        }
         val instance = runtimeFactory.create(plugin.id)
         val wrappedScript = scriptBuilder.wrap(script, plugin.id)
         instance.evaluate(wrappedScript, "${plugin.id}.js")
@@ -774,7 +833,7 @@ class NovelJsSource internal constructor(
             }
             return cachedParseNovelResult
         }
-        val payload = callPlugin(runtime, "parseNovel", toJsString(url))
+        val payload = callPluginWithTimeout(runtime, "parseNovel", PARSE_NOVEL_TIMEOUT_MS, toJsString(url))
         logcat(LogPriority.DEBUG) {
             "Novel parseNovel payload plugin=${plugin.id} url=$url " +
                 "bytes=${payload.length} preview=${payload.take(240)}"
@@ -816,7 +875,8 @@ class NovelJsSource internal constructor(
             )
             return result as? String ?: ""
         }
-        val maxCycles = (timeoutMs / 50L).toInt().coerceIn(1, 600)
+        val pollSleepMs = 10L
+        val maxCycles = ((timeoutMs + pollSleepMs - 1L) / pollSleepMs).toInt().coerceIn(1, 3_000)
         return callPluginPolling(runtime, functionName, maxCycles = maxCycles, args = args.asList())
     }
 
@@ -862,6 +922,9 @@ class NovelJsSource internal constructor(
             val done = runtime.evaluate("globalThis.__d_$token") as? Boolean ?: false
             if (done) break
             cycles++
+            if (cycles < maxCycles) {
+                Thread.sleep(10L)
+            }
         }
 
         val error = runtime.evaluate("globalThis.__e_$token") as? String
@@ -1587,11 +1650,12 @@ class NovelJsSource internal constructor(
         if (pages.isEmpty() || capabilities?.hasParsePage != true) return emptyList()
         val collected = mutableListOf<ParsedPluginChapter>()
         for (page in pages) {
-            val payload = mutex.withLock {
-                callPlugin(runtime, "parsePage", toJsString(novelPath), toJsString(page.toString()))
+            val pageResult = if (isJaomixPlugin()) {
+                parseSinglePageWithRetry(runtime, novelPath, page)
+            } else {
+                parseSinglePageOnce(runtime, novelPath, page)
             }
-            val pageResult = NovelJsPayloadParser.parsePage(json, payload) ?: continue
-            collected.addAll(pageResult.chapters)
+            collected.addAll(pageResult?.chapters.orEmpty())
         }
         return collected
     }
@@ -1646,10 +1710,57 @@ class NovelJsSource internal constructor(
         pageNumber: Int,
     ): ParsedPluginPage? {
         if (capabilities?.hasParsePage != true) return null
+        return if (isJaomixPlugin()) {
+            parseSinglePageWithRetry(runtime, novelPath, pageNumber)
+        } else {
+            parseSinglePageOnce(runtime, novelPath, pageNumber)
+        }
+    }
+
+    private suspend fun parseSinglePageOnce(
+        runtime: NovelJsRuntime,
+        novelPath: String,
+        pageNumber: Int,
+    ): ParsedPluginPage? {
         val payload = mutex.withLock {
             callPlugin(runtime, "parsePage", toJsString(novelPath), toJsString(pageNumber.toString()))
         }
         return NovelJsPayloadParser.parsePage(json, payload)
+    }
+
+    private suspend fun parseSinglePageWithRetry(
+        runtime: NovelJsRuntime,
+        novelPath: String,
+        pageNumber: Int,
+    ): ParsedPluginPage? {
+        if (capabilities?.hasParsePage != true) return null
+
+        var attempt = 0
+        var lastFailure: Throwable? = null
+        while (attempt < JAOMIX_PARSE_PAGE_MAX_ATTEMPTS) {
+            val delayMs = jaomixParsePageDelayMs(attempt)
+            chapterRequestDelay(delayMs)
+
+            try {
+                val pageResult = parseSinglePageOnce(runtime, novelPath, pageNumber)
+                if (pageResult?.chapters?.isNotEmpty() == true) {
+                    return pageResult
+                }
+                lastFailure = RuntimeException(
+                    "Empty jaomix parsePage response for page=$pageNumber attempt=${attempt + 1}",
+                )
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                lastFailure = error
+            }
+
+            attempt++
+        }
+
+        throw RuntimeException(
+            "Failed to fetch jaomix parsePage page=$pageNumber after $JAOMIX_PARSE_PAGE_MAX_ATTEMPTS attempts",
+            lastFailure,
+        )
     }
 
     private fun isNovelUpdatesPlugin(): Boolean {
@@ -1692,6 +1803,8 @@ class NovelJsSource internal constructor(
     companion object {
         private const val LOG_TAG = "NovelJsSource"
         private const val FETCH_IMAGE_RUNTIME_TIMEOUT_MS = 15_000L
+        private const val PARSE_NOVEL_TIMEOUT_MS = 30_000L
+        private const val JAOMIX_PARSE_PAGE_MAX_ATTEMPTS = 9
     }
 
     private enum class WuxiaworldSort(val value: String) {
@@ -1757,6 +1870,16 @@ class NovelJsSource internal constructor(
                 2 -> WuxiaworldStatus.Finished
                 else -> WuxiaworldStatus.All
             }
+        }
+    }
+
+    private fun jaomixParsePageDelayMs(attempt: Int): Long {
+        return if (attempt == 0) {
+            120L + Random.nextLong(0L, 120L)
+        } else {
+            val backoff = (1_000L shl (attempt - 1)).coerceAtMost(300_000L)
+            val jitter = (backoff / 4L).coerceIn(250L, 5_000L)
+            backoff + Random.nextLong(0L, jitter)
         }
     }
 }

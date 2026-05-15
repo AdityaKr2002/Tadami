@@ -102,11 +102,15 @@ class NovelTtsChapterRepository internal constructor(
                 pluginSite = pluginSite,
             )
         }
-        val normalizedChapterHtml = prependChapterHeadingIfMissing(
-            rawHtml = html,
-            chapterName = chapter.name,
-        )
-        val sanitizedChapterHtml = sanitizeChapterHtmlForReader(normalizedChapterHtml)
+        val normalizedChapterHtml = withContext(Dispatchers.Default) {
+            prependChapterHeadingIfMissing(
+                rawHtml = html,
+                chapterName = chapter.name,
+            )
+        }
+        val sanitizedChapterHtml = withContext(Dispatchers.Default) {
+            sanitizeChapterHtmlForReader(normalizedChapterHtml)
+        }
         val readerHtml = if (sanitizedChapterHtml.isBlank()) normalizedChapterHtml else sanitizedChapterHtml
         val contentBlocks = withContext(Dispatchers.Default) {
             extractSnapshotContentBlocks(

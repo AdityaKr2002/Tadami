@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.source.novel
 import android.content.Context
 import eu.kanade.tachiyomi.extension.novel.NovelExtensionManager
 import eu.kanade.tachiyomi.extension.novel.runtime.NovelPluginCapabilities
+import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.novelsource.NovelSource
 import eu.kanade.tachiyomi.novelsource.model.NovelFilterList
 import eu.kanade.tachiyomi.novelsource.model.NovelsPage
@@ -24,6 +25,7 @@ import rx.Observable
 import tachiyomi.domain.extension.novel.model.NovelPlugin
 import tachiyomi.domain.source.novel.model.StubNovelSource
 import tachiyomi.domain.source.novel.repository.NovelStubSourceRepository
+import tachiyomi.domain.source.novel.resolver.repository.OmniRuleRepository
 import tachiyomi.source.local.image.novel.LocalNovelCoverManager
 import tachiyomi.source.local.io.novel.LocalNovelSourceFileSystem
 import uy.kohesive.injekt.Injekt
@@ -43,6 +45,14 @@ class AndroidNovelSourceManagerTest {
         runCatching { Injekt.get<LocalNovelCoverManager>() }
             .getOrElse {
                 Injekt.addSingleton(fullType<LocalNovelCoverManager>(), mockk(relaxed = true))
+            }
+        runCatching { Injekt.get<NetworkHelper>() }
+            .getOrElse {
+                Injekt.addSingleton(fullType<NetworkHelper>(), mockk(relaxed = true))
+            }
+        runCatching { Injekt.get<OmniRuleRepository>() }
+            .getOrElse {
+                Injekt.addSingleton(fullType<OmniRuleRepository>(), mockk(relaxed = true))
             }
     }
 

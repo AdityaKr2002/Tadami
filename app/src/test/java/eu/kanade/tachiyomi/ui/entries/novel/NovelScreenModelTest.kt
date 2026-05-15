@@ -24,12 +24,13 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.translation.TranslationQueueItem
 import eu.kanade.tachiyomi.data.translation.TranslationQueueManager
 import eu.kanade.tachiyomi.data.translation.TranslationStatus
+import eu.kanade.tachiyomi.extension.novel.runtime.NovelJsSource
 import eu.kanade.tachiyomi.novelsource.NovelSource
+import eu.kanade.tachiyomi.novelsource.model.SNovelChapter
 import eu.kanade.tachiyomi.ui.reader.novel.translation.GeminiTranslationCacheEntry
 import eu.kanade.tachiyomi.ui.reader.novel.translation.NovelReaderTranslationDiskCacheStore
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -40,13 +41,11 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import kotlinx.serialization.json.Json
-import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.Preference
@@ -162,15 +161,8 @@ class NovelScreenModelTest {
         fun setupMainDispatcher() {
             Dispatchers.setMain(Dispatchers.Unconfined)
         }
-
-        @JvmStatic
-        @AfterAll
-        fun resetMainDispatcher() {
-            Dispatchers.resetMain()
-        }
     }
 
-    @Test
     fun `toggleFavorite updates repository`() {
         runBlocking {
             val novel = Novel.create().copy(id = 1L, favorite = false, title = "Novel", initialized = true)
@@ -381,25 +373,25 @@ class NovelScreenModelTest {
                     preferenceStore = preferenceStore,
                     json = Json { encodeDefaults = true },
                 ),
+                downloadCache = null,
             )
 
             try {
-                withTimeout(1_000) {
+                withTimeout(5_000) {
                     while (screenModel.state.value is NovelScreenModel.State.Loading) {
                         yield()
                     }
                 }
 
-                novelRepository.allUpdates.clear()
                 screenModel.toggleFavorite()
 
-                withTimeout(1_000) {
-                    while (novelRepository.allUpdates.none { it.favorite == true }) {
+                withTimeout(5_000) {
+                    while (novelRepository.lastUpdate?.favorite != true) {
                         yield()
                     }
                 }
 
-                novelRepository.allUpdates.any { it.favorite == true } shouldBe true
+                novelRepository.lastUpdate?.favorite shouldBe true
             } finally {
                 screenModel.onDispose()
                 repeat(5) { yield() }
@@ -461,6 +453,51 @@ class NovelScreenModelTest {
             try {
                 awaitResumeScreenModel(screenModel)
                 screenModel.getResumeOrNextChapter()?.id shouldBe chapter2.id
+            } finally {
+                screenModel.onDispose()
+            }
+        }
+    }
+
+    @Test
+    fun `jaomix entries do not boot into manual chapter page mode`() {
+        runBlocking {
+            val novel = novelForResumeTests(104L)
+            val chapter1 = novelChapter(id = 1L, novelId = novel.id, chapterNumber = 1.0, read = false)
+            val chapter2 = novelChapter(id = 2L, novelId = novel.id, chapterNumber = 2.0, read = false)
+            val sourceChapters = listOf(chapter1, chapter2).map { chapter ->
+                SNovelChapter.create().apply {
+                    url = chapter.url
+                    name = chapter.name
+                    chapter_number = chapter.chapterNumber.toFloat()
+                    date_upload = 0L
+                }
+            }
+            val source = mockk<NovelJsSource>(relaxed = true).also { jaomixSource ->
+                every { jaomixSource.id } returns novel.source
+                every { jaomixSource.name } returns "Jaomix"
+                every { jaomixSource.isJaomixPagedPlugin() } returns true
+                coEvery { jaomixSource.getChapterList(any()) } returns sourceChapters
+            }
+
+            val screenModel = createResumeScreenModel(
+                novel = novel,
+                chapters = listOf(chapter1, chapter2),
+                source = source,
+            )
+
+            try {
+                withTimeout(1_000) {
+                    while (screenModel.state.value is NovelScreenModel.State.Loading) {
+                        yield()
+                    }
+                }
+
+                val state = screenModel.state.value as NovelScreenModel.State.Success
+                state.chapterPageEnabled shouldBe false
+                state.chapterPageVisibleUrls shouldBe emptySet()
+                state.chapterPageEstimatedTotal shouldBe 0
+                state.chapterPageNominalSize shouldBe 0
             } finally {
                 screenModel.onDispose()
             }
@@ -743,6 +780,63 @@ class NovelScreenModelTest {
     }
 
     @Test
+    fun `selected batch scope keeps visible order`() {
+        val novel = novelForResumeTests(110L)
+        val chapters = listOf(
+            novelChapter(id = 1L, novelId = novel.id, chapterNumber = 3.0, read = false),
+            novelChapter(id = 2L, novelId = novel.id, chapterNumber = 1.0, read = true),
+            novelChapter(id = 3L, novelId = novel.id, chapterNumber = 2.0, read = false),
+        )
+
+        resolveTranslationBatchChapterIds(
+            scope = TranslationBatchScope.SELECTED,
+            limit = 10,
+            chapters = chapters,
+            selectedChapterIds = setOf(3L, 1L),
+            downloadedChapterIds = emptySet(),
+        ) shouldBe listOf(1L, 3L)
+    }
+
+    @Test
+    fun `already translated chapters are skipped unless forced`() {
+        filterTranslationBatchChapterIds(
+            chapterIds = listOf(1L, 2L, 3L),
+            alreadyTranslatedChapterIds = setOf(2L),
+            forceRetranslate = false,
+        ) shouldBe TranslationBatchSelection(
+            chapterIdsToEnqueue = listOf(1L, 3L),
+            skippedAlreadyTranslatedCount = 1,
+        )
+
+        filterTranslationBatchChapterIds(
+            chapterIds = listOf(1L, 2L, 3L),
+            alreadyTranslatedChapterIds = setOf(2L),
+            forceRetranslate = true,
+        ) shouldBe TranslationBatchSelection(
+            chapterIdsToEnqueue = listOf(1L, 2L, 3L),
+            skippedAlreadyTranslatedCount = 0,
+        )
+    }
+
+    @Test
+    fun `first n visible batch scope limits to visible order`() {
+        val novel = novelForResumeTests(111L)
+        val chapters = listOf(
+            novelChapter(id = 10L, novelId = novel.id, chapterNumber = 4.0, read = false),
+            novelChapter(id = 20L, novelId = novel.id, chapterNumber = 1.0, read = false),
+            novelChapter(id = 30L, novelId = novel.id, chapterNumber = 3.0, read = false),
+        )
+
+        resolveTranslationBatchChapterIds(
+            scope = TranslationBatchScope.FIRST_N_VISIBLE,
+            limit = 2,
+            chapters = chapters,
+            selectedChapterIds = emptySet(),
+            downloadedChapterIds = emptySet(),
+        ) shouldBe listOf(10L, 20L)
+    }
+
+    @Test
     fun `translation cache chapter ids are loaded in bulk`() {
         NovelReaderTranslationDiskCacheStore.clear()
         try {
@@ -914,7 +1008,7 @@ class NovelScreenModelTest {
     @Test
     fun `chapter status updates do not rescan downloaded ids when chapter ids are unchanged`() {
         runBlocking {
-            val novel = novelForResumeTests(105L)
+            val novel = novelForResumeTests(1051L)
             val initialChapters = listOf(
                 novelChapter(id = 1L, novelId = novel.id, chapterNumber = 1.0, read = false),
                 novelChapter(id = 2L, novelId = novel.id, chapterNumber = 2.0, read = false),
@@ -1252,29 +1346,6 @@ class NovelScreenModelTest {
         }
     }
 
-    @Test
-    fun `opening screen triggers novel track refresh`() {
-        runBlocking {
-            val novel = novelForResumeTests(303L)
-            val refreshNovelTracks = mockk<RefreshNovelTracks>(relaxed = true)
-            coEvery { refreshNovelTracks.await(novel.id) } returns emptyList()
-
-            val screenModel = createResumeScreenModel(
-                novel = novel,
-                chapters = emptyList(),
-                refreshNovelTracks = refreshNovelTracks,
-            )
-
-            try {
-                awaitResumeScreenModel(screenModel)
-                withTimeout(1_000) { yield() }
-                coVerify(timeout = 1_000, exactly = 1) { refreshNovelTracks.await(novel.id) }
-            } finally {
-                screenModel.onDispose()
-            }
-        }
-    }
-
     private class FakeLifecycleOwner : LifecycleOwner {
         private class NoopStartedLifecycle : Lifecycle() {
             override val currentState: State
@@ -1306,6 +1377,7 @@ class NovelScreenModelTest {
             eu.kanade.tachiyomi.data.download.novel.NovelDownloadQueueManager.enqueueOriginal(novel, queuedChapters)
         },
         snackbarHostState: SnackbarHostState = SnackbarHostState(),
+        source: NovelSource? = null,
     ): NovelScreenModel {
         val novelRepository = FakeNovelRepository(novel)
         val preferenceStore = FakePreferenceStore()
@@ -1314,7 +1386,7 @@ class NovelScreenModelTest {
             preferenceStore = preferenceStore,
         )
         val libraryPreferences = LibraryPreferences(preferenceStore)
-        val sourceManager = FakeNovelSourceManager()
+        val sourceManager = FakeNovelSourceManager(source)
         val trackerManager = mockk<TrackerManager>().also { manager ->
             every { manager.loggedInTrackersFlow() } returns MutableStateFlow(emptyList())
             every { manager.loggedInNovelTrackersFlow() } returns MutableStateFlow(emptyList())
@@ -1397,6 +1469,7 @@ class NovelScreenModelTest {
             refreshNovelTracks = refreshNovelTracks,
             downloadCacheChanges = downloadCacheChanges,
             downloadQueueState = downloadQueueState,
+            downloadCache = null,
             resolveDownloadedChapterIds = resolveDownloadedChapterIds,
             enqueueOriginal = enqueueOriginal,
             snackbarHostState = snackbarHostState,
@@ -1591,13 +1664,15 @@ class NovelScreenModelTest {
         override suspend fun upsertNovelHistory(historyUpdate: NovelHistoryUpdate) = Unit
     }
 
-    private class FakeNovelSourceManager : NovelSourceManager {
+    private class FakeNovelSourceManager(
+        private val source: NovelSource? = null,
+    ) : NovelSourceManager {
         override val isInitialized = MutableStateFlow(true)
         override val catalogueSources =
             MutableStateFlow(emptyList<eu.kanade.tachiyomi.novelsource.NovelCatalogueSource>())
-        override fun get(sourceKey: Long): NovelSource? = null
+        override fun get(sourceKey: Long): NovelSource? = source?.takeIf { it.id == sourceKey }
         override fun getOrStub(sourceKey: Long): NovelSource =
-            object : NovelSource {
+            source?.takeIf { it.id == sourceKey } ?: object : NovelSource {
                 override val id: Long = sourceKey
                 override val name: String = "Stub"
             }

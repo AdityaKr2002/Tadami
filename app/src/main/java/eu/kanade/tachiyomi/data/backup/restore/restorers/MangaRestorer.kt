@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupTracking
+import eu.kanade.tachiyomi.data.backup.restore.resolveRestoredText
 import tachiyomi.data.MangaUpdateStrategyColumnAdapter
 import tachiyomi.data.handlers.manga.MangaDatabaseHandler
 import tachiyomi.domain.category.manga.interactor.GetMangaCategories
@@ -63,7 +64,7 @@ class MangaRestorer(
             val restoredManga = if (dbManga == null) {
                 restoreNewManga(manga)
             } else {
-                restoreExistingManga(manga, dbManga)
+                restoreExistingManga(backupManga, manga, dbManga)
             }
 
             restoreMangaDetails(
@@ -82,11 +83,12 @@ class MangaRestorer(
         return getMangaByUrlAndSourceId.await(backupManga.url, backupManga.source)
     }
 
-    private suspend fun restoreExistingManga(manga: Manga, dbManga: Manga): Manga {
+    private suspend fun restoreExistingManga(backupManga: BackupManga, manga: Manga, dbManga: Manga): Manga {
+        val notes = resolveRestoredText(backupManga.notes, manga.version, dbManga.notes, dbManga.version)
         return if (manga.version > dbManga.version) {
-            updateManga(dbManga.copyFrom(manga).copy(id = dbManga.id))
+            updateManga(dbManga.copyFrom(manga).copy(id = dbManga.id, notes = notes))
         } else {
-            updateManga(manga.copyFrom(dbManga).copy(id = dbManga.id))
+            updateManga(manga.copyFrom(dbManga).copy(id = dbManga.id, notes = notes))
         }
     }
 
@@ -115,6 +117,7 @@ class MangaRestorer(
                 artist = manga.artist,
                 author = manga.author,
                 description = manga.description,
+                notes = manga.notes,
                 genre = manga.genre?.joinToString(separator = ", "),
                 title = manga.title,
                 status = manga.status,
@@ -251,6 +254,7 @@ class MangaRestorer(
                 artist = manga.artist,
                 author = manga.author,
                 description = manga.description,
+                notes = manga.notes,
                 genre = manga.genre,
                 title = manga.title,
                 status = manga.status,

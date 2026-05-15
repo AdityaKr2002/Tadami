@@ -139,6 +139,7 @@ import tachiyomi.data.source.manga.MangaSourceRepositoryImpl
 import tachiyomi.data.source.manga.MangaStubSourceRepositoryImpl
 import tachiyomi.data.source.novel.NovelSourceRepositoryImpl
 import tachiyomi.data.source.novel.NovelStubSourceRepositoryImpl
+import tachiyomi.data.source.novel.OmniRuleRepositoryImpl
 import tachiyomi.data.track.anime.AnimeTrackRepositoryImpl
 import tachiyomi.data.track.manga.MangaTrackRepositoryImpl
 import tachiyomi.data.track.novel.NovelTrackRepositoryImpl
@@ -292,6 +293,7 @@ import tachiyomi.domain.source.novel.interactor.GetNovelSourcesWithNonLibraryNov
 import tachiyomi.domain.source.novel.interactor.GetRemoteNovel
 import tachiyomi.domain.source.novel.repository.NovelSourceRepository
 import tachiyomi.domain.source.novel.repository.NovelStubSourceRepository
+import tachiyomi.domain.source.novel.resolver.repository.OmniRuleRepository
 import tachiyomi.domain.track.anime.interactor.DeleteAnimeTrack
 import tachiyomi.domain.track.anime.interactor.GetAnimeTracks
 import tachiyomi.domain.track.anime.interactor.GetTracksPerAnime
@@ -582,6 +584,7 @@ class DomainModule : InjektModule {
 
         addSingletonFactory<NovelSourceRepository> { NovelSourceRepositoryImpl(get(), get()) }
         addSingletonFactory<NovelStubSourceRepository> { NovelStubSourceRepositoryImpl(get()) }
+        addSingletonFactory<OmniRuleRepository> { OmniRuleRepositoryImpl(get()) }
         addFactory {
             val preferences = get<SourcePreferences>()
             GetEnabledNovelSources(

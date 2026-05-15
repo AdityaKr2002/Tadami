@@ -154,6 +154,7 @@ fun AnimeScreenAuroraImpl(
     onDownloadActionClicked: ((DownloadAction) -> Unit)?,
     onEditCategoryClicked: (() -> Unit)?,
     onEditFetchIntervalClicked: (() -> Unit)?,
+    onEditNotesClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
     onMultiBookmarkClicked: (List<Episode>, bookmarked: Boolean) -> Unit,
@@ -455,6 +456,8 @@ fun AnimeScreenAuroraImpl(
                                     ratingText = animeDetailsSnapshot.ratingText,
                                     episodeCount = state.episodes.size,
                                     statusText = animeDetailsSnapshot.statusText,
+                                    note = anime.notes,
+                                    onEditNotesClicked = onEditNotesClicked,
                                     onContinueWatching = onContinueWatching,
                                     onDubbingClicked = onDubbingClicked,
                                     selectedDubbing = selectedDubbing,
@@ -899,6 +902,8 @@ fun AnimeScreenAuroraImpl(
                             ratingText = animeDetailsSnapshot.ratingText,
                             episodeCount = state.episodes.size,
                             statusText = animeDetailsSnapshot.statusText,
+                            note = anime.notes,
+                            onEditNotesClicked = onEditNotesClicked,
                             onContinueWatching = onContinueWatching,
                             onDubbingClicked = onDubbingClicked,
                             selectedDubbing = selectedDubbing,
@@ -1030,6 +1035,15 @@ fun AnimeScreenAuroraImpl(
                                 text = stringResource(MR.strings.action_share),
                                 onClick = {
                                     onShareClicked()
+                                    showMenu = false
+                                },
+                            )
+                        }
+                        if (onEditNotesClicked != null) {
+                            AuroraEntryDropdownMenuItem(
+                                text = stringResource(MR.strings.action_notes),
+                                onClick = {
+                                    onEditNotesClicked()
                                     showMenu = false
                                 },
                             )

@@ -50,6 +50,7 @@ class NovelTrackRepositoryImplTest {
             url = "/novel",
             author = "Author",
             description = "Desc",
+            notes = "",
             genre = listOf("Action"),
             title = "Novel",
             status = 1L,

@@ -42,7 +42,6 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.browse.manga.migration.list.MigrationListScreen
-import eu.kanade.tachiyomi.ui.browse.manga.migration.search.MigrateMangaSearchScreen
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
@@ -66,14 +65,13 @@ class MigrationConfigScreen(private val mangaIds: Collection<Long>) : Screen() {
         var migrationSheetOpen by rememberSaveable { mutableStateOf(false) }
 
         fun continueMigration(openSheet: Boolean, extraSearchQuery: String?) {
-            val mangaId = mangaIds.singleOrNull()
-            if (mangaId != null) {
-                navigator.replace(MigrateMangaSearchScreen(mangaId))
-                return
-            }
-            if (openSheet) {
+            val skipNextTime = screenModel.sourcePreferences.migrationSkipNextTime().get()
+            if (openSheet && !skipNextTime) {
                 migrationSheetOpen = true
                 return
+            }
+            if (skipNextTime) {
+                screenModel.sourcePreferences.migrationSkipNextTime().set(false)
             }
             navigator.replace(
                 MigrationListScreen(

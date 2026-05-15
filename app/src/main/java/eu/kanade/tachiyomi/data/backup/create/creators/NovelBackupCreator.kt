@@ -73,6 +73,7 @@ private fun Novel.toBackupNovel() =
         title = this.title,
         author = this.author,
         description = this.description,
+        notes = this.notes.takeIf { it.isNotBlank() },
         genre = this.genre.orEmpty(),
         status = this.status.toInt(),
         thumbnailUrl = this.thumbnailUrl,

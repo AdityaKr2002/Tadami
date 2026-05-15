@@ -17,11 +17,12 @@ import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidthIn
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -132,8 +133,9 @@ private fun TabletAdaptiveSheet(
                     indication = null,
                     onClick = {},
                 )
-                .systemBarsPadding()
-                .padding(vertical = 16.dp),
+                .navigationBarsPadding()
+                .statusBarsPadding()
+                .padding(top = 16.dp),
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
@@ -208,8 +210,9 @@ private fun PhoneAdaptiveSheet(
                     onClick = {},
                 )
                 .then(modifier)
-                .systemBarsPadding()
-                .padding(vertical = 8.dp)
+                .navigationBarsPadding()
+                .statusBarsPadding()
+                .padding(top = 8.dp)
                 .onSizeChanged {
                     val anchors = DraggableAnchors {
                         0 at 0f

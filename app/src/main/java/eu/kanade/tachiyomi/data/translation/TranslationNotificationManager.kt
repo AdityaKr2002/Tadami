@@ -28,6 +28,7 @@ class TranslationNotificationManager(
     fun showProgress(
         chapterName: String,
         chapterId: Long,
+        batchToken: String = "",
         progress: Int,
         pendingCount: Int,
     ) {
@@ -43,16 +44,78 @@ class TranslationNotificationManager(
                 NotificationCompat.BigTextStyle().bigText(buildProgressText(chapterName, safeProgress, pendingCount)),
             )
             setContentIntent(openChapterIntent(chapterId))
+            if (batchToken.isBlank()) {
+                addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    context.stringResource(MR.strings.notification_action_cancel_current),
+                    cancelChapterIntent(chapterId),
+                )
+                addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    context.stringResource(MR.strings.notification_action_cancel_all),
+                    cancelAllIntent(),
+                )
+            } else {
+                addAction(
+                    android.R.drawable.ic_media_pause,
+                    "Пауза",
+                    pauseBatchIntent(batchToken),
+                )
+                addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Отмена очереди",
+                    cancelBatchIntent(batchToken),
+                )
+            }
+        }
+
+        context.notify(Notifications.ID_TRANSLATION_PROGRESS, builder.build())
+    }
+
+    fun showBatchPaused(state: TranslationBatchState) {
+        val builder = context.notificationBuilder(Notifications.CHANNEL_TRANSLATION_PROGRESS) {
+            setContentTitle("Очередь перевода на паузе")
+            setContentText(buildBatchPausedText(state))
+            setSmallIcon(android.R.drawable.ic_media_pause)
+            setProgress(0, 0, false)
+            setOngoing(true)
+            setOnlyAlertOnce(true)
+            setStyle(NotificationCompat.BigTextStyle().bigText(buildBatchPausedText(state)))
+            state.lastSuccessfulChapterId?.let { chapterId ->
+                setContentIntent(openChapterIntent(chapterId))
+            }
             addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                context.stringResource(MR.strings.notification_action_cancel_current),
-                cancelChapterIntent(chapterId),
+                android.R.drawable.ic_media_play,
+                "Продолжить",
+                resumeBatchIntent(state.batchToken),
             )
             addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
-                context.stringResource(MR.strings.notification_action_cancel_all),
-                cancelAllIntent(),
+                "Отмена очереди",
+                cancelBatchIntent(state.batchToken),
             )
+        }
+
+        context.notify(Notifications.ID_TRANSLATION_PROGRESS, builder.build())
+    }
+
+    fun showBatchComplete(state: TranslationBatchState) {
+        val builder = context.notificationBuilder(Notifications.CHANNEL_TRANSLATION_PROGRESS) {
+            setContentTitle("Очередь перевода завершена")
+            setContentText(buildBatchCompleteText(state))
+            setSmallIcon(android.R.drawable.ic_menu_edit)
+            setProgress(0, 0, false)
+            setAutoCancel(true)
+            setOnlyAlertOnce(true)
+            setStyle(NotificationCompat.BigTextStyle().bigText(buildBatchCompleteText(state)))
+            state.lastSuccessfulChapterId?.let { chapterId ->
+                setContentIntent(openChapterIntent(chapterId))
+                addAction(
+                    android.R.drawable.ic_menu_view,
+                    context.stringResource(MR.strings.notification_action_open),
+                    openChapterIntent(chapterId),
+                )
+            }
         }
 
         context.notify(Notifications.ID_TRANSLATION_PROGRESS, builder.build())
@@ -182,6 +245,45 @@ class TranslationNotificationManager(
         )
     }
 
+    private fun pauseBatchIntent(batchToken: String): PendingIntent {
+        val intent = Intent(context, TranslationCancelReceiver::class.java).apply {
+            action = TranslationCancelReceiver.ACTION_PAUSE_BATCH
+            putExtra(TranslationCancelReceiver.EXTRA_BATCH_TOKEN, batchToken)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            stableBatchRequestCode(batchToken, 1),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun resumeBatchIntent(batchToken: String): PendingIntent {
+        val intent = Intent(context, TranslationCancelReceiver::class.java).apply {
+            action = TranslationCancelReceiver.ACTION_RESUME_BATCH
+            putExtra(TranslationCancelReceiver.EXTRA_BATCH_TOKEN, batchToken)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            stableBatchRequestCode(batchToken, 2),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun cancelBatchIntent(batchToken: String): PendingIntent {
+        val intent = Intent(context, TranslationCancelReceiver::class.java).apply {
+            action = TranslationCancelReceiver.ACTION_CANCEL_BATCH
+            putExtra(TranslationCancelReceiver.EXTRA_BATCH_TOKEN, batchToken)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            stableBatchRequestCode(batchToken, 3),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     private fun cancelAllIntent(): PendingIntent {
         val intent = Intent(context, TranslationCancelReceiver::class.java).apply {
             action = TranslationCancelReceiver.ACTION_CANCEL_ALL
@@ -201,5 +303,26 @@ class TranslationNotificationManager(
     private fun stableNotificationId(chapterId: Long): Int {
         val mixed = chapterId xor (chapterId ushr 32)
         return (mixed and 0x3FFFFFFF).toInt().coerceAtLeast(1)
+    }
+
+    private fun stableBatchRequestCode(batchToken: String, salt: Int): Int {
+        val hash = batchToken.hashCode() * 31 + salt
+        return (hash and 0x3FFFFFFF).coerceAtLeast(1)
+    }
+
+    private fun buildBatchSummaryText(state: TranslationBatchState): String {
+        return "Переведено: ${state.completed}, пропущено: ${state.skipped}, ошибок: ${state.failed}"
+    }
+
+    private fun buildBatchPausedText(state: TranslationBatchState): String {
+        return "${buildBatchSummaryText(state)} Текущая глава завершится, затем очередь остановится."
+    }
+
+    private fun buildBatchCompleteText(state: TranslationBatchState): String {
+        return if (state.failed > 0) {
+            "Очередь завершена с ошибками. Переведено: ${state.completed}, пропущено: ${state.skipped}, ошибок: ${state.failed}"
+        } else {
+            "Очередь завершена. Переведено: ${state.completed}, пропущено: ${state.skipped}"
+        }
     }
 }

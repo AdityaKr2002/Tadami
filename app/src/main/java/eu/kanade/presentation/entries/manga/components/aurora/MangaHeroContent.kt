@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import eu.kanade.presentation.entries.components.aurora.AuroraNotePreviewCard
 import eu.kanade.presentation.entries.components.aurora.AuroraTitleHeroActionButton
 import eu.kanade.presentation.entries.components.aurora.resolveAuroraHeroChipBorderColor
 import eu.kanade.presentation.entries.components.aurora.resolveAuroraHeroChipContainerColor
@@ -51,6 +52,8 @@ fun MangaHeroContent(
     manga: Manga,
     translation: AuroraEntryTranslationState? = null,
     detailsSnapshot: MangaDetailsSnapshot,
+    note: String,
+    onEditNotesClicked: (() -> Unit)?,
     hasProgress: Boolean,
     onContinueReading: () -> Unit,
     modifier: Modifier = Modifier,
@@ -141,6 +144,12 @@ fun MangaHeroContent(
                     )
                 } ?: stringResource(MR.strings.not_applicable),
                 progressValue = detailsSnapshot.progress?.progressText ?: stringResource(MR.strings.not_applicable),
+            )
+
+            AuroraNotePreviewCard(
+                note = note,
+                onClick = onEditNotesClicked,
+                modifier = Modifier.fillMaxWidth(),
             )
 
             Spacer(modifier = Modifier.height(2.dp))

@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupAnimeHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupAnimeTracking
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupEpisode
+import eu.kanade.tachiyomi.data.backup.restore.resolveRestoredText
 import tachiyomi.data.AnimeUpdateStrategyColumnAdapter
 import tachiyomi.data.FetchTypeColumnAdapter
 import tachiyomi.data.handlers.anime.AnimeDatabaseHandler
@@ -65,7 +66,7 @@ class AnimeRestorer(
             val restoredAnime = if (dbAnime == null) {
                 restoreNewAnime(anime)
             } else {
-                restoreExistingAnime(anime, dbAnime)
+                restoreExistingAnime(backupAnime, anime, dbAnime)
             }
 
             backupSeasons.forEach { bs ->
@@ -76,7 +77,7 @@ class AnimeRestorer(
                 if (dbAnime == null) {
                     restoreNewAnime(anime)
                 } else {
-                    restoreExistingAnime(anime, dbAnime)
+                    restoreExistingAnime(bs, anime, dbAnime)
                 }
             }
 
@@ -95,11 +96,12 @@ class AnimeRestorer(
         return getAnimeByUrlAndSourceId.await(backupAnime.url, backupAnime.source)
     }
 
-    private suspend fun restoreExistingAnime(anime: Anime, dbAnime: Anime): Anime {
+    private suspend fun restoreExistingAnime(backupAnime: BackupAnime, anime: Anime, dbAnime: Anime): Anime {
+        val notes = resolveRestoredText(backupAnime.notes, anime.version, dbAnime.notes, dbAnime.version)
         return if (anime.version > dbAnime.version) {
-            updateAnime(dbAnime.copyFrom(anime).copy(id = dbAnime.id, parentId = anime.parentId))
+            updateAnime(dbAnime.copyFrom(anime).copy(id = dbAnime.id, parentId = anime.parentId, notes = notes))
         } else {
-            updateAnime(anime.copyFrom(dbAnime).copy(id = dbAnime.id, parentId = anime.parentId))
+            updateAnime(anime.copyFrom(dbAnime).copy(id = dbAnime.id, parentId = anime.parentId, notes = notes))
         }
     }
 
@@ -128,6 +130,7 @@ class AnimeRestorer(
                 artist = anime.artist,
                 author = anime.author,
                 description = anime.description,
+                notes = anime.notes,
                 genre = anime.genre?.joinToString(separator = ", "),
                 title = anime.title,
                 status = anime.status,
@@ -279,6 +282,7 @@ class AnimeRestorer(
                 artist = anime.artist,
                 author = anime.author,
                 description = anime.description,
+                notes = anime.notes,
                 genre = anime.genre,
                 title = anime.title,
                 status = anime.status,
