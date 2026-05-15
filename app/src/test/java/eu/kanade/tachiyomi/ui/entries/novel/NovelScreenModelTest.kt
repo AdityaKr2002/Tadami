@@ -373,6 +373,7 @@ class NovelScreenModelTest {
                     preferenceStore = preferenceStore,
                     json = Json { encodeDefaults = true },
                 ),
+                downloadCache = null,
             )
 
             try {
@@ -1468,6 +1469,7 @@ class NovelScreenModelTest {
             refreshNovelTracks = refreshNovelTracks,
             downloadCacheChanges = downloadCacheChanges,
             downloadQueueState = downloadQueueState,
+            downloadCache = null,
             resolveDownloadedChapterIds = resolveDownloadedChapterIds,
             enqueueOriginal = enqueueOriginal,
             snackbarHostState = snackbarHostState,

@@ -186,6 +186,9 @@ class NovelScreenModel(
     }.getOrElse { emptyFlow() },
     private val downloadQueueState:
     Flow<eu.kanade.tachiyomi.data.download.novel.NovelDownloadQueueState> = NovelDownloadQueueManager.state,
+    private val downloadCache: NovelDownloadCache? = runCatching {
+        Injekt.get<NovelDownloadCache>()
+    }.getOrNull(),
     private val resolveDownloadedChapterIds: (Novel, List<NovelChapter>) -> Set<Long> = { novel, chapters ->
         novelDownloadManager.getDownloadedChapterIds(novel, chapters)
     },
@@ -720,7 +723,6 @@ class NovelScreenModel(
 
             var downloadedIds = emptySet<Long>()
 
-            val downloadCache = runCatching { Injekt.get<NovelDownloadCache>() }.getOrNull()
             val cachedIds = downloadCache?.getDownloadedChapterIds(state.novel.id)
             if (cachedIds != null) {
                 downloadedIds = cachedIds.intersect(state.chapters.map { it.id }.toSet())
