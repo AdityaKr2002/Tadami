@@ -9,6 +9,7 @@ import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import tachiyomi.data.extension.novel.NovelPluginKeyValueStore
@@ -55,6 +56,52 @@ class NovelJsSourceTest {
         source.hasPluginSettings(discoverRuntime = true) shouldBe true
 
         verify(exactly = 2) { runtimeFactory.create("test-plugin") }
+    }
+
+    @Test
+    fun `hasPluginSettings discoverRuntime waits for in-flight discovery result`() = kotlinx.coroutines.runBlocking {
+        val runtimeFactory = mockk<NovelJsRuntimeFactory>()
+        val runtime = mockk<NovelJsRuntime>(relaxed = true)
+        val firstDiscoveryStarted = CompletableDeferred<Unit>()
+        val allowFirstDiscovery = CompletableDeferred<Unit>()
+        var shouldBlockDiscovery = true
+
+        every { runtimeFactory.create(any()) } returns runtime
+        every { runtime.evaluate(any(), any(), any()) } answers {
+            val script = firstArg<String>()
+            if (shouldBlockDiscovery && script.contains("Array.isArray(__plugin && __plugin.settings)")) {
+                shouldBlockDiscovery = false
+                firstDiscoveryStarted.complete(Unit)
+                kotlinx.coroutines.runBlocking {
+                    allowFirstDiscovery.await()
+                }
+            }
+            evaluateSettingsScript(script)
+        }
+
+        val source = createSource(
+            hasSettings = false,
+            runtimeFactory = runtimeFactory,
+        )
+
+        val firstCall = async(Dispatchers.Default) {
+            source.hasPluginSettings(discoverRuntime = true)
+        }
+        firstDiscoveryStarted.await()
+
+        val secondCall = async(Dispatchers.Default) {
+            source.hasPluginSettings(discoverRuntime = true)
+        }
+
+        withTimeoutOrNull(200) {
+            secondCall.await()
+        } shouldBe null
+
+        allowFirstDiscovery.complete(Unit)
+        firstCall.await() shouldBe true
+        secondCall.await() shouldBe true
+
+        verify(exactly = 1) { runtimeFactory.create("test-plugin") }
     }
 
     @Test
@@ -110,6 +157,24 @@ class NovelJsSourceTest {
         filterJob.await()
 
         verify(exactly = 2) { runtimeFactory.create("test-plugin") }
+    }
+
+    @Test
+    fun `siteUrl caches value until clearInMemoryCaches`() {
+        val store = CountingKeyValueStore()
+        val source = createSource(
+            hasSettings = false,
+            keyValueStore = store,
+        )
+
+        repeat(5) {
+            source.siteUrl shouldBe "https://example.com"
+        }
+        store.urlGetCount shouldBe 1
+
+        source.clearInMemoryCaches()
+        source.siteUrl shouldBe "https://example.com"
+        store.urlGetCount shouldBe 2
     }
 
     @Test
@@ -317,6 +382,7 @@ class NovelJsSourceTest {
         hasSettings: Boolean,
         runtimeFactory: NovelJsRuntimeFactory = mockk(relaxed = true),
         runtimeOverride: NovelPluginRuntimeOverride = NovelPluginRuntimeOverride(pluginId = "test-plugin"),
+        keyValueStore: NovelPluginKeyValueStore = this.keyValueStore,
         chapterRequestDelay: suspend (Long) -> Unit = {},
     ): NovelJsSource {
         val plugin = NovelPlugin.Installed(
@@ -624,10 +690,10 @@ class NovelJsSourceTest {
         }
     }
 
-    private class InMemoryKeyValueStore : NovelPluginKeyValueStore {
+    private open class InMemoryKeyValueStore : NovelPluginKeyValueStore {
         private val store = mutableMapOf<String, MutableMap<String, String>>()
 
-        override fun get(pluginId: String, key: String): String? {
+        override open fun get(pluginId: String, key: String): String? {
             return store[pluginId]?.get(key)
         }
 
@@ -649,6 +715,18 @@ class NovelJsSourceTest {
 
         override fun keys(pluginId: String): Set<String> {
             return store[pluginId]?.keys ?: emptySet()
+        }
+    }
+
+    private class CountingKeyValueStore : InMemoryKeyValueStore() {
+        var urlGetCount = 0
+            private set
+
+        override fun get(pluginId: String, key: String): String? {
+            if (key == "setting:url") {
+                urlGetCount++
+            }
+            return super.get(pluginId, key)
         }
     }
 }
