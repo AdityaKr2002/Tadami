@@ -156,8 +156,12 @@ class NovelHomeHubScreenModel(
                     hiddenCategoryIds = hiddenCategoryIds,
                 ).distinctBy { it.novel.id }
 
-                val hero = filteredHistory.firstOrNull()
-                val history = if (filteredHistory.size > 1) filteredHistory.drop(1).take(6) else emptyList()
+                val libraryNovelIds = filteredNovel.map { it.novel.id }.toSet()
+
+                val hero = filteredHistory.firstOrNull { it.novelId in libraryNovelIds }
+                val history = filteredHistory
+                    .filter { hero == null || it.novelId != hero.novelId }
+                    .take(6)
 
                 val hasData = hero != null || history.isNotEmpty() || filteredNovel.isNotEmpty()
                 if (hasData && !state.value.isInitialized) {
