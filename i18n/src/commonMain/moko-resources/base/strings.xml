@@ -1211,6 +1211,23 @@
     <string name="snackbar_translation_start_error">Failed to start translation:</string>
     <string name="notification_action_open">Open</string>
 
+    <!-- AI translator batch -->
+    <string name="novel_batch_title">AI Translation Queue</string>
+    <string name="novel_batch_current_chapter">Current chapter: %1$s</string>
+    <string name="novel_batch_select_desc">Select which chapters to add to the translation queue.</string>
+    <string name="novel_batch_mode">Mode</string>
+    <string name="novel_batch_first_n_chapters">First N chapters</string>
+    <string name="novel_batch_from_chapter">From chapter</string>
+    <string name="novel_batch_to_chapter">To chapter</string>
+    <string name="novel_batch_force_retranslate">Re-translate</string>
+    <string name="novel_batch_force_retranslate_desc">Even if a chapter is already translated locally, it will be re-queued.</string>
+    <string name="novel_batch_queue_count">Will queue: %1$d chapters</string>
+    <string name="novel_batch_skip_translated">Already translated chapters will be skipped.</string>
+    <string name="novel_batch_start">Start batch</string>
+    <string name="novel_batch_selected">Selected</string>
+    <string name="novel_batch_first_n">First N</string>
+    <string name="novel_batch_range">Range</string>
+
     <!-- OmniBuilder -->
     <string name="action_train_parser">⚙️ Train Parser (Builder)</string>
     <string name="omnibuilder_title">Tadami Builder</string>

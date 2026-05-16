@@ -9,6 +9,8 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.browse.novel.NovelSourcesFilterScreen
+import eu.kanade.presentation.more.settings.LocalSettingsUiStyle
+import eu.kanade.presentation.more.settings.rememberResolvedSettingsUiStyle
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.util.system.toast
 import tachiyomi.i18n.MR
@@ -38,11 +40,14 @@ class NovelSourcesFilterScreen : Screen() {
 
         val successState = state as NovelSourcesFilterScreenModel.State.Success
 
-        NovelSourcesFilterScreen(
-            navigateUp = navigator::pop,
-            state = successState,
-            onClickLanguage = screenModel::toggleLanguage,
-            onClickSource = screenModel::toggleSource,
-        )
+        val uiStyle = rememberResolvedSettingsUiStyle()
+        androidx.compose.runtime.CompositionLocalProvider(LocalSettingsUiStyle provides uiStyle) {
+            NovelSourcesFilterScreen(
+                navigateUp = navigator::pop,
+                state = successState,
+                onClickLanguage = screenModel::toggleLanguage,
+                onClickSource = screenModel::toggleSource,
+            )
+        }
     }
 }

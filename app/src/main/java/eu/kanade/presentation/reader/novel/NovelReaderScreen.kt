@@ -804,7 +804,7 @@ fun NovelReaderScreen(
     // Р’С‹СЃРѕС‚Р° Bottom bar (~80dp + navigation bar)
     val bottomBarHeight = with(density) { (80.dp + navigationBarHeight.toDp()).toPx().toInt() }
     val statusBarTopPadding = with(density) { statusBarHeight.toDp() }
-    val tapScrollStepPx = with(density) { (configuration.screenHeightDp.dp * 0.8f).toPx() }
+    val volumeScrollStepPx = with(density) { (configuration.screenHeightDp.dp * 0.25f).toPx() }
     val baseContentPadding = MaterialTheme.padding.small
     val contentPaddingPx = with(density) {
         resolveReaderContentPaddingPx(
@@ -1520,7 +1520,7 @@ fun NovelReaderScreen(
         if (showWebView) {
             val webView = webViewInstance
             if (webView != null && webView.canScrollVertically(-1)) {
-                webView.scrollBy(0, -tapScrollStepPx.roundToInt())
+                webView.scrollBy(0, -volumeScrollStepPx.roundToInt())
             } else if (state.readerSettings.swipeToPrevChapter && state.previousChapterId != null) {
                 onOpenPreviousChapter?.invoke(state.previousChapterId)
             }
@@ -1556,7 +1556,7 @@ fun NovelReaderScreen(
                 }
             }
         } else if (textListState.canScrollBackward) {
-            textListState.scrollBy(-tapScrollStepPx)
+            textListState.scrollBy(-volumeScrollStepPx)
         } else if (state.readerSettings.swipeToPrevChapter && state.previousChapterId != null) {
             onOpenPreviousChapter?.invoke(state.previousChapterId)
         }
@@ -1566,7 +1566,7 @@ fun NovelReaderScreen(
         if (showWebView) {
             val webView = webViewInstance
             if (webView != null && webView.canScrollVertically(1)) {
-                webView.scrollBy(0, tapScrollStepPx.roundToInt())
+                webView.scrollBy(0, volumeScrollStepPx.roundToInt())
             } else if (state.readerSettings.swipeToNextChapter && state.nextChapterId != null) {
                 onOpenNextChapter?.invoke(state.nextChapterId)
             }
@@ -1603,7 +1603,7 @@ fun NovelReaderScreen(
                 }
             }
         } else if (textListState.canScrollForward) {
-            textListState.scrollBy(tapScrollStepPx)
+            textListState.scrollBy(volumeScrollStepPx)
         } else if (state.readerSettings.swipeToNextChapter && state.nextChapterId != null) {
             onOpenNextChapter?.invoke(state.nextChapterId)
         }

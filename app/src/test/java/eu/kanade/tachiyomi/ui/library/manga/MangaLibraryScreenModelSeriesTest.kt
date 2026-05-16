@@ -2,8 +2,11 @@ package eu.kanade.tachiyomi.ui.library.manga
 
 import android.content.Context
 import eu.kanade.domain.base.BasePreferences
+import eu.kanade.domain.entries.manga.interactor.UpdateManga
+import eu.kanade.domain.items.chapter.interactor.SetReadStatus
 import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
 import eu.kanade.tachiyomi.data.download.manga.MangaDownloadCache
+import eu.kanade.tachiyomi.data.download.manga.MangaDownloadManager
 import eu.kanade.tachiyomi.data.track.BaseTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import io.kotest.matchers.collections.shouldContainExactly
@@ -28,9 +31,12 @@ import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.domain.category.manga.interactor.GetVisibleMangaCategories
+import tachiyomi.domain.category.manga.interactor.SetMangaCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.entries.manga.interactor.GetLibraryManga
 import tachiyomi.domain.entries.manga.model.Manga
+import tachiyomi.domain.history.manga.interactor.GetNextChapters
+import tachiyomi.domain.items.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.library.manga.LibraryManga
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.series.manga.interactor.AddMangasToSeries
@@ -53,8 +59,14 @@ class MangaLibraryScreenModelSeriesTest {
     private lateinit var getMangaIdsInAnySeries: GetMangaIdsInAnySeries
     private lateinit var getCategories: GetVisibleMangaCategories
     private lateinit var getTracksPerManga: GetTracksPerManga
+    private lateinit var getNextChapters: GetNextChapters
+    private lateinit var getChaptersByMangaId: GetChaptersByMangaId
+    private lateinit var setReadStatus: SetReadStatus
+    private lateinit var updateManga: UpdateManga
+    private lateinit var setMangaCategories: SetMangaCategories
     private lateinit var sourceManager: MangaSourceManager
     private lateinit var downloadCache: MangaDownloadCache
+    private lateinit var downloadManager: MangaDownloadManager
     private lateinit var trackerManager: TrackerManager
     private lateinit var createMangaSeries: CreateMangaSeries
     private lateinit var addMangasToSeries: AddMangasToSeries
@@ -84,8 +96,14 @@ class MangaLibraryScreenModelSeriesTest {
         getMangaIdsInAnySeries = mockk()
         getCategories = mockk()
         getTracksPerManga = mockk()
+        getNextChapters = mockk()
+        getChaptersByMangaId = mockk()
+        setReadStatus = mockk(relaxed = true)
+        updateManga = mockk(relaxed = true)
+        setMangaCategories = mockk(relaxed = true)
         sourceManager = mockk(relaxed = true)
         downloadCache = mockk()
+        downloadManager = mockk(relaxed = true)
         trackerManager = mockk()
         createMangaSeries = mockk(relaxed = true)
         addMangasToSeries = mockk(relaxed = true)
@@ -147,7 +165,7 @@ class MangaLibraryScreenModelSeriesTest {
             libraryPreferences = libraryPreferences,
             coverCache = mockk(relaxed = true),
             sourceManager = sourceManager,
-            downloadManager = mockk(relaxed = true),
+            downloadManager = downloadManager,
             downloadCache = downloadCache,
             trackerManager = trackerManager,
         )
@@ -162,6 +180,54 @@ class MangaLibraryScreenModelSeriesTest {
         )
         screenModel.state.value.library.values.single()[0].id shouldBe -series.id
         screenModel.state.value.library.values.single()[0].title shouldBe "Series"
+    }
+
+    @Test
+    fun `download cache bursts are conflated into a single library refresh`() = runTest(testDispatcher) {
+        val single = libraryManga(id = 1L, title = "Single Manga")
+        mangaFlow.value = listOf(single)
+        libraryPreferences.downloadBadge().set(true)
+
+        var downloadCountCalls = 0
+        every { downloadManager.getDownloadCount(any<Manga>()) } answers {
+            downloadCountCalls++
+            0
+        }
+
+        val screenModel = MangaLibraryScreenModel(
+            getLibraryManga = getLibraryManga,
+            getLibraryMangaSeries = getLibraryMangaSeries,
+            getMangaIdsInAnySeries = getMangaIdsInAnySeries,
+            getCategories = getCategories,
+            getTracksPerManga = getTracksPerManga,
+            getNextChapters = getNextChapters,
+            getChaptersByMangaId = getChaptersByMangaId,
+            setReadStatus = setReadStatus,
+            updateManga = updateManga,
+            setMangaCategories = setMangaCategories,
+            createMangaSeries = createMangaSeries,
+            addMangasToSeries = addMangasToSeries,
+            updateMangaSeries = updateMangaSeries,
+            preferences = basePreferences,
+            libraryPreferences = libraryPreferences,
+            coverCache = mockk(relaxed = true),
+            sourceManager = sourceManager,
+            downloadManager = downloadManager,
+            downloadCache = downloadCache,
+            trackerManager = trackerManager,
+        )
+        activeScreenModels += screenModel
+
+        advanceTimeBy(SEARCH_DEBOUNCE_MILLIS + 1)
+        testDispatcher.scheduler.advanceUntilIdle()
+        downloadCountCalls shouldBe 1
+
+        repeat(3) {
+            downloadCacheChanges.tryEmit(Unit)
+        }
+
+        testDispatcher.scheduler.advanceUntilIdle()
+        downloadCountCalls shouldBe 2
     }
 
     @Test
@@ -199,7 +265,7 @@ class MangaLibraryScreenModelSeriesTest {
             libraryPreferences = libraryPreferences,
             coverCache = mockk(relaxed = true),
             sourceManager = sourceManager,
-            downloadManager = mockk(relaxed = true),
+            downloadManager = downloadManager,
             downloadCache = downloadCache,
             trackerManager = trackerManager,
         )
@@ -248,7 +314,7 @@ class MangaLibraryScreenModelSeriesTest {
             libraryPreferences = libraryPreferences,
             coverCache = mockk(relaxed = true),
             sourceManager = sourceManager,
-            downloadManager = mockk(relaxed = true),
+            downloadManager = downloadManager,
             downloadCache = downloadCache,
             trackerManager = trackerManager,
         )
@@ -295,7 +361,7 @@ class MangaLibraryScreenModelSeriesTest {
             libraryPreferences = libraryPreferences,
             coverCache = mockk(relaxed = true),
             sourceManager = sourceManager,
-            downloadManager = mockk(relaxed = true),
+            downloadManager = downloadManager,
             downloadCache = downloadCache,
             trackerManager = trackerManager,
         )
@@ -339,7 +405,7 @@ class MangaLibraryScreenModelSeriesTest {
             libraryPreferences = libraryPreferences,
             coverCache = mockk(relaxed = true),
             sourceManager = sourceManager,
-            downloadManager = mockk(relaxed = true),
+            downloadManager = downloadManager,
             downloadCache = downloadCache,
             trackerManager = trackerManager,
         )
@@ -387,7 +453,7 @@ class MangaLibraryScreenModelSeriesTest {
             libraryPreferences = libraryPreferences,
             coverCache = mockk(relaxed = true),
             sourceManager = sourceManager,
-            downloadManager = mockk(relaxed = true),
+            downloadManager = downloadManager,
             downloadCache = downloadCache,
             trackerManager = trackerManager,
         )
@@ -434,7 +500,7 @@ class MangaLibraryScreenModelSeriesTest {
             libraryPreferences = libraryPreferences,
             coverCache = mockk(relaxed = true),
             sourceManager = sourceManager,
-            downloadManager = mockk(relaxed = true),
+            downloadManager = downloadManager,
             downloadCache = downloadCache,
             trackerManager = trackerManager,
         )

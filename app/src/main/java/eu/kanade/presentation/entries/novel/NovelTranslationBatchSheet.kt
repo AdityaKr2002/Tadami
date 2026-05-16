@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.ui.entries.novel.TranslationBatchScope
 import eu.kanade.tachiyomi.ui.entries.novel.resolveTranslationBatchChapterIds
 import tachiyomi.domain.items.novelchapter.model.NovelChapter
+import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable
 internal fun NovelTranslationBatchSheet(
@@ -89,28 +91,28 @@ internal fun NovelTranslationBatchSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Очередь AI-перевода",
+                text = stringResource(MR.strings.novel_batch_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
             )
 
             if (chapterTitle.isNotBlank()) {
                 Text(
-                    text = "Текущая глава: $chapterTitle",
+                    text = stringResource(MR.strings.novel_batch_current_chapter, chapterTitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
             Text(
-                text = "Выберите, какие главы отправить в очередь перевода.",
+                text = stringResource(MR.strings.novel_batch_select_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Режим",
+                    text = stringResource(MR.strings.novel_batch_mode),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -124,7 +126,7 @@ internal fun NovelTranslationBatchSheet(
                 OutlinedTextField(
                     value = customCount,
                     onValueChange = { customCount = it.filter(Char::isDigit) },
-                    label = { Text("Первые N глав") },
+                    label = { Text(stringResource(MR.strings.novel_batch_first_n_chapters)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -136,7 +138,7 @@ internal fun NovelTranslationBatchSheet(
                     OutlinedTextField(
                         value = rangeStart,
                         onValueChange = { rangeStart = it.filter(Char::isDigit) },
-                        label = { Text("С главы") },
+                        label = { Text(stringResource(MR.strings.novel_batch_from_chapter)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.weight(1f),
@@ -144,7 +146,7 @@ internal fun NovelTranslationBatchSheet(
                     OutlinedTextField(
                         value = rangeEnd,
                         onValueChange = { rangeEnd = it.filter(Char::isDigit) },
-                        label = { Text("По главу") },
+                        label = { Text(stringResource(MR.strings.novel_batch_to_chapter)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.weight(1f),
@@ -163,12 +165,12 @@ internal fun NovelTranslationBatchSheet(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Переводить заново",
+                        text = stringResource(MR.strings.novel_batch_force_retranslate),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                     )
                     Text(
-                        text = "Даже если глава уже переведена локально, она будет поставлена в очередь заново.",
+                        text = stringResource(MR.strings.novel_batch_force_retranslate_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -178,13 +180,13 @@ internal fun NovelTranslationBatchSheet(
             HorizontalDivider()
 
             Text(
-                text = "В очередь попадёт: ${previewChapterIds.size} глав",
+                text = stringResource(MR.strings.novel_batch_queue_count, previewChapterIds.size),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             if (!forceRetranslate) {
                 Text(
-                    text = "Уже переведённые главы будут пропущены.",
+                    text = stringResource(MR.strings.novel_batch_skip_translated),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -209,7 +211,7 @@ internal fun NovelTranslationBatchSheet(
                 ),
             ) {
                 Text(
-                    text = "Запустить очередь",
+                    text = stringResource(MR.strings.novel_batch_start),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -219,7 +221,7 @@ internal fun NovelTranslationBatchSheet(
                 onClick = onDismissRequest,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
-                Text(text = "Отмена")
+                Text(text = stringResource(MR.strings.action_cancel))
             }
         }
     }
@@ -230,15 +232,13 @@ private fun ScopeChipRow(
     selected: TranslationBatchScope,
     onSelected: (TranslationBatchScope) -> Unit,
 ) {
-    val scopes = remember {
-        listOf(
-            TranslationBatchScope.SELECTED to "Выбранные",
-            TranslationBatchScope.DOWNLOADED to "Скачанные",
-            TranslationBatchScope.UNREAD to "Непрочитанные",
-            TranslationBatchScope.FIRST_N_VISIBLE to "Первые N",
-            TranslationBatchScope.RANGE to "Диапазон",
-        )
-    }
+    val scopes = listOf(
+        TranslationBatchScope.SELECTED to stringResource(MR.strings.novel_batch_selected),
+        TranslationBatchScope.DOWNLOADED to stringResource(MR.strings.label_downloaded),
+        TranslationBatchScope.UNREAD to stringResource(MR.strings.unread),
+        TranslationBatchScope.FIRST_N_VISIBLE to stringResource(MR.strings.novel_batch_first_n),
+        TranslationBatchScope.RANGE to stringResource(MR.strings.novel_batch_range),
+    )
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         scopes.chunked(2).forEach { rowScopes ->

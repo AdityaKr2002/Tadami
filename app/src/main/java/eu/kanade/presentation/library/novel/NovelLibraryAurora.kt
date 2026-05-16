@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,7 +55,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastAny
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import eu.kanade.presentation.components.AuroraCard
@@ -98,7 +98,6 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.LocalAppHaptics
 import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.plus
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items as listItems
@@ -123,11 +122,11 @@ fun NovelLibraryAuroraContent(
     onLongClickNovel: ((NovelLibraryItem) -> Unit)? = null,
     onContinueReadingClicked: ((NovelLibraryItem) -> Unit)? = null,
     showInlineHeader: Boolean = true,
+    libraryPreferences: LibraryPreferences,
+    sourceManager: NovelSourceManager,
+    downloadCache: NovelDownloadCache,
 ) {
     val configuration = LocalConfiguration.current
-    val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
-    val sourceManager = remember { Injekt.get<NovelSourceManager>() }
-    val downloadCache = remember { Injekt.get<NovelDownloadCache>() }
     val useSeparateDisplayModePerMedia by libraryPreferences
         .separateDisplayModePerMedia()
         .collectAsState()
@@ -179,16 +178,10 @@ fun NovelLibraryAuroraContent(
             item.id to sourceManager.getOrStub(source).lang
         }.toMap()
     }
-    var isSearchActive by remember(searchQuery) { mutableStateOf(!searchQuery.isNullOrBlank()) }
-
-    val query = searchQuery.orEmpty()
-    val filteredItems = if (query.isBlank()) {
-        items
-    } else {
-        items.filter { it.title.contains(query, ignoreCase = true) }
-    }
-    val showPinnedSection = filteredItems.count { it.pinned } > 1
+    val isSearchActive = searchQuery != null
+    val showPinnedSection = remember(items) { items.count { it.pinned } > 1 }
     val isSelectionMode = selection.isNotEmpty() && onToggleSelection != null
+    val selectedIds = remember(selection) { selection.map { it.id }.toHashSet() }
     val onClickNovelItem: (NovelLibraryItem) -> Unit = { libraryItem ->
         if (isSelectionMode) {
             onToggleSelection(libraryItem)
@@ -219,12 +212,11 @@ fun NovelLibraryAuroraContent(
                     item {
                         InlineNovelLibraryHeader(
                             isSearchActive = isSearchActive,
-                            searchQuery = query,
+                            searchQuery = searchQuery.orEmpty(),
                             onSearchQueryChange = onSearchQueryChange,
-                            onSearchClick = { isSearchActive = true },
+                            onSearchClick = { onSearchQueryChange(searchQuery ?: "") },
                             onSearchClose = {
                                 onSearchQueryChange(null)
-                                isSearchActive = false
                             },
                             hasActiveFilters = hasActiveFilters,
                             onFilterClicked = onFilterClicked,
@@ -247,7 +239,7 @@ fun NovelLibraryAuroraContent(
                     }
                 }
 
-                listItems(filteredItems, key = { it.id }) { item ->
+                listItems(items, key = { it.id }) { item ->
                     val badgeState = resolveNovelLibraryBadgeState(
                         item = item,
                         showDownloadBadge = showDownloadBadge,
@@ -268,7 +260,8 @@ fun NovelLibraryAuroraContent(
                         onNovelClicked = { onClickNovelItem(item) },
                         onLongClick = onLongClickNovelItem?.let { { it(item) } },
                         onClickContinueReading = onContinueReadingClicked?.let { { it(item) } },
-                        isSelected = selection.fastAny { it.id == item.id },
+                        isSelected = selectedIds.contains(item.id),
+
                         cardStyle = AuroraLibraryCardStyle.Standard,
                         glowDisplayMode = LibraryDisplayMode.List,
                         gridColumns = null,
@@ -281,7 +274,7 @@ fun NovelLibraryAuroraContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .auroraCenteredMaxWidth(auroraAdaptiveSpec.listMaxWidthDp),
-                columns = columns.coerceAtLeast(0),
+                columns = columns,
                 adaptiveMinCellDp = displaySpec.adaptiveMinCellDp,
                 contentPadding = contentPadding,
             ) {
@@ -289,12 +282,11 @@ fun NovelLibraryAuroraContent(
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         InlineNovelLibraryHeader(
                             isSearchActive = isSearchActive,
-                            searchQuery = query,
+                            searchQuery = searchQuery.orEmpty(),
                             onSearchQueryChange = onSearchQueryChange,
-                            onSearchClick = { isSearchActive = true },
+                            onSearchClick = { onSearchQueryChange(searchQuery ?: "") },
                             onSearchClose = {
                                 onSearchQueryChange(null)
-                                isSearchActive = false
                             },
                             hasActiveFilters = hasActiveFilters,
                             onFilterClicked = onFilterClicked,
@@ -317,7 +309,7 @@ fun NovelLibraryAuroraContent(
                     }
                 }
 
-                gridItems(filteredItems, key = { it.id }) { item ->
+                gridItems(items, key = { it.id }) { item ->
                     val badgeState = resolveNovelLibraryBadgeState(
                         item = item,
                         showDownloadBadge = showDownloadBadge,
@@ -330,7 +322,7 @@ fun NovelLibraryAuroraContent(
                         NovelLibraryCompactGridItem(
                             item = item,
                             badgeState = badgeState,
-                            selection = selection,
+                            selectedIds = selectedIds,
                             onNovelClicked = onClickNovelItem,
                             onLongClickNovel = onLongClickNovelItem,
                             onClickContinueReading = onContinueReadingClicked,
@@ -350,7 +342,8 @@ fun NovelLibraryAuroraContent(
                             onNovelClicked = { onClickNovelItem(item) },
                             onLongClick = onLongClickNovelItem?.let { { it(item) } },
                             onClickContinueReading = onContinueReadingClicked?.let { { it(item) } },
-                            isSelected = selection.fastAny { it.id == item.id },
+                            isSelected = selectedIds.contains(item.id),
+
                             cardStyle = auroraCardStyle,
                             glowDisplayMode = displayMode,
                             gridColumns = columns.coerceAtLeast(0),
@@ -367,7 +360,7 @@ fun NovelLibraryAuroraContent(
 private fun NovelLibraryCompactGridItem(
     item: NovelLibraryItem,
     badgeState: NovelLibraryBadgeState,
-    selection: List<NovelLibraryItem>,
+    selectedIds: Set<Long>,
     onNovelClicked: (NovelLibraryItem) -> Unit,
     onLongClickNovel: ((NovelLibraryItem) -> Unit)?,
     onClickContinueReading: ((NovelLibraryItem) -> Unit)?,
@@ -375,20 +368,23 @@ private fun NovelLibraryCompactGridItem(
 ) {
     val placeholderPainter = rememberAuroraCoverPlaceholderPainter()
 
-    val coverData = item.coverNovel?.asNovelCover() ?: NovelCover(
-        novelId = item.id,
-        sourceId = 0,
-        isNovelFavorite = true,
-        url = null,
-        lastModified = 0,
-    )
+    val coverData = remember(item) {
+        item.coverNovel?.asNovelCover() ?: NovelCover(
+            novelId = item.id,
+            sourceId = 0,
+            isNovelFavorite = true,
+            url = null,
+            lastModified = 0,
+        )
+    }
 
     EntryCompactGridItem(
         coverData = coverData,
         title = item.title,
         onClick = { onNovelClicked(item) },
         onLongClick = { onLongClickNovel?.invoke(item) },
-        isSelected = selection.fastAny { it.id == item.id },
+        isSelected = selectedIds.contains(item.id),
+
         onClickContinueViewing = if (onClickContinueReading != null && item.unreadCount > 0) {
             { onClickContinueReading(item) }
         } else {
@@ -812,6 +808,15 @@ private fun InlineNovelLibraryHeader(
     val tabState = LocalTabState.current
     var showMenu by remember { mutableStateOf(false) }
 
+    var internalQuery by remember(searchQuery) { mutableStateOf(searchQuery) }
+
+    LaunchedEffect(internalQuery) {
+        if (internalQuery != searchQuery) {
+            kotlinx.coroutines.delay(eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS)
+            onSearchQueryChange(internalQuery)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -824,9 +829,9 @@ private fun InlineNovelLibraryHeader(
         ) {
             if (isSearchActive) {
                 TextField(
-                    value = searchQuery,
+                    value = internalQuery,
                     onValueChange = { value ->
-                        onSearchQueryChange(value.ifBlank { null })
+                        internalQuery = value
                     },
                     placeholder = {
                         Text(

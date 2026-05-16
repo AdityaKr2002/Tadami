@@ -58,6 +58,12 @@ internal fun shouldIncludeMigrationEntry(
     }
 }
 
+internal fun isMigrationSearchComplete(
+    items: List<MigrationListScreenModel.MigratingManga>,
+): Boolean {
+    return items.none { it.searchResult == MigrationListScreenModel.SearchResult.Searching }
+}
+
 internal fun hasNewChapters(
     oldLatestChapter: Double?,
     newLatestChapter: Double?,

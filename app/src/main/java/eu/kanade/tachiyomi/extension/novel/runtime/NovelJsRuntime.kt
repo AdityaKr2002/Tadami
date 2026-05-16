@@ -144,6 +144,7 @@ class NovelJsRuntime(
         fun domNot(handle: Int, selector: String): String
         fun domHtml(handle: Int): String
         fun domOuterHtml(handle: Int): String
+        fun domXml(handle: Int): String
         fun domText(handle: Int): String
         fun domAttr(handle: Int, name: String): String?
         fun domRemoveAttr(handle: Int, name: String)
@@ -551,6 +552,15 @@ class NovelJsRuntime(
                 }
             },
             "domOuterHtml",
+        )
+
+        nativeObject.registerJavaMethod(
+            object : JavaCallback {
+                override fun invoke(receiver: V8Object, parameters: V8Array): Any? {
+                    return nativeApi.domXml(parameters.intArg(0))
+                }
+            },
+            "domXml",
         )
 
         nativeObject.registerJavaMethod(
@@ -1930,6 +1940,10 @@ class NovelJsModuleRegistry(
                 if (!handles.length) return null;
                 return __native.domHtml(handles[0]);
               },
+              xml: function() {
+                if (!handles.length) return null;
+                return __native.domXml(handles[0]);
+              },
               attr: function(name) {
                 if (!handles.length) return undefined;
                 var val = __native.domAttr(handles[0], String(name));
@@ -2304,6 +2318,15 @@ class NovelJsModuleRegistry(
                 if (typeof selector.handle === "number") return __native.domOuterHtml(selector.handle);
               }
               return __native.domHtml(rootHandle);
+            };
+            $.xml = function(selector) {
+              if (selector == null) return __native.domXml(rootHandle);
+              if (typeof selector === "string") return $(selector).xml();
+              if (selector && typeof selector === "object") {
+                if (selector._handles && selector._handles.length) return __native.domXml(selector._handles[0]);
+                if (typeof selector.handle === "number") return __native.domXml(selector.handle);
+              }
+              return __native.domXml(rootHandle);
             };
             $.find = function(selector) { return $(selector); };
             $.root = function() { return wrapHandles([rootHandle]); };

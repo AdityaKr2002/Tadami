@@ -79,17 +79,34 @@ class NovelJsSource internal constructor(
     override val supportsLatest: Boolean = true
     override val siteUrl: String?
         get() {
-            // Prefer the user-configured URL from settings (e.g. Komga's "url" setting).
-            // This allows plugins whose site is dynamically configured (stored via
-            // storage.get/set) to expose the correct base URL without requiring a
-            // static value baked into the plugin manifest.
-            val userConfiguredUrl = settingsBridge.getSettingWithDefault("url")
-                ?.let { value ->
-                    value.trim().takeIf { it.isNotBlank() && (it.startsWith("http://") || it.startsWith("https://")) }
+            if (isSiteUrlCached) {
+                return cachedSiteUrl
+            }
+            return runBlocking {
+                mutex.withLock {
+                    if (isSiteUrlCached) {
+                        return@withLock cachedSiteUrl
+                    }
+                    val resolvedSiteUrl = resolveSiteUrl()
+                    cachedSiteUrl = resolvedSiteUrl
+                    isSiteUrlCached = true
+                    resolvedSiteUrl
                 }
-            return userConfiguredUrl ?: plugin.site.takeIf { it.isNotBlank() }
+            }
         }
     override val pluginId: String = plugin.id
+
+    private fun resolveSiteUrl(): String? {
+        // Prefer the user-configured URL from settings (e.g. Komga's "url" setting).
+        // This allows plugins whose site is dynamically configured (stored via
+        // storage.get/set) to expose the correct base URL without requiring a
+        // static value baked into the plugin manifest.
+        val userConfiguredUrl = settingsBridge.getSettingWithDefault("url")
+            ?.let { value ->
+                value.trim().takeIf { it.isNotBlank() && (it.startsWith("http://") || it.startsWith("https://")) }
+            }
+        return userConfiguredUrl ?: plugin.site.takeIf { it.isNotBlank() }
+    }
 
     private val mutex = Mutex()
     private var runtime: NovelJsRuntime? = null
@@ -101,6 +118,12 @@ class NovelJsSource internal constructor(
     private var cachedParseNovelResult: ParsedPluginNovel? = null
     private var settingsDiscoveryAttempted = false
     private var cachedHasSettings = false
+
+    @Volatile
+    private var cachedSiteUrl: String? = null
+
+    @Volatile
+    private var isSiteUrlCached = false
 
     override val pluginCapabilities: NovelPluginCapabilities?
         get() = capabilities
@@ -241,19 +264,24 @@ class NovelJsSource internal constructor(
             return false
         }
 
-        if (settingsDiscoveryAttempted) {
-            return cachedHasSettings
-        }
+        return runBlocking {
+            mutex.withLock {
+                if (plugin.hasSettings || settingsSchema.isNotEmpty()) {
+                    return@withLock true
+                }
+                if (settingsDiscoveryAttempted) {
+                    return@withLock cachedHasSettings
+                }
 
-        settingsDiscoveryAttempted = true
-        cachedHasSettings = runCatching {
-            runBlocking {
-                mutex.withLock { ensureRuntimeLocked() }
+                settingsDiscoveryAttempted = true
+                cachedHasSettings = runCatching {
+                    ensureRuntimeLocked()
+                    settingsSchema.isNotEmpty()
+                }.getOrDefault(false)
+
+                cachedHasSettings
             }
-            settingsSchema.isNotEmpty()
-        }.getOrDefault(false)
-
-        return cachedHasSettings
+        }
     }
 
     @Deprecated("Use the non-RxJava API instead.")
@@ -722,15 +750,21 @@ class NovelJsSource internal constructor(
     }
 
     internal fun clearInMemoryCaches() {
-        runCatching { runtime?.close() }
-        runtime = null
-        cachedFiltersPayload = null
-        cachedImageRequestHeaders = null
-        settingsSchema = emptyList()
-        settingsBridge.clearSettingsSchema()
-        capabilities = null
-        settingsDiscoveryAttempted = false
-        cachedHasSettings = false
+        runBlocking {
+            mutex.withLock {
+                runCatching { runtime?.close() }
+                runtime = null
+                cachedFiltersPayload = null
+                cachedImageRequestHeaders = null
+                settingsSchema = emptyList()
+                settingsBridge.clearSettingsSchema()
+                capabilities = null
+                settingsDiscoveryAttempted = false
+                cachedHasSettings = false
+                cachedSiteUrl = null
+                isSiteUrlCached = false
+            }
+        }
     }
 
     private fun loadFiltersLocked(): NovelFilterList {

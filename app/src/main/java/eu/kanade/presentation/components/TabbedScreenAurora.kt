@@ -206,41 +206,25 @@ fun TabbedScreenAurora(
         }
     }
 
-    LaunchedEffect(instantTabSwitching, tabs.size) {
-        if (tabs.isEmpty()) return@LaunchedEffect
-        val lastIndex = tabs.lastIndex
-        if (instantTabSwitching) {
-            instantSelectedPage = state.currentPage.coerceIn(0, lastIndex)
-        } else if (state.currentPage > lastIndex) {
-            state.scrollToPage(lastIndex)
-        }
-    }
-    LaunchedEffect(instantTabSwitching, state.currentPage, tabs.size) {
-        if (!instantTabSwitching || tabs.isEmpty()) return@LaunchedEffect
-        val targetIndex = state.currentPage.coerceIn(0, tabs.lastIndex)
-        if (instantSelectedPage != targetIndex) {
-            instantSelectedPage = targetIndex
-        }
-    }
     LaunchedEffect(instantTabSwitching, instantSelectedPage, state.currentPage, tabs.size) {
         if (tabs.isEmpty()) return@LaunchedEffect
 
-        if (instantTabSwitching) {
-            val targetIndex = instantSelectedPage.coerceIn(0, tabs.lastIndex)
+        val decision = resolveAuroraInstantTabSync(
+            instantTabSwitching = instantTabSwitching,
+            previousInstantTabSwitching = previousInstantTabSwitching,
+            stateCurrentPage = state.currentPage,
+            instantSelectedPage = instantSelectedPage,
+            lastIndex = tabs.lastIndex,
+        )
+
+        decision.selectedPage?.let { instantSelectedPage = it }
+        decision.pagerPage?.let { targetIndex ->
             if (state.currentPage != targetIndex) {
                 state.scrollToPage(targetIndex)
             }
-        } else {
-            // Sync pager only when transitioning from instant switching to pager mode.
-            if (previousInstantTabSwitching) {
-                val targetIndex = instantSelectedPage.coerceIn(0, tabs.lastIndex)
-                if (state.currentPage != targetIndex) {
-                    state.scrollToPage(targetIndex)
-                }
-            }
         }
 
-        previousInstantTabSwitching = instantTabSwitching
+        previousInstantTabSwitching = decision.nextPreviousInstantTabSwitching
     }
 
     val hostScaffoldContentPadding = LocalHostScaffoldContentPadding.current
@@ -598,7 +582,7 @@ internal fun AuroraTabRow(
     val density = LocalDensity.current
 
     // Auto-scroll to center the selected tab when scrollable (except first two).
-    LaunchedEffect(selectedIndex) {
+    LaunchedEffect(selectedIndex, containerWidthPx) {
         if (!scrollable || containerWidthPx <= 0) return@LaunchedEffect
 
         if (selectedIndex <= 1) {

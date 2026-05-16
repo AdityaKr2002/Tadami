@@ -5,6 +5,7 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.entries.novel.interactor.UpdateNovel
 import eu.kanade.presentation.components.SEARCH_DEBOUNCE_MILLIS
 import eu.kanade.presentation.library.novel.NovelLibraryItem
+import eu.kanade.tachiyomi.data.download.novel.NovelDownloadCache
 import eu.kanade.tachiyomi.source.model.SManga
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -12,6 +13,7 @@ import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -45,6 +47,7 @@ import tachiyomi.domain.series.novel.interactor.DeleteNovelSeries
 import tachiyomi.domain.series.novel.interactor.GetLibraryNovelSeries
 import tachiyomi.domain.series.novel.interactor.GetNovelIdsInAnySeries
 import tachiyomi.domain.series.novel.interactor.UpdateNovelSeries
+import tachiyomi.domain.source.novel.service.NovelSourceManager
 
 class NovelLibraryScreenModelTest {
 
@@ -64,6 +67,8 @@ class NovelLibraryScreenModelTest {
     private lateinit var updateNovelSeries: UpdateNovelSeries
     private lateinit var getLibraryNovelSeries: GetLibraryNovelSeries
     private lateinit var getNovelIdsInAnySeries: GetNovelIdsInAnySeries
+    private lateinit var downloadCache: NovelDownloadCache
+    private lateinit var sourceManager: NovelSourceManager
 
     @BeforeEach
     fun setup() {
@@ -83,6 +88,8 @@ class NovelLibraryScreenModelTest {
         updateNovelSeries = mockk(relaxed = true)
         getLibraryNovelSeries = mockk()
         getNovelIdsInAnySeries = mockk()
+        downloadCache = mockk(relaxed = true)
+        sourceManager = mockk(relaxed = true)
         coEvery { getNovelCategories.await(any<Long>()) } returns emptyList()
         coEvery { getNovelCategories.await() } returns emptyList<NovelCategory>()
         coJustRun { setNovelCategories.await(any(), any()) }
@@ -234,14 +241,21 @@ class NovelLibraryScreenModelTest {
         val downloaded = libraryNovel(id = 1L, title = "Downloaded")
         libraryFlow.value = listOf(downloaded)
         var isDownloaded = false
-        val downloadCacheChanges = MutableSharedFlow<Unit>(replay = 1).also { it.tryEmit(Unit) }
+        var resolveCount = 0
+        val downloadCacheChanges = MutableSharedFlow<Unit>(
+            replay = 1,
+            extraBufferCapacity = 3,
+        ).also { it.tryEmit(Unit) }
 
         val screenModel = trackedNovelLibraryScreenModel(
             getLibraryNovel = getLibraryNovel,
             chapterRepository = chapterRepository,
             basePreferences = basePreferences,
             libraryPreferences = libraryPreferences,
-            hasDownloadedChapters = { isDownloaded },
+            hasDownloadedChapters = {
+                resolveCount++
+                isDownloaded
+            },
             downloadedIdsDispatcher = testDispatcher,
             downloadCacheChanges = downloadCacheChanges,
             searchDebounceMillis = 0L,
@@ -254,7 +268,7 @@ class NovelLibraryScreenModelTest {
         screenModel.state.value.items.shouldContainExactly()
 
         isDownloaded = true
-        downloadCacheChanges.emit(Unit)
+        downloadCacheChanges.tryEmit(Unit)
         testDispatcher.scheduler.advanceUntilIdle()
 
         screenModel.state.value.items.shouldContainExactly(libraryNovelItem(id = 1L, title = "Downloaded"))
@@ -481,7 +495,7 @@ class NovelLibraryScreenModelTest {
         basePreferences: BasePreferences,
         libraryPreferences: LibraryPreferences,
         hasDownloadedChapters: (Novel) -> Boolean,
-        downloadedIdsDispatcher: TestDispatcher,
+        downloadedIdsDispatcher: CoroutineDispatcher,
         downloadCacheChanges: Flow<Unit> = MutableStateFlow(Unit),
         searchDebounceMillis: Long = 0L,
     ): NovelLibraryScreenModel {
@@ -499,6 +513,8 @@ class NovelLibraryScreenModelTest {
             chapterRepository = chapterRepository,
             basePreferences = basePreferences,
             libraryPreferences = libraryPreferences,
+            sourceManager = sourceManager,
+            downloadCache = downloadCache,
             hasDownloadedChapters = hasDownloadedChapters,
             downloadedIdsDispatcher = downloadedIdsDispatcher,
             downloadCacheChanges = downloadCacheChanges,

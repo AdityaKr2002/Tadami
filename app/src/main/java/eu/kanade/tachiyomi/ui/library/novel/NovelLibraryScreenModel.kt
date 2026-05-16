@@ -36,11 +36,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,6 +67,7 @@ import tachiyomi.domain.series.novel.interactor.GetLibraryNovelSeries
 import tachiyomi.domain.series.novel.interactor.GetNovelIdsInAnySeries
 import tachiyomi.domain.series.novel.interactor.UpdateNovelSeries
 import tachiyomi.domain.series.novel.model.NovelSeries
+import tachiyomi.domain.source.novel.service.NovelSourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
@@ -85,14 +86,16 @@ class NovelLibraryScreenModel(
     private val updateNovel: UpdateNovel = Injekt.get(),
     private val chapterRepository: NovelChapterRepository = Injekt.get(),
     private val basePreferences: BasePreferences = Injekt.get(),
-    private val libraryPreferences: LibraryPreferences = Injekt.get(),
+    val libraryPreferences: LibraryPreferences = Injekt.get(),
+    val sourceManager: NovelSourceManager = Injekt.get(),
+    val downloadCache: NovelDownloadCache = Injekt.get(),
     private val novelDownloadManager: NovelDownloadManager = NovelDownloadManager(),
     private val novelTranslatedDownloadManager: NovelTranslatedDownloadManager = NovelTranslatedDownloadManager(),
-    private val downloadCacheChanges: Flow<Unit> = Injekt.get<NovelDownloadCache>()
+    private val downloadCacheChanges: Flow<Unit> = downloadCache
         .changes
         .map { _: NovelDownloadCacheEvent -> Unit },
     private val hasDownloadedChapters: (tachiyomi.domain.entries.novel.model.Novel) -> Boolean = {
-        Injekt.get<NovelDownloadCache>().hasAnyDownloadedChapter(it)
+        downloadCache.hasAnyDownloadedChapter(it)
     },
     private val downloadedIdsDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val searchDebounceMillis: Long = SEARCH_DEBOUNCE_MILLIS,
@@ -143,7 +146,7 @@ class NovelLibraryScreenModel(
                 },
                 flow3 = getFilterPreferencesFlow(),
                 flow4 = getSortPreferencesFlow(),
-                flow5 = downloadCacheChanges.onStart { emit(Unit) },
+                flow5 = downloadCacheChanges.conflate(),
                 transform = {
                         query: String?,
                         novels: List<NovelLibraryItem>,

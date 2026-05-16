@@ -98,6 +98,31 @@ class MigrationListHelpersTest {
         assertTrue(shouldIncludeMigrationEntry(updated, hideNotFound = false, onlyNewChapters = true))
     }
 
+    @Test
+    fun `isMigrationSearchComplete returns true when all visible items are resolved`() {
+        val unresolved = migratingManga(
+            latestChapter = 10.0,
+            searchResult = MigrationListScreenModel.SearchResult.Searching,
+        )
+        val resolvedNotFound = migratingManga(
+            latestChapter = 10.0,
+            searchResult = MigrationListScreenModel.SearchResult.NotFound,
+        )
+        val resolvedSuccess = migratingManga(
+            latestChapter = 10.0,
+            searchResult = MigrationListScreenModel.SearchResult.Success(
+                manga = manga(title = "Target"),
+                source = "Source",
+                chapterCount = 10,
+                latestChapter = 10.0,
+            ),
+        )
+
+        assertFalse(isMigrationSearchComplete(listOf(unresolved, resolvedNotFound)))
+        assertTrue(isMigrationSearchComplete(listOf(resolvedNotFound)))
+        assertTrue(isMigrationSearchComplete(listOf(resolvedNotFound, resolvedSuccess)))
+    }
+
     private fun migratingManga(
         latestChapter: Double?,
         searchResult: MigrationListScreenModel.SearchResult,

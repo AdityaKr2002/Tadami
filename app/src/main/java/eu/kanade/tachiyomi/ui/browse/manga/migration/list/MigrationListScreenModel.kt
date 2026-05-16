@@ -139,8 +139,7 @@ class MigrationListScreenModel(
                 .filter { shouldIncludeMigrationEntry(it, hideNotFound, onlyNewChapters) }
                 .toImmutableList()
             val finishedCount = visibleItems.count { it.searchResult != SearchResult.Searching }
-            val migrationComplete = finishedCount == visibleItems.size &&
-                visibleItems.any { it.searchResult is SearchResult.Success }
+            val migrationComplete = isMigrationSearchComplete(visibleItems)
 
             mutableState.update { state ->
                 state.copy(
@@ -340,8 +339,7 @@ class MigrationListScreenModel(
             state.copy(
                 items = updatedItems,
                 finishedCount = finishedCount,
-                migrationComplete = finishedCount == updatedItems.size &&
-                    updatedItems.any { it.searchResult is SearchResult.Success },
+                migrationComplete = isMigrationSearchComplete(updatedItems),
             )
         }
     }

@@ -197,6 +197,35 @@ class NovelJsDomStore {
         }
     }
 
+    fun getXml(handle: Int): String {
+        val node = nodes[handle] ?: return ""
+        return when (node) {
+            is org.jsoup.nodes.Document -> {
+                val original = node.outputSettings().clone()
+                node.outputSettings()
+                    .syntax(org.jsoup.nodes.Document.OutputSettings.Syntax.xml)
+                    .escapeMode(org.jsoup.nodes.Entities.EscapeMode.xhtml)
+                val result = node.html()
+                node.outputSettings(original)
+                result
+            }
+            is Element -> {
+                val doc = node.ownerDocument()
+                val original = doc?.outputSettings()?.clone()
+                doc?.outputSettings()
+                    ?.syntax(org.jsoup.nodes.Document.OutputSettings.Syntax.xml)
+                    ?.escapeMode(org.jsoup.nodes.Entities.EscapeMode.xhtml)
+                val result = node.outerHtml()
+                if (doc != null && original != null) {
+                    doc.outputSettings(original)
+                }
+                result
+            }
+            is TextNode -> node.wholeText
+            else -> ""
+        }
+    }
+
     fun getText(handle: Int): String {
         val node = nodes[handle] ?: return ""
         return when (node) {

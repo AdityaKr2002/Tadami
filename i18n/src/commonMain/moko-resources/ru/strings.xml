@@ -1078,6 +1078,23 @@
     <string name="snackbar_translation_start_error">Ошибка запуска переводчика:</string>
     <string name="notification_action_open">Открыть</string>
 
+    <!-- AI translator batch -->
+    <string name="novel_batch_title">Очередь AI-перевода</string>
+    <string name="novel_batch_current_chapter">Текущая глава: %1$s</string>
+    <string name="novel_batch_select_desc">Выберите, какие главы отправить в очередь перевода.</string>
+    <string name="novel_batch_mode">Режим</string>
+    <string name="novel_batch_first_n_chapters">Первые N глав</string>
+    <string name="novel_batch_from_chapter">С главы</string>
+    <string name="novel_batch_to_chapter">По главу</string>
+    <string name="novel_batch_force_retranslate">Переводить заново</string>
+    <string name="novel_batch_force_retranslate_desc">Даже если глава уже переведена локально, она будет поставлена в очередь заново.</string>
+    <string name="novel_batch_queue_count">В очередь попадёт: %1$d глав</string>
+    <string name="novel_batch_skip_translated">Уже переведённые главы будут пропущены.</string>
+    <string name="novel_batch_start">Запустить очередь</string>
+    <string name="novel_batch_selected">Выбранные</string>
+    <string name="novel_batch_first_n">Первые N</string>
+    <string name="novel_batch_range">Диапазон</string>
+
     <!-- OmniBuilder -->
     <string name="action_train_parser">⚙️ Обучить парсер (Builder)</string>
     <string name="omnibuilder_title">Конструктор Tadami</string>

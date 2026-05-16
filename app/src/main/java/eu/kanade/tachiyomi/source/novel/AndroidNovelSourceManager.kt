@@ -30,6 +30,7 @@ class AndroidNovelSourceManager(
     private val extensionManager: NovelExtensionManager,
     private val sourceRepository: NovelStubSourceRepository,
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val omniSourceFactory: () -> OmniSource = { OmniSource() },
 ) : NovelSourceManager {
 
     private val _isInitialized = MutableStateFlow(false)
@@ -65,8 +66,11 @@ class AndroidNovelSourceManager(
                     val importedEpubSource = ImportedEpubNovelSource()
                     mutableMap[importedEpubSource.id] = importedEpubSource
                     // Add built-in OmniResolver source
-                    val omniSource = OmniSource()
-                    mutableMap[omniSource.id] = omniSource
+                    runCatching {
+                        omniSourceFactory()
+                    }.onSuccess { omniSource ->
+                        mutableMap[omniSource.id] = omniSource
+                    }
                     sourcesMapFlow.value = mutableMap
                     _isInitialized.value = true
                 }

@@ -313,6 +313,8 @@ class NovelJsRuntimeFactory(
 
         override fun domOuterHtml(handle: Int): String = domStore.getOuterHtml(handle)
 
+        override fun domXml(handle: Int): String = domStore.getXml(handle)
+
         override fun domText(handle: Int): String = domStore.getText(handle)
 
         override fun domAttr(handle: Int, name: String): String? = domStore.getAttr(handle, name)

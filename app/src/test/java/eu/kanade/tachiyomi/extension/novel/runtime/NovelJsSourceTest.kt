@@ -6,6 +6,10 @@ import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
 import tachiyomi.data.extension.novel.NovelPluginKeyValueStore
@@ -52,6 +56,125 @@ class NovelJsSourceTest {
         source.hasPluginSettings(discoverRuntime = true) shouldBe true
 
         verify(exactly = 2) { runtimeFactory.create("test-plugin") }
+    }
+
+    @Test
+    fun `hasPluginSettings discoverRuntime waits for in-flight discovery result`() = kotlinx.coroutines.runBlocking {
+        val runtimeFactory = mockk<NovelJsRuntimeFactory>()
+        val runtime = mockk<NovelJsRuntime>(relaxed = true)
+        val firstDiscoveryStarted = CompletableDeferred<Unit>()
+        val allowFirstDiscovery = CompletableDeferred<Unit>()
+        var shouldBlockDiscovery = true
+
+        every { runtimeFactory.create(any()) } returns runtime
+        every { runtime.evaluate(any(), any(), any()) } answers {
+            val script = firstArg<String>()
+            if (shouldBlockDiscovery && script.contains("Array.isArray(__plugin && __plugin.settings)")) {
+                shouldBlockDiscovery = false
+                firstDiscoveryStarted.complete(Unit)
+                kotlinx.coroutines.runBlocking {
+                    allowFirstDiscovery.await()
+                }
+            }
+            evaluateSettingsScript(script)
+        }
+
+        val source = createSource(
+            hasSettings = false,
+            runtimeFactory = runtimeFactory,
+        )
+
+        val firstCall = async(Dispatchers.Default) {
+            source.hasPluginSettings(discoverRuntime = true)
+        }
+        firstDiscoveryStarted.await()
+
+        val secondCall = async(Dispatchers.Default) {
+            source.hasPluginSettings(discoverRuntime = true)
+        }
+
+        withTimeoutOrNull(200) {
+            secondCall.await()
+        } shouldBe null
+
+        allowFirstDiscovery.complete(Unit)
+        firstCall.await() shouldBe true
+        secondCall.await() shouldBe true
+
+        verify(exactly = 1) { runtimeFactory.create("test-plugin") }
+    }
+
+    @Test
+    fun `clearInMemoryCaches waits for runtime close before rediscovery`() = kotlinx.coroutines.runBlocking {
+        val runtimeFactory = mockk<NovelJsRuntimeFactory>()
+        val runtime1 = mockk<NovelJsRuntime>(relaxed = true)
+        val runtime2 = mockk<NovelJsRuntime>(relaxed = true)
+        val closeStarted = CompletableDeferred<Unit>()
+        val allowClose = CompletableDeferred<Unit>()
+        val secondRuntimeCreated = CompletableDeferred<Unit>()
+        val createCount = AtomicInteger(0)
+
+        every { runtimeFactory.create(any()) } answers {
+            when (createCount.getAndIncrement()) {
+                0 -> runtime1
+                else -> {
+                    secondRuntimeCreated.complete(Unit)
+                    runtime2
+                }
+            }
+        }
+        every { runtime1.close() } answers {
+            closeStarted.complete(Unit)
+            kotlinx.coroutines.runBlocking {
+                allowClose.await()
+            }
+        }
+        every { runtime1.evaluate(any(), any(), any()) } answers { evaluateSettingsScript(firstArg()) }
+        every { runtime2.evaluate(any(), any(), any()) } answers { evaluateSettingsScript(firstArg()) }
+
+        val source = createSource(
+            hasSettings = false,
+            runtimeFactory = runtimeFactory,
+        )
+
+        source.getFilterList()
+
+        val clearJob = async(Dispatchers.Default) {
+            source.clearInMemoryCaches()
+        }
+        closeStarted.await()
+
+        val filterJob = async(Dispatchers.Default) {
+            source.getFilterList()
+        }
+
+        kotlinx.coroutines.withTimeoutOrNull(200) {
+            secondRuntimeCreated.await()
+        } shouldBe null
+
+        allowClose.complete(Unit)
+        clearJob.await()
+        filterJob.await()
+
+        verify(exactly = 2) { runtimeFactory.create("test-plugin") }
+    }
+
+    @Test
+    fun `siteUrl caches value until clearInMemoryCaches`() {
+        val store = CountingKeyValueStore()
+        val source = createSource(
+            hasSettings = false,
+            keyValueStore = store,
+        )
+
+        repeat(5) {
+            source.siteUrl shouldBe "https://example.com"
+        }
+        store.urlGetCount shouldBe 1
+
+        source.clearInMemoryCaches()
+        source.siteUrl shouldBe "https://example.com"
+        store.urlGetCount shouldBe 2
     }
 
     @Test
@@ -259,6 +382,7 @@ class NovelJsSourceTest {
         hasSettings: Boolean,
         runtimeFactory: NovelJsRuntimeFactory = mockk(relaxed = true),
         runtimeOverride: NovelPluginRuntimeOverride = NovelPluginRuntimeOverride(pluginId = "test-plugin"),
+        keyValueStore: NovelPluginKeyValueStore = this.keyValueStore,
         chapterRequestDelay: suspend (Long) -> Unit = {},
     ): NovelJsSource {
         val plugin = NovelPlugin.Installed(
@@ -309,6 +433,7 @@ class NovelJsSourceTest {
                     }
                 ]
             """.trimIndent()
+            script.contains("JSON.stringify(__plugin && __plugin.filters ? __plugin.filters : {})") -> "{}"
             script.contains("typeof __plugin.parsePage") -> false
             script.contains("typeof __plugin.resolveUrl") -> false
             script.contains("typeof __plugin.fetchImage") -> false
@@ -330,6 +455,7 @@ class NovelJsSourceTest {
             """.trimIndent()
             script.contains("Array.isArray(__plugin && __plugin.settings)") -> false
             script.contains("JSON.stringify(__plugin.settings || [])") -> "[]"
+            script.contains("JSON.stringify(__plugin && __plugin.filters ? __plugin.filters : {})") -> "{}"
             script.contains("typeof __plugin.parsePage") -> false
             script.contains("typeof __plugin.resolveUrl") -> false
             script.contains("typeof __plugin.fetchImage") -> false
@@ -564,10 +690,10 @@ class NovelJsSourceTest {
         }
     }
 
-    private class InMemoryKeyValueStore : NovelPluginKeyValueStore {
+    private open class InMemoryKeyValueStore : NovelPluginKeyValueStore {
         private val store = mutableMapOf<String, MutableMap<String, String>>()
 
-        override fun get(pluginId: String, key: String): String? {
+        open override fun get(pluginId: String, key: String): String? {
             return store[pluginId]?.get(key)
         }
 
@@ -589,6 +715,18 @@ class NovelJsSourceTest {
 
         override fun keys(pluginId: String): Set<String> {
             return store[pluginId]?.keys ?: emptySet()
+        }
+    }
+
+    private class CountingKeyValueStore : InMemoryKeyValueStore() {
+        var urlGetCount = 0
+            private set
+
+        override fun get(pluginId: String, key: String): String? {
+            if (key == "setting:url") {
+                urlGetCount++
+            }
+            return super.get(pluginId, key)
         }
     }
 }
