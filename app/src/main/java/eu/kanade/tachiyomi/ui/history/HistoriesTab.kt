@@ -74,7 +74,7 @@ data object HistoriesTab : Tab {
         val fromMore = currentNavigationStyle() == NavStyle.MOVE_HISTORY_TO_MORE
         val uiPreferences = Injekt.get<UiPreferences>()
         val theme by uiPreferences.appTheme().collectAsState()
-        
+
         val showAnimeSection by uiPreferences.showAnimeSection().collectAsState()
         val showMangaSection by uiPreferences.showMangaSection().collectAsState()
         val showNovelSection by uiPreferences.showNovelSection().collectAsState()
