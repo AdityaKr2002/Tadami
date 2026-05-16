@@ -751,7 +751,7 @@ class NovelScreenModel(
                 if (downloadedIds == it.downloadedChapterIds) {
                     it
                 } else {
-                    it.copy(downloadedChapterIds = downloadedIds)
+                    it.copy(downloadedChapterIds = it.downloadedChapterIds union downloadedIds)
                 }
             }
         }
