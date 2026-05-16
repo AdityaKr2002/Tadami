@@ -177,17 +177,8 @@ fun NovelLibraryAuroraContent(
             item.id to sourceManager.getOrStub(source).lang
         }.toMap()
     }
-    var isSearchActive by remember(searchQuery) { mutableStateOf(!searchQuery.isNullOrBlank()) }
-
-    val query = searchQuery.orEmpty()
-    val filteredItems = remember(items, query) {
-        if (query.isBlank()) {
-            items
-        } else {
-            items.filter { it.title.contains(query, ignoreCase = true) }
-        }
-    }
-    val showPinnedSection = remember(filteredItems) { filteredItems.count { it.pinned } > 1 }
+    val isSearchActive = !searchQuery.isNullOrBlank()
+    val showPinnedSection = remember(items) { items.count { it.pinned } > 1 }
     val isSelectionMode = selection.isNotEmpty() && onToggleSelection != null
     val selectedIds = remember(selection) { selection.map { it.id }.toHashSet() }
     val onClickNovelItem: (NovelLibraryItem) -> Unit = { libraryItem ->
@@ -220,12 +211,11 @@ fun NovelLibraryAuroraContent(
                     item {
                         InlineNovelLibraryHeader(
                             isSearchActive = isSearchActive,
-                            searchQuery = query,
+                            searchQuery = searchQuery.orEmpty(),
                             onSearchQueryChange = onSearchQueryChange,
-                            onSearchClick = { isSearchActive = true },
+                            onSearchClick = { onSearchQueryChange(searchQuery ?: "") },
                             onSearchClose = {
                                 onSearchQueryChange(null)
-                                isSearchActive = false
                             },
                             hasActiveFilters = hasActiveFilters,
                             onFilterClicked = onFilterClicked,
@@ -248,7 +238,7 @@ fun NovelLibraryAuroraContent(
                     }
                 }
 
-                listItems(filteredItems, key = { it.id }) { item ->
+                listItems(items, key = { it.id }) { item ->
                     val badgeState = resolveNovelLibraryBadgeState(
                         item = item,
                         showDownloadBadge = showDownloadBadge,
@@ -291,12 +281,11 @@ fun NovelLibraryAuroraContent(
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         InlineNovelLibraryHeader(
                             isSearchActive = isSearchActive,
-                            searchQuery = query,
+                            searchQuery = searchQuery.orEmpty(),
                             onSearchQueryChange = onSearchQueryChange,
-                            onSearchClick = { isSearchActive = true },
+                            onSearchClick = { onSearchQueryChange(searchQuery ?: "") },
                             onSearchClose = {
                                 onSearchQueryChange(null)
-                                isSearchActive = false
                             },
                             hasActiveFilters = hasActiveFilters,
                             onFilterClicked = onFilterClicked,
@@ -319,7 +308,7 @@ fun NovelLibraryAuroraContent(
                     }
                 }
 
-                gridItems(filteredItems, key = { it.id }) { item ->
+                gridItems(items, key = { it.id }) { item ->
                     val badgeState = resolveNovelLibraryBadgeState(
                         item = item,
                         showDownloadBadge = showDownloadBadge,
