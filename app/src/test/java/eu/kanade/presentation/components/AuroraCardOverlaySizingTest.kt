@@ -19,16 +19,21 @@ class AuroraCardOverlaySizingTest {
     }
 
     @Test
-    fun `wide cards trigger xlarge overlay tier`() {
+    fun `wide cards trigger xxlarge and xlarge overlay tier`() {
         resolveAuroraOverlayScaleTier(
             gridColumns = 1,
             cardWidthDp = 350f,
-        ) shouldBe AuroraOverlayScaleTier.XLarge
+        ) shouldBe AuroraOverlayScaleTier.XXLarge
 
         resolveAuroraOverlayScaleTier(
             gridColumns = 2,
             cardWidthDp = 220f,
         ) shouldBe AuroraOverlayScaleTier.XLarge
+
+        resolveAuroraOverlayScaleTier(
+            gridColumns = null,
+            cardWidthDp = 290f,
+        ) shouldBe AuroraOverlayScaleTier.XXLarge
 
         resolveAuroraOverlayScaleTier(
             gridColumns = null,
@@ -77,6 +82,18 @@ class AuroraCardOverlaySizingTest {
         resolveAuroraCardOverlaySpec(
             gridColumns = 1,
             cardWidthDp = 350f,
+        ).let { spec ->
+            spec.buttonSizeDp.value shouldBe 48f
+            spec.buttonIconSizeDp.value shouldBe 28f
+            spec.progressTextSizeSp.value shouldBe 16f
+            spec.footerHorizontalPaddingDp.value shouldBe 24f
+            spec.footerVerticalPaddingDp.value shouldBe 24f
+            spec.progressTextEndInsetDp.value shouldBe 6f
+        }
+
+        resolveAuroraCardOverlaySpec(
+            gridColumns = 2,
+            cardWidthDp = 200f,
         ).let { spec ->
             spec.buttonSizeDp.value shouldBe 36f
             spec.buttonIconSizeDp.value shouldBe 22f
