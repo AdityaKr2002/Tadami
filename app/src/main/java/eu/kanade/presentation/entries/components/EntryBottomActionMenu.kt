@@ -100,22 +100,25 @@ fun EntryBottomActionMenu(
         enter = expandVertically(expandFrom = Alignment.Bottom),
         exit = shrinkVertically(shrinkTowards = Alignment.Bottom),
     ) {
-            val scope = rememberCoroutineScope()
-            val playerPreferences: PlayerPreferences = Injekt.get()
-            Surface(
-                modifier = modifier,
-                shape = MaterialTheme.shapes.large.copy(
-                    bottomEnd = ZeroCornerSize,
-                    bottomStart = ZeroCornerSize,
-                ),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                val haptic = LocalHapticFeedback.current
-                val confirm =
-                    remember {
-                        mutableStateListOf(false, false, false, false, false, false, false, false, false, false, false, false)
-                    }
-                val confirmRange = 0..<12
+        val scope = rememberCoroutineScope()
+        val playerPreferences: PlayerPreferences = Injekt.get()
+        Surface(
+            modifier = modifier,
+            shape = MaterialTheme.shapes.large.copy(
+                bottomEnd = ZeroCornerSize,
+                bottomStart = ZeroCornerSize,
+            ),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ) {
+            val haptic = LocalHapticFeedback.current
+            val confirm =
+                remember {
+                    mutableStateListOf(
+                        false, false, false, false, false, false,
+                        false, false, false, false, false, false,
+                    )
+                }
+            val confirmRange = 0..<12
             var resetJob: Job? = remember { null }
             val onLongClickItem: (Int) -> Unit = { toConfirmIndex ->
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
