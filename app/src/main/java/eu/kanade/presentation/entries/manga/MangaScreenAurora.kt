@@ -294,6 +294,17 @@ fun MangaScreenAuroraImpl(
 
     // Auto-scroll to target chapter on initial load
     var hasScrolledToTarget: Boolean by remember { mutableStateOf(false) }
+    LaunchedEffect(state.targetChapterIndex, isAutoJumpToNextEnabled) {
+        val targetIndex = resolveEntryAutoJumpTargetIndex(
+            enabled = isAutoJumpToNextEnabled,
+            targetIndex = state.targetChapterIndex,
+            restoredScrollIndex = state.scrollIndex,
+        )
+        if (targetIndex != null) {
+            chaptersExpanded = true
+        }
+    }
+
     LaunchedEffect(state.targetChapterIndex, chaptersExpanded) {
         if (!hasScrolledToTarget && chaptersExpanded) {
             hasScrolledToTarget = true
@@ -303,7 +314,11 @@ fun MangaScreenAuroraImpl(
                 restoredScrollIndex = state.scrollIndex,
             )
             if (targetIndex != null) {
-                lazyListState.animateScrollToItem(targetIndex)
+                val fastScrollBlockStartIndex = resolveMangaAuroraFastScrollBlockStartIndex(
+                    useTwoPaneLayout = useTwoPaneLayout,
+                    showScanlatorSelector = showScanlatorSelector,
+                )
+                lazyListState.animateScrollToItem(targetIndex + fastScrollBlockStartIndex)
             }
         }
     }

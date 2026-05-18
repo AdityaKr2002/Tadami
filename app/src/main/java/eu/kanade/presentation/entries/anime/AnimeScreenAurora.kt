@@ -293,6 +293,17 @@ fun AnimeScreenAuroraImpl(
 
     // Auto-scroll to target episode on initial load
     var hasScrolledToTarget: Boolean by remember { mutableStateOf(false) }
+    LaunchedEffect(state.targetEpisodeIndex, isAutoJumpToNextEnabled) {
+        val targetIndex = resolveEntryAutoJumpTargetIndex(
+            enabled = isAutoJumpToNextEnabled,
+            targetIndex = state.targetEpisodeIndex,
+            restoredScrollIndex = state.scrollIndex,
+        )
+        if (targetIndex != null) {
+            episodesExpanded = true
+        }
+    }
+
     LaunchedEffect(state.targetEpisodeIndex, episodesExpanded) {
         if (!hasScrolledToTarget && episodesExpanded) {
             hasScrolledToTarget = true
@@ -302,7 +313,10 @@ fun AnimeScreenAuroraImpl(
                 restoredScrollIndex = state.scrollIndex,
             )
             if (targetIndex != null) {
-                lazyListState.animateScrollToItem(targetIndex)
+                val fastScrollBlockStartIndex = resolveAnimeAuroraFastScrollBlockStartIndex(
+                    useTwoPaneLayout = useTwoPaneLayout,
+                )
+                lazyListState.animateScrollToItem(targetIndex + fastScrollBlockStartIndex)
             }
         }
     }

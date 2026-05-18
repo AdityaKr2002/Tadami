@@ -297,6 +297,20 @@ fun NovelScreenAuroraImpl(
         }
     }
 
+    LaunchedEffect(state.targetChapterIndex, isAutoJumpToNextEnabled) {
+        val targetIndex = resolveNovelAuroraTargetScrollIndex(
+            chapters = chapters,
+            targetChapterIndex = state.targetChapterIndex,
+            expandedGroupKeys = expandedGroupKeys,
+            groupedByChapter = groupedByChapter,
+            isAutoJumpToNextEnabled = isAutoJumpToNextEnabled,
+            restoredScrollIndex = state.scrollIndex,
+        )
+        if (targetIndex != null) {
+            chaptersExpanded = true
+        }
+    }
+
     NovelAuroraTargetAutoScrollEffect(
         targetChapterIndex = state.targetChapterIndex,
         chaptersExpanded = chaptersExpanded,
@@ -306,6 +320,9 @@ fun NovelScreenAuroraImpl(
         isAutoJumpToNextEnabled = isAutoJumpToNextEnabled,
         restoredScrollIndex = state.scrollIndex,
         listState = lazyListState,
+        useTwoPaneLayout = useTwoPaneLayout,
+        chapterPageEnabled = state.chapterPageEnabled,
+        showScanlatorSelector = state.showScanlatorSelector,
     )
 
     val selectedIds = state.selectedChapterIds
@@ -1591,6 +1608,9 @@ private fun NovelAuroraTargetAutoScrollEffect(
     isAutoJumpToNextEnabled: Boolean,
     restoredScrollIndex: Int,
     listState: LazyListState,
+    useTwoPaneLayout: Boolean,
+    chapterPageEnabled: Boolean,
+    showScanlatorSelector: Boolean,
 ) {
     var hasScrolledToTarget by remember { mutableStateOf(false) }
 
@@ -1613,7 +1633,12 @@ private fun NovelAuroraTargetAutoScrollEffect(
             restoredScrollIndex = restoredScrollIndex,
         )
         if (targetIndex != null) {
-            listState.animateScrollToItem(targetIndex)
+            val fastScrollBlockStartIndex = resolveNovelAuroraFastScrollBlockStartIndex(
+                useTwoPaneLayout = useTwoPaneLayout,
+                chapterPageEnabled = chapterPageEnabled,
+                showScanlatorSelector = showScanlatorSelector,
+            )
+            listState.animateScrollToItem(targetIndex + fastScrollBlockStartIndex)
         }
     }
 }
