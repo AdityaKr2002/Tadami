@@ -3,6 +3,7 @@ package eu.kanade.presentation.browse
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -101,7 +102,7 @@ fun BrowseScreenAurora(
                 modifier = Modifier
                     .fillMaxSize()
                     .auroraCenteredMaxWidth(auroraAdaptiveSpec.updatesMaxWidthDp ?: auroraAdaptiveSpec.entryMaxWidthDp),
-                contentPadding = PaddingValues(bottom = 100.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -204,7 +205,7 @@ private fun BrowseAuroraHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 8.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -248,7 +249,7 @@ private fun QuickActionsSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = spec.horizontalInset, vertical = spec.verticalInset),
+            .padding(horizontal = 0.dp, vertical = spec.verticalInset),
         verticalArrangement = Arrangement.spacedBy(spec.itemGap),
     ) {
         QuickActionCard(
@@ -349,7 +350,7 @@ private fun QuickActionCard(
 private fun SourcesSectionHeader(title: String, showDivider: Boolean = false) {
     val colors = AuroraTheme.colors
 
-    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
         if (showDivider) {
             Spacer(modifier = Modifier.height(8.dp))
             Box(
@@ -383,7 +384,7 @@ private fun PinnedSourcesRow(
     onSourceLongClick: (AnimeSource) -> Unit,
 ) {
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 24.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(sources, key = { it.id }) { source ->
@@ -408,7 +409,10 @@ private fun PinnedSourceCard(
         modifier = Modifier
             .width(140.dp)
             .height(80.dp)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = resolveAuroraSelectionContainerColor(colors),
@@ -470,8 +474,10 @@ private fun SourceGridItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(130.dp) // Fixed height for grid uniformity
-            .padding(horizontal = 8.dp) // Slight horizontal padding to prevent touching
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onPinClick,
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = tabContainerColor,

@@ -308,8 +308,10 @@ fun TabbedScreenAurora(
                                     totalDragPx = 0f
                                     edgeBounceTargetPx = 0f
                                 },
-                                onHorizontalDrag = { _, dragAmount ->
-                                    totalDragPx += dragAmount
+                                onHorizontalDrag = { change, dragAmount ->
+                                    if (!change.isConsumed) {
+                                        totalDragPx += dragAmount
+                                    }
                                 },
                                 onDragCancel = {
                                     totalDragPx = 0f
@@ -706,7 +708,7 @@ internal fun AuroraTab(
         Dp.Unspecified
     }
     val selectedTabBrush = remember(colors.accent) {
-        Brush.linearGradient(
+        Brush.verticalGradient(
             colors = listOf(
                 if (colors.isDark) {
                     lerp(colors.accent, Color.White, 0.18f).copy(alpha = 0.32f)
@@ -719,8 +721,6 @@ internal fun AuroraTab(
                     Color.White.copy(alpha = 0.40f)
                 },
             ),
-            start = androidx.compose.ui.geometry.Offset.Zero,
-            end = androidx.compose.ui.geometry.Offset(0f, 240f),
         )
     }
 
