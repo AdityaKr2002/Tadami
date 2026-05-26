@@ -926,10 +926,12 @@ class NovelReaderScreenModel(
             richContentBlocks = displayRichBlocks,
             richContentUnsupportedFeaturesDetected = richContentResult.unsupportedFeaturesDetected,
             chapterOrderList = chapterOrderList,
-            lastSavedIndex = lastSavedIndex,
-            lastSavedScrollOffsetPx = lastSavedScrollOffsetPx,
-            lastSavedWebProgressPercent = lastSavedWebProgressPercent,
-            lastSavedPageReaderProgress = decodedPageReaderProgress,
+            progress = State.ReaderProgressState(
+                lastSavedIndex = lastSavedIndex,
+                lastSavedScrollOffsetPx = lastSavedScrollOffsetPx,
+                lastSavedWebProgressPercent = lastSavedWebProgressPercent,
+                lastSavedPageReaderProgress = decodedPageReaderProgress,
+            ),
             previousChapterId = chapterNavigation.previousChapterId,
             previousChapterName = chapterNavigation.previousChapterName,
             nextChapterId = chapterNavigation.nextChapterId,
@@ -938,17 +940,21 @@ class NovelReaderScreenModel(
             chapterWebUrl = chapterWebUrl,
             selectedTextTranslationSelection = selectedTextTranslationSelection,
             selectedTextTranslationUiState = selectedTextTranslationUiState,
-            isGeminiTranslating = isGeminiTranslating,
-            geminiTranslationProgress = geminiTranslationProgress,
-            isGeminiTranslationVisible = geminiVisibleInUi,
-            hasGeminiTranslationCache = geminiCacheAvailableInUi,
-            geminiLogs = geminiLogs,
-            isGoogleTranslating = isGoogleTranslating,
-            googleTranslationProgress = googleTranslationProgress,
-            isGoogleTranslationVisible = googleVisibleInUi,
-            hasGoogleTranslationCache = googleCacheAvailableInUi,
-            googleLogs = googleLogs,
-            translationPhase = translationPhase,
+            geminiTranslation = State.ReaderGeminiState(
+                isGeminiTranslating = isGeminiTranslating,
+                geminiTranslationProgress = geminiTranslationProgress,
+                isGeminiTranslationVisible = geminiVisibleInUi,
+                hasGeminiTranslationCache = geminiCacheAvailableInUi,
+                geminiLogs = geminiLogs,
+            ),
+            googleTranslation = State.ReaderGoogleState(
+                isGoogleTranslating = isGoogleTranslating,
+                googleTranslationProgress = googleTranslationProgress,
+                isGoogleTranslationVisible = googleVisibleInUi,
+                hasGoogleTranslationCache = googleCacheAvailableInUi,
+                googleLogs = googleLogs,
+                translationPhase = translationPhase,
+            ),
             ttsUiState = ttsUiState.copy(
                 enabled = settings.ttsEnabled,
                 selectedEnginePackage = settings.ttsEnginePackage,
@@ -957,31 +963,33 @@ class NovelReaderScreenModel(
                 speechRate = settings.ttsSpeechRate,
                 pitch = settings.ttsPitch,
             ),
-            openRouterModelIds = openRouterModelIds,
-            isOpenRouterModelsLoading = isOpenRouterModelsLoading,
-            isTestingOpenRouterConnection = isTestingOpenRouterConnection,
-            openRouterApiTestStatus = openRouterApiTestStatus,
-            openRouterApiTestMessage = openRouterApiTestMessage,
-            deepSeekModelIds = deepSeekModelIds,
-            isDeepSeekModelsLoading = isDeepSeekModelsLoading,
-            isTestingDeepSeekConnection = isTestingDeepSeekConnection,
-            deepSeekApiTestStatus = deepSeekApiTestStatus,
-            deepSeekApiTestMessage = deepSeekApiTestMessage,
-            mistralModelIds = mistralModelIds,
-            isMistralModelsLoading = isMistralModelsLoading,
-            isTestingMistralConnection = isTestingMistralConnection,
-            mistralApiTestStatus = mistralApiTestStatus,
-            mistralApiTestMessage = mistralApiTestMessage,
-            nvidiaModelIds = nvidiaModelIds,
-            isNvidiaModelsLoading = isNvidiaModelsLoading,
-            isTestingNvidiaConnection = isTestingNvidiaConnection,
-            nvidiaApiTestStatus = nvidiaApiTestStatus,
-            nvidiaApiTestMessage = nvidiaApiTestMessage,
-            ollamaCloudModelIds = ollamaCloudModelIds,
-            isOllamaCloudModelsLoading = isOllamaCloudModelsLoading,
-            isTestingOllamaCloudConnection = isTestingOllamaCloudConnection,
-            ollamaCloudApiTestStatus = ollamaCloudApiTestStatus,
-            ollamaCloudApiTestMessage = ollamaCloudApiTestMessage,
+            aiProviders = State.ReaderAiProvidersState(
+                openRouterModelIds = openRouterModelIds,
+                isOpenRouterModelsLoading = isOpenRouterModelsLoading,
+                isTestingOpenRouterConnection = isTestingOpenRouterConnection,
+                openRouterApiTestStatus = openRouterApiTestStatus,
+                openRouterApiTestMessage = openRouterApiTestMessage,
+                deepSeekModelIds = deepSeekModelIds,
+                isDeepSeekModelsLoading = isDeepSeekModelsLoading,
+                isTestingDeepSeekConnection = isTestingDeepSeekConnection,
+                deepSeekApiTestStatus = deepSeekApiTestStatus,
+                deepSeekApiTestMessage = deepSeekApiTestMessage,
+                mistralModelIds = mistralModelIds,
+                isMistralModelsLoading = isMistralModelsLoading,
+                isTestingMistralConnection = isTestingMistralConnection,
+                mistralApiTestStatus = mistralApiTestStatus,
+                mistralApiTestMessage = mistralApiTestMessage,
+                nvidiaModelIds = nvidiaModelIds,
+                isNvidiaModelsLoading = isNvidiaModelsLoading,
+                isTestingNvidiaConnection = isTestingNvidiaConnection,
+                nvidiaApiTestStatus = nvidiaApiTestStatus,
+                nvidiaApiTestMessage = nvidiaApiTestMessage,
+                ollamaCloudModelIds = ollamaCloudModelIds,
+                isOllamaCloudModelsLoading = isOllamaCloudModelsLoading,
+                isTestingOllamaCloudConnection = isTestingOllamaCloudConnection,
+                ollamaCloudApiTestStatus = ollamaCloudApiTestStatus,
+                ollamaCloudApiTestMessage = ollamaCloudApiTestMessage,
+            ),
         )
     }
     private suspend fun refreshTtsEngines() {
@@ -1876,10 +1884,12 @@ class NovelReaderScreenModel(
             }
             mutableState.value = currentState.copy(
                 chapter = updatedChapter,
-                lastSavedIndex = lastSavedIndex,
-                lastSavedScrollOffsetPx = lastSavedScrollOffsetPx,
-                lastSavedWebProgressPercent = lastSavedWebProgressPercent,
-                lastSavedPageReaderProgress = decodedPageReaderProgress,
+                progress = currentState.progress.copy(
+                    lastSavedIndex = lastSavedIndex,
+                    lastSavedScrollOffsetPx = lastSavedScrollOffsetPx,
+                    lastSavedWebProgressPercent = lastSavedWebProgressPercent,
+                    lastSavedPageReaderProgress = decodedPageReaderProgress,
+                ),
             )
         }
     }
@@ -2715,11 +2725,13 @@ class NovelReaderScreenModel(
     private fun refreshGeminiUiState() {
         val state = mutableState.value as? State.Success ?: return
         mutableState.value = state.copy(
-            isGeminiTranslating = isGeminiTranslating,
-            geminiTranslationProgress = geminiTranslationProgress,
-            isGeminiTranslationVisible = isGeminiTranslationVisible,
-            hasGeminiTranslationCache = hasGeminiTranslationCache,
-            geminiLogs = geminiLogs,
+            geminiTranslation = state.geminiTranslation.copy(
+                isGeminiTranslating = isGeminiTranslating,
+                geminiTranslationProgress = geminiTranslationProgress,
+                isGeminiTranslationVisible = isGeminiTranslationVisible,
+                hasGeminiTranslationCache = hasGeminiTranslationCache,
+                geminiLogs = geminiLogs,
+            ),
         )
     }
     fun startGeminiTranslation() {
@@ -4545,10 +4557,7 @@ class NovelReaderScreenModel(
             val richContentBlocks: List<NovelRichContentBlock>,
             val richContentUnsupportedFeaturesDetected: Boolean,
             val chapterOrderList: List<NovelChapter> = emptyList(),
-            val lastSavedIndex: Int,
-            val lastSavedScrollOffsetPx: Int,
-            val lastSavedWebProgressPercent: Int,
-            val lastSavedPageReaderProgress: PageReaderProgress? = null,
+            val progress: ReaderProgressState = ReaderProgressState(),
             val previousChapterId: Long?,
             val previousChapterName: String? = null,
             val nextChapterId: Long?,
@@ -4558,18 +4567,89 @@ class NovelReaderScreenModel(
             val selectedTextTranslationSelection: NovelSelectedTextSelection? = null,
             val selectedTextTranslationUiState: NovelSelectedTextTranslationUiState =
                 NovelSelectedTextTranslationUiState.Idle,
+            val geminiTranslation: ReaderGeminiState = ReaderGeminiState(),
+            val googleTranslation: ReaderGoogleState = ReaderGoogleState(),
+            val ttsUiState: NovelReaderTtsUiState = NovelReaderTtsUiState(),
+            val aiProviders: ReaderAiProvidersState = ReaderAiProvidersState(),
+        ) : State {
+            val textBlocks: List<String>
+                get() = contentBlocks
+                    .asSequence()
+                    .filterIsInstance<ContentBlock.Text>()
+                    .map { it.text }
+                    .toList()
+
+            // Backward-compat getters — keep existing code working
+            val lastSavedIndex: Int get() = progress.lastSavedIndex
+            val lastSavedScrollOffsetPx: Int get() = progress.lastSavedScrollOffsetPx
+            val lastSavedWebProgressPercent: Int get() = progress.lastSavedWebProgressPercent
+            val lastSavedPageReaderProgress: PageReaderProgress? get() = progress.lastSavedPageReaderProgress
+
+            val isGeminiTranslating: Boolean get() = geminiTranslation.isGeminiTranslating
+            val geminiTranslationProgress: Int get() = geminiTranslation.geminiTranslationProgress
+            val isGeminiTranslationVisible: Boolean get() = geminiTranslation.isGeminiTranslationVisible
+            val hasGeminiTranslationCache: Boolean get() = geminiTranslation.hasGeminiTranslationCache
+            val geminiLogs: List<String> get() = geminiTranslation.geminiLogs
+
+            val isGoogleTranslating: Boolean get() = googleTranslation.isGoogleTranslating
+            val googleTranslationProgress: Int get() = googleTranslation.googleTranslationProgress
+            val isGoogleTranslationVisible: Boolean get() = googleTranslation.isGoogleTranslationVisible
+            val hasGoogleTranslationCache: Boolean get() = googleTranslation.hasGoogleTranslationCache
+            val googleLogs: List<String> get() = googleTranslation.googleLogs
+            val translationPhase: TranslationPhase get() = googleTranslation.translationPhase
+
+            val openRouterModelIds: List<String> get() = aiProviders.openRouterModelIds
+            val isOpenRouterModelsLoading: Boolean get() = aiProviders.isOpenRouterModelsLoading
+            val isTestingOpenRouterConnection: Boolean get() = aiProviders.isTestingOpenRouterConnection
+            val openRouterApiTestStatus: ProviderApiTestStatus get() = aiProviders.openRouterApiTestStatus
+            val openRouterApiTestMessage: String? get() = aiProviders.openRouterApiTestMessage
+            val deepSeekModelIds: List<String> get() = aiProviders.deepSeekModelIds
+            val isDeepSeekModelsLoading: Boolean get() = aiProviders.isDeepSeekModelsLoading
+            val isTestingDeepSeekConnection: Boolean get() = aiProviders.isTestingDeepSeekConnection
+            val deepSeekApiTestStatus: ProviderApiTestStatus get() = aiProviders.deepSeekApiTestStatus
+            val deepSeekApiTestMessage: String? get() = aiProviders.deepSeekApiTestMessage
+            val mistralModelIds: List<String> get() = aiProviders.mistralModelIds
+            val isMistralModelsLoading: Boolean get() = aiProviders.isMistralModelsLoading
+            val isTestingMistralConnection: Boolean get() = aiProviders.isTestingMistralConnection
+            val mistralApiTestStatus: ProviderApiTestStatus get() = aiProviders.mistralApiTestStatus
+            val mistralApiTestMessage: String? get() = aiProviders.mistralApiTestMessage
+            val nvidiaModelIds: List<String> get() = aiProviders.nvidiaModelIds
+            val isNvidiaModelsLoading: Boolean get() = aiProviders.isNvidiaModelsLoading
+            val isTestingNvidiaConnection: Boolean get() = aiProviders.isTestingNvidiaConnection
+            val nvidiaApiTestStatus: ProviderApiTestStatus get() = aiProviders.nvidiaApiTestStatus
+            val nvidiaApiTestMessage: String? get() = aiProviders.nvidiaApiTestMessage
+            val ollamaCloudModelIds: List<String> get() = aiProviders.ollamaCloudModelIds
+            val isOllamaCloudModelsLoading: Boolean get() = aiProviders.isOllamaCloudModelsLoading
+            val isTestingOllamaCloudConnection: Boolean get() = aiProviders.isTestingOllamaCloudConnection
+            val ollamaCloudApiTestStatus: ProviderApiTestStatus get() = aiProviders.ollamaCloudApiTestStatus
+            val ollamaCloudApiTestMessage: String? get() = aiProviders.ollamaCloudApiTestMessage
+        }
+
+        data class ReaderProgressState(
+            val lastSavedIndex: Int = 0,
+            val lastSavedScrollOffsetPx: Int = 0,
+            val lastSavedWebProgressPercent: Int = 0,
+            val lastSavedPageReaderProgress: PageReaderProgress? = null,
+        )
+
+        data class ReaderGeminiState(
             val isGeminiTranslating: Boolean = false,
             val geminiTranslationProgress: Int = 0,
             val isGeminiTranslationVisible: Boolean = false,
             val hasGeminiTranslationCache: Boolean = false,
             val geminiLogs: List<String> = emptyList(),
+        )
+
+        data class ReaderGoogleState(
             val isGoogleTranslating: Boolean = false,
             val googleTranslationProgress: Int = 0,
             val isGoogleTranslationVisible: Boolean = false,
             val hasGoogleTranslationCache: Boolean = false,
             val googleLogs: List<String> = emptyList(),
             val translationPhase: TranslationPhase = TranslationPhase.IDLE,
-            val ttsUiState: NovelReaderTtsUiState = NovelReaderTtsUiState(),
+        )
+
+        data class ReaderAiProvidersState(
             val openRouterModelIds: List<String> = emptyList(),
             val isOpenRouterModelsLoading: Boolean = false,
             val isTestingOpenRouterConnection: Boolean = false,
@@ -4595,14 +4675,7 @@ class NovelReaderScreenModel(
             val isTestingOllamaCloudConnection: Boolean = false,
             val ollamaCloudApiTestStatus: ProviderApiTestStatus = ProviderApiTestStatus.Idle,
             val ollamaCloudApiTestMessage: String? = null,
-        ) : State {
-            val textBlocks: List<String>
-                get() = contentBlocks
-                    .asSequence()
-                    .filterIsInstance<ContentBlock.Text>()
-                    .map { it.text }
-                    .toList()
-        }
+        )
     }
     sealed interface ContentBlock {
         data class Text(val text: String) : ContentBlock
