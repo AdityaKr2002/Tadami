@@ -166,12 +166,7 @@ internal class NovelReaderChapterDiskCache(
     }
 
     private fun touchFileLocked(file: File) {
-        val now = System.currentTimeMillis()
-        val nextTimestamp = chapterFilesLocked()
-            .maxOfOrNull { it.lastModified() }
-            ?.let { maxExisting -> maxOf(now, maxExisting + 1L) }
-            ?: now
-        file.setLastModified(nextTimestamp)
+        file.setLastModified(System.currentTimeMillis())
     }
 
     private fun gzip(html: String): ByteArray {
