@@ -23,6 +23,7 @@ data class BackupOptions(
     val extensions: Boolean = false,
     val achievements: Boolean = true,
     val stats: Boolean = true,
+    val sisterAppCompatible: Boolean = false,
 ) {
 
     private fun hasAnySelectedLibraryType(): Boolean {
@@ -47,6 +48,7 @@ data class BackupOptions(
         backupManga,
         backupAnime,
         backupNovel,
+        sisterAppCompatible,
     )
 
     fun canCreate(): Boolean {
@@ -167,6 +169,14 @@ data class BackupOptions(
             ),
         )
 
+        val compatOptions = persistentListOf(
+            Entry(
+                label = MR.strings.pref_backup_sister_app_compat,
+                getter = BackupOptions::sisterAppCompatible,
+                setter = { options, enabled -> options.copy(sisterAppCompatible = enabled) },
+            ),
+        )
+
         fun fromBooleanArray(array: BooleanArray) = BackupOptions(
             libraryEntries = array.getOrNull(0) ?: true,
             categories = array.getOrNull(1) ?: true,
@@ -185,6 +195,7 @@ data class BackupOptions(
             backupManga = array.getOrNull(14) ?: true,
             backupAnime = array.getOrNull(15) ?: true,
             backupNovel = array.getOrNull(16) ?: true,
+            sisterAppCompatible = array.getOrNull(17) ?: false,
         )
     }
 

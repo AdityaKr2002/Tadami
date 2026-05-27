@@ -4,12 +4,16 @@ import android.content.Context
 import android.net.Uri
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.LegacyBackup
+import eu.kanade.tachiyomi.data.backup.models.MihonBackup
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.protobuf.ProtoBuf
 import okio.buffer
 import okio.gzip
 import okio.source
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.domain.source.anime.service.AnimeSourceManager
+import tachiyomi.domain.source.manga.service.MangaSourceManager
+import tachiyomi.domain.source.novel.service.NovelSourceManager
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -18,6 +22,9 @@ import java.io.IOException
 class BackupDecoder(
     private val context: Context,
     private val parser: ProtoBuf = Injekt.get(),
+    private val mangaSourceManager: MangaSourceManager = Injekt.get(),
+    private val novelSourceManager: NovelSourceManager = Injekt.get(),
+    private val animeSourceManager: AnimeSourceManager = Injekt.get(),
 ) {
     /**
      * Decode a potentially-gzipped backup.
@@ -45,8 +52,13 @@ class BackupDecoder(
                 } else {
                     parser.decodeFromByteArray(Backup.serializer(), backupString)
                 }
-            } catch (_: SerializationException) {
-                throw IOException(context.stringResource(MR.strings.invalid_backup_file_unknown))
+            } catch (e: SerializationException) {
+                try {
+                    parser.decodeFromByteArray(MihonBackup.serializer(), backupString)
+                        .toTadamiBackup(mangaSourceManager, novelSourceManager, animeSourceManager)
+                } catch (_: Exception) {
+                    throw IOException(context.stringResource(MR.strings.invalid_backup_file_unknown))
+                }
             }
         }
     }

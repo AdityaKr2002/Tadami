@@ -231,6 +231,8 @@
     <string name="backup_slots_all">Сохранять все копии</string>
     <string name="pref_create_backup">Создать резервную копию</string>
     <string name="pref_create_backup_summ">Можно использовать для восстановления текущей библиотеки</string>
+    <string name="pref_backup_sister_app_compat">Совместимость с Tachiyomi/Mihon</string>
+    <string name="pref_backup_sister_app_compat_summary">Сохраняет файл резервной копии в упрощенном плоском формате, совместимом с Mihon, Komikku и TachiyomiSY.</string>
     <string name="pref_crop_borders">Обрезать поля</string>
     <string name="pref_restore_backup">Восстановить из резервной копии</string>
     <string name="pref_restore_backup_summ">Восстановить библиотеку из резервной копии</string>

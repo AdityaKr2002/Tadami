@@ -165,32 +165,80 @@ class BackupCreator(
             val backupNovelSeries = if (shouldBackupNovel) novelSeriesBackupCreator() else emptyList()
             val backupFeeds = feedBackupCreator()
 
+            val finalBackupManga = if (options.sisterAppCompatible) {
+                backupManga + backupNovel.map { it.toBackupManga() }
+            } else {
+                backupManga
+            }
+            val mangaCats = backupMangaCategories(options, includeMangaCategories)
+            val novelCats = backupNovelCategories(options, includeNovelCategories)
+            val finalCategories = if (options.sisterAppCompatible) {
+                (mangaCats + novelCats).distinctBy { it.name }
+            } else {
+                mangaCats
+            }
+
             val backup = Backup(
-                backupManga = backupManga,
-                backupCategories = backupMangaCategories(options, includeMangaCategories),
-                backupSources = backupMangaSources(backupManga),
+                backupManga = finalBackupManga,
+                backupCategories = finalCategories,
+                backupSources = backupMangaSources(finalBackupManga),
                 backupPreferences = backupAppPreferences(options),
                 backupSourcePreferences = backupSourcePreferences(options),
-                backupMangaExtensionRepo = backupMangaExtensionRepos(options, includeMangaType),
+                backupMangaExtensionRepo = if (options.sisterAppCompatible) {
+                    emptyList()
+                } else {
+                    backupMangaExtensionRepos(
+                        options,
+                        includeMangaType,
+                    )
+                },
 
                 isLegacy = false,
-                backupAnime = backupAnime,
-                backupAnimeCategories = backupAnimeCategories(options, includeAnimeCategories),
-                backupAnimeSources = backupAnimeSources(backupAnime),
-                backupNovel = backupNovel,
-                backupNovelCategories = backupNovelCategories(options, includeNovelCategories),
-                backupNovelSources = backupNovelSources(backupNovel),
-                backupExtensions = backupExtensions(options),
-                backupAnimeExtensionRepo = backupAnimeExtensionRepos(options, includeAnimeType),
-                backupCustomButton = backupCustomButtons(options),
-                backupNovelExtensionRepo = backupNovelExtensionRepos(options, includeNovelType),
-                backupAchievements = achievementData.achievements,
-                backupUserProfile = achievementData.userProfile,
-                backupActivityLog = achievementData.activityLog,
-                backupStats = achievementData.stats,
-                backupMangaSeries = backupMangaSeries,
-                backupNovelSeries = backupNovelSeries,
-                backupFeeds = backupFeeds,
+                backupAnime = if (options.sisterAppCompatible) emptyList() else backupAnime,
+                backupAnimeCategories = if (options.sisterAppCompatible) {
+                    emptyList()
+                } else {
+                    backupAnimeCategories(
+                        options,
+                        includeAnimeCategories,
+                    )
+                },
+                backupAnimeSources = if (options.sisterAppCompatible) emptyList() else backupAnimeSources(backupAnime),
+                backupNovel = if (options.sisterAppCompatible) emptyList() else backupNovel,
+                backupNovelCategories = if (options.sisterAppCompatible) {
+                    emptyList()
+                } else {
+                    backupNovelCategories(
+                        options,
+                        includeNovelCategories,
+                    )
+                },
+                backupNovelSources = if (options.sisterAppCompatible) emptyList() else backupNovelSources(backupNovel),
+                backupExtensions = if (options.sisterAppCompatible) emptyList() else backupExtensions(options),
+                backupAnimeExtensionRepo = if (options.sisterAppCompatible) {
+                    emptyList()
+                } else {
+                    backupAnimeExtensionRepos(
+                        options,
+                        includeAnimeType,
+                    )
+                },
+                backupCustomButton = if (options.sisterAppCompatible) emptyList() else backupCustomButtons(options),
+                backupNovelExtensionRepo = if (options.sisterAppCompatible) {
+                    emptyList()
+                } else {
+                    backupNovelExtensionRepos(
+                        options,
+                        includeNovelType,
+                    )
+                },
+                backupAchievements = if (options.sisterAppCompatible) emptyList() else achievementData.achievements,
+                backupUserProfile = if (options.sisterAppCompatible) null else achievementData.userProfile,
+                backupActivityLog = if (options.sisterAppCompatible) emptyList() else achievementData.activityLog,
+                backupStats = if (options.sisterAppCompatible) null else achievementData.stats,
+                backupMangaSeries = if (options.sisterAppCompatible) emptyList() else backupMangaSeries,
+                backupNovelSeries = if (options.sisterAppCompatible) emptyList() else backupNovelSeries,
+                backupFeeds = if (options.sisterAppCompatible) emptyList() else backupFeeds,
             )
 
             val byteArray = parser.encodeToByteArray(Backup.serializer(), backup)
@@ -324,6 +372,33 @@ class BackupCreator(
         if (!options.extensions) return emptyList()
 
         return extensionsBackupCreator()
+    }
+
+    private fun BackupNovel.toBackupManga(): BackupManga {
+        return BackupManga(
+            source = this.source,
+            url = this.url,
+            title = this.title,
+            author = this.author,
+            description = this.description,
+            notes = this.notes,
+            genre = this.genre,
+            status = this.status,
+            thumbnailUrl = this.thumbnailUrl,
+            dateAdded = this.dateAdded,
+            chapters = this.chapters,
+            categories = this.categories,
+            favorite = this.favorite,
+            chapterFlags = this.chapterFlags,
+            viewer = this.viewerFlags,
+            viewer_flags = this.viewerFlags,
+            history = this.history,
+            updateStrategy = this.updateStrategy,
+            lastModifiedAt = this.lastModifiedAt,
+            favoriteModifiedAt = this.favoriteModifiedAt,
+            excludedScanlators = this.excludedScanlators,
+            version = this.version,
+        )
     }
 
     companion object {
