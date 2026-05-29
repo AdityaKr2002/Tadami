@@ -6,10 +6,7 @@ import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.ui.reader.novel.setting.GeminiPromptMode
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -86,7 +83,7 @@ class OpenRouterTranslationService(
                         },
                     )
                 }
-            put("max_tokens", computeTranslationMaxTokens(segments))
+            put("max_tokens", computeOpenAiStyleMaxTokens(segments, minTokens = 4_096, maxTokens = 16_384))
             put("stream", false)
         }
 
@@ -142,7 +139,7 @@ class OpenRouterTranslationService(
                             return null
                         }
 
-                    val candidateText = choice.extractAssistantContent().trim()
+                    val candidateText = choice.extractOpenAiStyleChoiceContent().trim()
                     if (candidateText.isBlank()) {
                         val finishReason = choice["finish_reason"].asStringOrNull()
                         if (!finishReason.isNullOrBlank()) {
@@ -303,24 +300,5 @@ private fun extractApiErrorMessage(rawBody: String): String? {
     }.getOrNull()
 }
 
-private fun JsonObject.extractAssistantContent(): String {
-    val message = this["message"].asObjectOrNull()
-    val sources = listOf(
-        message?.get("content"),
-        message?.get("text"),
-        this["text"],
-        this["output_text"],
-        this["content"],
-    )
-    return sources.firstNotNullOfOrNull { it.extractTextCandidates().firstOrNull() }.orEmpty()
-}
-
-
-
 private const val MAX_ATTEMPTS = 3
 private val openRouterErrorJson = Json { ignoreUnknownKeys = true }
-
-private fun computeTranslationMaxTokens(segments: List<String>): Int {
-    val estimated = segments.sumOf { (it.length / 2).coerceAtLeast(32) } + segments.size * 24
-    return estimated.coerceIn(4_096, 16_384)
-}

@@ -219,8 +219,6 @@ private sealed interface BaseOpenAiRequestOutcome {
     data class Failure(val message: String) : BaseOpenAiRequestOutcome
 }
 
-
-
 private fun computeOpenAiLikeRetryDelayMs(
     attempt: Int,
     hintSeconds: Double?,

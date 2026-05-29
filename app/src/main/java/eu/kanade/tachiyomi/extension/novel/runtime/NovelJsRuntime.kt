@@ -1,10 +1,7 @@
 package eu.kanade.tachiyomi.extension.novel.runtime
 
 import android.util.Log
-import com.eclipsesource.v8.JavaCallback
 import com.eclipsesource.v8.V8
-import com.eclipsesource.v8.V8Array
-import com.eclipsesource.v8.V8Object
 import com.eclipsesource.v8.V8Value
 import java.io.Closeable
 import java.util.concurrent.ExecutionException
@@ -172,8 +169,6 @@ class NovelJsRuntime(
         fun consoleWarn(message: String)
     }
 
-
-
     @Suppress("DEPRECATION")
     private fun normalizeValue(value: Any?): Any? {
         if (value !is V8Value) return value
@@ -210,8 +205,6 @@ class NovelJsRuntime(
             throw RuntimeException("J2V8 runtime call interrupted for plugin id=$pluginId", e)
         }
     }
-
-
 
     companion object {
         private const val LOG_TAG = "NovelJsRuntime"

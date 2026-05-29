@@ -3,9 +3,7 @@ package eu.kanade.tachiyomi.ui.reader.novel.translation
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.await
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.Headers.Companion.headersOf
 import okhttp3.OkHttpClient
 import tachiyomi.core.common.util.lang.withIOContext
@@ -68,5 +66,3 @@ private fun normalizeOpenRouterBaseUrl(baseUrl: String): String {
         else -> "$trimmed/api/v1"
     }
 }
-
-

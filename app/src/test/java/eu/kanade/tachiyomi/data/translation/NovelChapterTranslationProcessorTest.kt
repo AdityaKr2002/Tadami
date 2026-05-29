@@ -5,17 +5,11 @@ import eu.kanade.tachiyomi.ui.reader.novel.setting.GeminiPromptMode
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderSettings
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTranslationProvider
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTranslationStylePreset
-import eu.kanade.tachiyomi.ui.reader.novel.translation.DeepSeekTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.DeepSeekTranslationService
-import eu.kanade.tachiyomi.ui.reader.novel.translation.GeminiTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.GeminiTranslationService
-import eu.kanade.tachiyomi.ui.reader.novel.translation.MistralTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.MistralTranslationService
-import eu.kanade.tachiyomi.ui.reader.novel.translation.NvidiaTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.NvidiaTranslationService
-import eu.kanade.tachiyomi.ui.reader.novel.translation.OllamaCloudTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.OllamaCloudTranslationService
-import eu.kanade.tachiyomi.ui.reader.novel.translation.OpenRouterTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.OpenRouterTranslationService
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -148,4 +142,3 @@ class NovelChapterTranslationProcessorTest {
         assert(exception is IllegalStateException)
     }
 }
-

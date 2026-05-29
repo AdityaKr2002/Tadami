@@ -6,10 +6,7 @@ import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.ui.reader.novel.setting.GeminiPromptMode
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -178,7 +175,7 @@ class DeepSeekTranslationService(
                             return null
                         }
 
-                    val candidateText = choice.extractAssistantContent().trim()
+                    val candidateText = choice.extractOpenAiStyleChoiceContent().trim()
                     if (candidateText.isBlank()) {
                         val finishReason = choice["finish_reason"].asStringOrNull()
                         if (!finishReason.isNullOrBlank()) {
@@ -316,20 +313,6 @@ private fun JsonObject.extractApiErrorMessage(): String? {
         "DeepSeek API error $type: $message"
     }
 }
-
-private fun JsonObject.extractAssistantContent(): String {
-    val message = this["message"].asObjectOrNull()
-    val sources = listOf(
-        message?.get("content"),
-        message?.get("text"),
-        this["text"],
-        this["output_text"],
-        this["content"],
-    )
-    return sources.firstNotNullOfOrNull { it.extractTextCandidates().firstOrNull() }.orEmpty()
-}
-
-
 
 private fun computeTranslationMaxTokens(
     segments: List<String>,

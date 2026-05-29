@@ -41,7 +41,6 @@ import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderOverride
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTranslationProvider
 import eu.kanade.tachiyomi.ui.reader.novel.translation.GeminiPrivateBridge
-import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource

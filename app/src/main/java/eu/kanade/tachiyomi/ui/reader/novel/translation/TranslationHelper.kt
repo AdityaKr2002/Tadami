@@ -77,3 +77,59 @@ fun computeRateLimitDelayMs(
         else -> 60_000L
     }
 }
+
+/**
+ * Extracts the assistant text from a standard OpenAI-style "choice" object.
+ * Works for Mistral, OpenRouter, DeepSeek and similar providers.
+ * The choice object is the first element from `response["choices"]`.
+ */
+internal fun JsonObject.extractOpenAiStyleChoiceContent(): String {
+    val message = this["message"].asObjectOrNull()
+    message?.get("content")
+        .extractOpenAiChoiceContentArray()
+        .firstOrNull()
+        ?.let { return it }
+
+    val sources = listOf(
+        message?.get("content"),
+        message?.get("text"),
+        this["text"],
+        this["output_text"],
+        this["content"],
+    )
+    return sources.firstNotNullOfOrNull {
+        it.extractTextCandidates(includeThinking = false).firstOrNull()
+    }.orEmpty()
+}
+
+/**
+ * Handles content-as-array responses (e.g. Claude-style content blocks forwarded
+ * through OpenRouter), skipping thinking blocks.
+ */
+internal fun JsonElement?.extractOpenAiChoiceContentArray(): List<String> {
+    val array = this as? JsonArray ?: return emptyList()
+    return array
+        .flatMap { entry ->
+            val obj = entry as? JsonObject
+                ?: return@flatMap entry.extractTextCandidates(includeThinking = false)
+            if (obj["type"].asStringOrNull()?.equals("thinking", ignoreCase = true) == true) {
+                emptyList()
+            } else {
+                obj["text"].extractTextCandidates(includeThinking = false)
+            }
+        }
+        .distinct()
+}
+
+/**
+ * Estimates a reasonable max_tokens value for standard chat-completion providers
+ * (Mistral, OpenRouter, DeepSeek non-thinking, etc.).
+ */
+internal fun computeOpenAiStyleMaxTokens(
+    segments: List<String>,
+    minTokens: Int = 4_096,
+    maxTokens: Int = 8_192,
+): Int {
+    val estimated = segments.sumOf { (it.length / 2).coerceAtLeast(32) } + segments.size * 24
+    return estimated.coerceIn(minTokens, maxTokens)
+}

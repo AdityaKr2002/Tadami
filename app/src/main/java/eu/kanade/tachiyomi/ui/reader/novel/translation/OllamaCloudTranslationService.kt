@@ -6,8 +6,6 @@ import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.ui.reader.novel.setting.GeminiPromptMode
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -221,9 +219,9 @@ class OllamaCloudTranslationService(
                         }
                         if (it.code == 429 || it.code in 500..599) {
                             val hintSeconds = it.header("Retry-After")?.toDoubleOrNull()
-                                ?: extractOllamaRetryAfterSeconds(rawBody)
+                                ?: extractRetryAfterSeconds(rawBody)
                             return@withIOContext OllamaCloudRequestOutcome.Retriable(
-                                waitMs = computeOllamaRetryDelayMs(
+                                waitMs = computeRateLimitDelayMs(
                                     attempt = attempt,
                                     hintSeconds = hintSeconds,
                                 ),
@@ -241,7 +239,7 @@ class OllamaCloudTranslationService(
             val message = formatAiTranslationThrowableForLog(error)
             if (attempt < MAX_ATTEMPTS && error.isLikelyTransientOllamaFailure()) {
                 OllamaCloudRequestOutcome.Retriable(
-                    waitMs = computeOllamaRetryDelayMs(attempt = attempt, hintSeconds = null),
+                    waitMs = computeRateLimitDelayMs(attempt = attempt, hintSeconds = null),
                     details = "request exception: $message",
                 )
             } else {
@@ -302,30 +300,6 @@ private fun extractOllamaCloudApiErrorMessage(rawBody: String): String? {
     return null
 }
 
-private val retryAfterSecondsRegex =
-    Regex("(?i)try\\s+again\\s+in\\s+([0-9]+(?:\\.[0-9]+)?)\\s*seconds?")
-
-private fun extractOllamaRetryAfterSeconds(raw: String): Double? {
-    val match = retryAfterSecondsRegex.find(raw) ?: return null
-    return match.groupValues.getOrNull(1)?.toDoubleOrNull()
-}
-
-private fun computeOllamaRetryDelayMs(
-    attempt: Int,
-    hintSeconds: Double?,
-): Long {
-    if (hintSeconds != null) {
-        val ms = ((hintSeconds + 0.3) * 1000.0).toLong()
-        return ms.coerceIn(1_200L, 120_000L)
-    }
-    return when (attempt) {
-        1 -> 2_000L
-        2 -> 5_000L
-        3 -> 15_000L
-        else -> 60_000L
-    }
-}
-
 private fun computeOllamaTranslationNumPredict(segments: List<String>): Int {
     val estimated = segments.sumOf { (it.length / 2).coerceAtLeast(32) } + segments.size * 24
     return estimated.coerceIn(4096, 8192)
@@ -347,7 +321,5 @@ private fun isOllamaCloudSubscriptionRequired(details: String): Boolean {
         normalized.contains("upgrade for access") ||
         normalized.contains("ollama.com/upgrade")
 }
-
-
 
 private const val MAX_ATTEMPTS = 3

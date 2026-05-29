@@ -6,10 +6,7 @@ import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.ui.reader.novel.setting.GeminiPromptMode
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -76,7 +73,7 @@ class MistralTranslationService(
             params.reasoningEffort?.let { effort ->
                 put("reasoning_effort", effort)
             }
-            put("max_tokens", computeTranslationMaxTokens(segments))
+            put("max_tokens", computeOpenAiStyleMaxTokens(segments))
             put("stream", false)
         }
 
@@ -132,7 +129,7 @@ class MistralTranslationService(
                             return null
                         }
 
-                    val candidateText = choice.extractAssistantContent().trim()
+                    val candidateText = choice.extractOpenAiStyleChoiceContent().trim()
                     if (candidateText.isBlank()) {
                         val finishReason = choice["finish_reason"].asStringOrNull()
                         if (!finishReason.isNullOrBlank()) {
@@ -258,37 +255,4 @@ private fun JsonObject.extractApiErrorMessage(): String? {
     }
 }
 
-private fun JsonObject.extractAssistantContent(): String {
-    val message = this["message"].asObjectOrNull()
-    message?.get("content")
-        .extractContentArrayTextCandidates()
-        .firstOrNull()
-        ?.let { return it }
-
-    val sources =
-        listOf(message?.get("content"), message?.get("text"), this["text"], this["output_text"], this["content"])
-    return sources.firstNotNullOfOrNull { it.extractTextCandidates(includeThinking = false).firstOrNull() }.orEmpty()
-}
-
-private fun JsonElement?.extractContentArrayTextCandidates(): List<String> {
-    val array = this as? JsonArray ?: return emptyList()
-    return array
-        .flatMap { entry ->
-            val obj = entry as? JsonObject ?: return@flatMap entry.extractTextCandidates(includeThinking = false)
-            if (obj["type"].asStringOrNull()?.equals("thinking", ignoreCase = true) == true) {
-                emptyList()
-            } else {
-                obj["text"].extractTextCandidates(includeThinking = false)
-            }
-        }
-        .distinct()
-}
-
-
-
 private const val MAX_ATTEMPTS = 3
-
-private fun computeTranslationMaxTokens(segments: List<String>): Int {
-    val estimated = segments.sumOf { (it.length / 2).coerceAtLeast(32) } + segments.size * 24
-    return estimated.coerceIn(4096, 8192)
-}
