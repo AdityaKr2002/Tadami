@@ -57,11 +57,11 @@ import eu.kanade.tachiyomi.ui.reader.novel.translation.GeminiPromptModifiers
 import eu.kanade.tachiyomi.ui.reader.novel.translation.NovelTranslationStylePresets
 import eu.kanade.tachiyomi.ui.reader.novel.translation.OLLAMA_CLOUD_FREE_MODELS
 import eu.kanade.tachiyomi.ui.reader.novel.translation.resolveTranslationReasoningOptions
-import kotlin.math.abs
 import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.i18n.stringResource
+import kotlin.math.abs
 
 internal enum class TranslationKind {
     Gemini,

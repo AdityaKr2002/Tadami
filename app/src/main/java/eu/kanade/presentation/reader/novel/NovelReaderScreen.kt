@@ -164,10 +164,6 @@ import eu.kanade.tachiyomi.ui.reader.novel.tts.WebViewTtsNavigator
 import eu.kanade.tachiyomi.ui.reader.novel.tts.resolvePlainPageReaderTtsAnchors
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
-import java.io.ByteArrayInputStream
-import java.io.File
-import kotlin.coroutines.resume
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -181,6 +177,10 @@ import tachiyomi.presentation.core.util.LocalAppHaptics
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.ByteArrayInputStream
+import java.io.File
+import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 internal fun resolveNovelReaderBackdropColor(
     settings: NovelReaderSettings,
@@ -3911,7 +3911,6 @@ fun NovelReaderScreen(
         }
     }
 }
-
 
 @Composable
 private fun rememberBatteryLevel(context: Context): State<Int> {

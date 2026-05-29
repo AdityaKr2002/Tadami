@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import org.junit.Before
 import org.junit.Test
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
@@ -33,6 +34,11 @@ class NovelChapterTranslationProcessorTest {
     private val mistralTranslationService = mockk<MistralTranslationService>(relaxed = true)
     private val nvidiaTranslationService = mockk<NvidiaTranslationService>(relaxed = true)
     private val ollamaCloudTranslationService = mockk<OllamaCloudTranslationService>(relaxed = true)
+
+    @Before
+    fun setUp() {
+        NovelChapterTranslationProcessor.clearCache()
+    }
 
     @Test
     fun `translates segments with configured provider`() {

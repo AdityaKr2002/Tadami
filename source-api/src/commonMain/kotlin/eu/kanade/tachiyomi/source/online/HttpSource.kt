@@ -11,6 +11,10 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -21,6 +25,7 @@ import uy.kohesive.injekt.injectLazy
 import java.net.URI
 import java.net.URISyntaxException
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A simple implementation for sources from a website.
@@ -250,15 +255,39 @@ abstract class HttpSource : CatalogueSource {
      */
     @Suppress("DEPRECATION")
     override suspend fun getChapterList(manga: SManga): List<SChapter> {
-        return fetchChapterList(manga).awaitSingle()
+        val cacheKey = "${id}_${manga.url}"
+        val cached = chapterListCache[cacheKey]
+        if (cached != null) {
+            return cached
+        }
+        val chapters = fetchChapterList(manga).awaitSingle()
+        chapterListCache[cacheKey] = chapters
+
+        mangaToChapters[cacheKey] = chapters
+        chapters.forEach { chapter ->
+            chapterToMangaUrl["${id}_${chapter.url}"] = cacheKey
+        }
+        return chapters
     }
 
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getChapterList"))
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> {
+        val cacheKey = "${id}_${manga.url}"
+        val cached = chapterListCache[cacheKey]
+        if (cached != null) {
+            return Observable.just(cached)
+        }
         return client.newCall(chapterListRequest(manga))
             .asObservableSuccess()
             .map { response ->
-                chapterListParse(response)
+                val chapters = chapterListParse(response)
+                chapterListCache[cacheKey] = chapters
+
+                mangaToChapters[cacheKey] = chapters
+                chapters.forEach { chapter ->
+                    chapterToMangaUrl["${id}_${chapter.url}"] = cacheKey
+                }
+                chapters
             }
     }
 
@@ -295,15 +324,49 @@ abstract class HttpSource : CatalogueSource {
      */
     @Suppress("DEPRECATION")
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        return fetchPageList(chapter).awaitSingle()
+        val cacheKey = "${id}_${chapter.url}"
+        val cached = pageListCache[cacheKey]
+        if (cached != null) {
+            triggerNextChapterPrefetch(chapter)
+            return cached
+        }
+        val pages = fetchPageList(chapter).awaitSingle()
+        pageListCache[cacheKey] = pages
+
+        pages.forEachIndexed { index, page ->
+            val nextPage = pages.getOrNull(index + 1)
+            if (nextPage != null) {
+                pageToNextPage["${id}_${page.url}"] = nextPage
+            }
+        }
+
+        triggerNextChapterPrefetch(chapter)
+        return pages
     }
 
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getPageList"))
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
+        val cacheKey = "${id}_${chapter.url}"
+        val cached = pageListCache[cacheKey]
+        if (cached != null) {
+            triggerNextChapterPrefetch(chapter)
+            return Observable.just(cached)
+        }
         return client.newCall(pageListRequest(chapter))
             .asObservableSuccess()
             .map { response ->
-                pageListParse(response)
+                val pages = pageListParse(response)
+                pageListCache[cacheKey] = pages
+
+                pages.forEachIndexed { index, page ->
+                    val nextPage = pages.getOrNull(index + 1)
+                    if (nextPage != null) {
+                        pageToNextPage["${id}_${page.url}"] = nextPage
+                    }
+                }
+
+                triggerNextChapterPrefetch(chapter)
+                pages
             }
     }
 
@@ -333,14 +396,32 @@ abstract class HttpSource : CatalogueSource {
      */
     @Suppress("DEPRECATION")
     open suspend fun getImageUrl(page: Page): String {
-        return fetchImageUrl(page).awaitSingle()
+        val cachedUrl = page.imageUrl
+        if (cachedUrl != null) {
+            triggerNextPagePrefetch(page)
+            return cachedUrl
+        }
+        val url = fetchImageUrl(page).awaitSingle()
+        page.imageUrl = url
+        triggerNextPagePrefetch(page)
+        return url
     }
 
     @Deprecated("Use the non-RxJava API instead", replaceWith = ReplaceWith("getImageUrl"))
     open fun fetchImageUrl(page: Page): Observable<String> {
+        val cachedUrl = page.imageUrl
+        if (cachedUrl != null) {
+            triggerNextPagePrefetch(page)
+            return Observable.just(cachedUrl)
+        }
         return client.newCall(imageUrlRequest(page))
             .asObservableSuccess()
-            .map { imageUrlParse(it) }
+            .map { response ->
+                val url = imageUrlParse(response)
+                page.imageUrl = url
+                triggerNextPagePrefetch(page)
+                url
+            }
     }
 
     /**
@@ -368,6 +449,7 @@ abstract class HttpSource : CatalogueSource {
      * @param page the page whose source image has to be downloaded.
      */
     open suspend fun getImage(page: Page): Response {
+        triggerNextPagePrefetch(page)
         return client.newCachelessCallWithProgress(imageRequest(page), page)
             .awaitSuccess()
     }
@@ -380,6 +462,81 @@ abstract class HttpSource : CatalogueSource {
      */
     protected open fun imageRequest(page: Page): Request {
         return GET(page.imageUrl!!, headers)
+    }
+
+    private fun triggerNextChapterPrefetch(chapter: SChapter) {
+        val chapterKey = "${id}_${chapter.url}"
+        val mangaKey = chapterToMangaUrl[chapterKey] ?: return
+        val chapters = mangaToChapters[mangaKey] ?: return
+        val currentIndex = chapters.indexOfFirst { it.url == chapter.url }
+        if (currentIndex < 0) return
+
+        val adjacentChapters = listOfNotNull(
+            chapters.getOrNull(currentIndex - 1),
+            chapters.getOrNull(currentIndex + 1),
+        )
+
+        adjacentChapters.forEach { nextCh ->
+            val nextChKey = "${id}_${nextCh.url}"
+            if (!pageListCache.containsKey(nextChKey)) {
+                prefetchPageList(nextCh)
+            }
+        }
+    }
+
+    private fun prefetchPageList(chapter: SChapter) {
+        val nextChKey = "${id}_${chapter.url}"
+        if (inFlightPrefetches.putIfAbsent(nextChKey, true) == null) {
+            prefetchScope.launch {
+                try {
+                    val pages = fetchPageList(chapter).awaitSingle()
+                    pageListCache[nextChKey] = pages
+                    pages.forEachIndexed { index, page ->
+                        val nextPage = pages.getOrNull(index + 1)
+                        if (nextPage != null) {
+                            pageToNextPage["${id}_${page.url}"] = nextPage
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore prefetch failures
+                } finally {
+                    inFlightPrefetches.remove(nextChKey)
+                }
+            }
+        }
+    }
+
+    private fun triggerNextPagePrefetch(page: Page) {
+        val pageKey = "${id}_${page.url}"
+        val nextPage = pageToNextPage[pageKey] ?: return
+
+        prefetchScope.launch {
+            try {
+                if (nextPage.imageUrl == null) {
+                    val nextUrl = fetchImageUrl(nextPage).awaitSingle()
+                    nextPage.imageUrl = nextUrl
+                }
+                val imageUrl = nextPage.imageUrl
+                if (imageUrl != null && nextPage.status != Page.State.READY) {
+                    client.newCall(GET(imageUrl, headers)).awaitSuccess().close()
+                }
+            } catch (e: Exception) {
+                // Ignore prefetch failures
+            }
+        }
+    }
+
+    companion object {
+        private val chapterListCache = ConcurrentHashMap<String, List<SChapter>>()
+        private val pageListCache = ConcurrentHashMap<String, List<Page>>()
+        private val chapterToMangaUrl = ConcurrentHashMap<String, String>()
+        private val mangaToChapters = ConcurrentHashMap<String, List<SChapter>>()
+        private val pageToNextPage = ConcurrentHashMap<String, Page>()
+        private val inFlightPrefetches = ConcurrentHashMap<String, Boolean>()
+
+        private val prefetchScope = CoroutineScope(
+            Dispatchers.IO + SupervisorJob(),
+        )
     }
 
     /**
