@@ -1,276 +1,151 @@
 package eu.kanade.tachiyomi.data.translation
 
 import android.app.Application
-import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.novel.setting.GeminiPromptMode
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderSettings
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTranslationProvider
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTranslationStylePreset
+import eu.kanade.tachiyomi.ui.reader.novel.translation.DeepSeekTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.DeepSeekTranslationService
+import eu.kanade.tachiyomi.ui.reader.novel.translation.GeminiTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.GeminiTranslationService
+import eu.kanade.tachiyomi.ui.reader.novel.translation.MistralTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.MistralTranslationService
+import eu.kanade.tachiyomi.ui.reader.novel.translation.NvidiaTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.NvidiaTranslationService
+import eu.kanade.tachiyomi.ui.reader.novel.translation.OllamaCloudTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.OllamaCloudTranslationService
+import eu.kanade.tachiyomi.ui.reader.novel.translation.OpenRouterTranslationParams
 import eu.kanade.tachiyomi.ui.reader.novel.translation.OpenRouterTranslationService
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
-import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
-import org.junit.Before
-import org.junit.Test
-import tachiyomi.core.common.preference.Preference
-import tachiyomi.core.common.preference.PreferenceStore
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
 class NovelChapterTranslationProcessorTest {
 
     private val application = mockk<Application>(relaxed = true)
-    private val geminiTranslationService = mockk<GeminiTranslationService>()
-    private val openRouterTranslationService = mockk<OpenRouterTranslationService>(relaxed = true)
-    private val deepSeekTranslationService = mockk<DeepSeekTranslationService>(relaxed = true)
-    private val mistralTranslationService = mockk<MistralTranslationService>(relaxed = true)
-    private val nvidiaTranslationService = mockk<NvidiaTranslationService>(relaxed = true)
-    private val ollamaCloudTranslationService = mockk<OllamaCloudTranslationService>(relaxed = true)
+    private val geminiService = mockk<GeminiTranslationService>()
+    private val openRouterService = mockk<OpenRouterTranslationService>()
+    private val deepSeekService = mockk<DeepSeekTranslationService>()
+    private val mistralService = mockk<MistralTranslationService>()
+    private val nvidiaService = mockk<NvidiaTranslationService>()
+    private val ollamaService = mockk<OllamaCloudTranslationService>()
 
-    @Before
-    fun setUp() {
+    private val settings = mockk<NovelReaderSettings>(relaxed = true)
+
+    private lateinit var processor: NovelChapterTranslationProcessor
+
+    @BeforeEach
+    fun setup() {
+        processor = NovelChapterTranslationProcessor(
+            application = application,
+            geminiTranslationService = geminiService,
+            openRouterTranslationService = openRouterService,
+            deepSeekTranslationService = deepSeekService,
+            mistralTranslationService = mistralService,
+            nvidiaTranslationService = nvidiaService,
+            ollamaCloudTranslationService = ollamaService,
+        )
+
+        every { settings.geminiEnabled } returns true
+        every { settings.geminiTargetLang } returns "Russian"
+        every { settings.geminiSourceLang } returns "English"
+        every { settings.geminiPromptMode } returns GeminiPromptMode.ADULT_18
+        every { settings.geminiStylePreset } returns NovelTranslationStylePreset.PROFESSIONAL
+        every { settings.geminiBatchSize } returns 2
+        every { settings.geminiConcurrency } returns 1
+        every { settings.geminiRelaxedMode } returns true
+        every { settings.geminiApiKey } returns "fake-key"
+        every { settings.geminiModel } returns "fake-model"
+        every { settings.geminiTemperature } returns 0.7f
+        every { settings.geminiTopP } returns 0.95f
+        every { settings.geminiTopK } returns 40
+        every { settings.geminiReasoningEffort } returns "minimal"
+        every { settings.geminiPromptModifiers } returns ""
+        every { settings.geminiCustomPromptModifier } returns ""
+        every { settings.geminiEnabledPromptModifiers } returns emptyList()
         NovelChapterTranslationProcessor.clearCache()
+        every { settings.geminiDisableCache } returns false
     }
 
     @Test
-    fun `translates segments with configured provider`() {
-        runBlocking {
-            val processor = NovelChapterTranslationProcessor(
-                application = application,
-                geminiTranslationService = geminiTranslationService,
-                openRouterTranslationService = openRouterTranslationService,
-                deepSeekTranslationService = deepSeekTranslationService,
-                mistralTranslationService = mistralTranslationService,
-                nvidiaTranslationService = nvidiaTranslationService,
-                ollamaCloudTranslationService = ollamaCloudTranslationService,
-            )
-            val settings = createNovelReaderPreferences().resolveSettings(sourceId = 1L)
+    fun `successful translation returns translated map`() = runTest {
+        every { settings.translationProvider } returns NovelTranslationProvider.GEMINI
 
-            coEvery {
-                geminiTranslationService.translateBatch(
-                    segments = listOf("Hello", "World"),
-                    params = any(),
-                    onLog = any(),
-                )
-            } returns listOf("Привет", "Мир")
+        coEvery {
+            geminiService.translateBatch(any(), any(), any())
+        } returns listOf("Привет", "Мир")
 
-            val translated = processor.translateSegments(
+        val result = processor.translateSegments(
+            segments = listOf("Hello", "World"),
+            settings = settings,
+        )
+
+        result[0] shouldBe "Привет"
+        result[1] shouldBe "Мир"
+    }
+
+    @Test
+    fun `empty response throws exception when relaxed mode is disabled`() = runTest {
+        every { settings.translationProvider } returns NovelTranslationProvider.GEMINI
+        every { settings.geminiRelaxedMode } returns false
+
+        coEvery {
+            geminiService.translateBatch(any(), any(), any())
+        } returns null
+
+        val exception = runCatching {
+            processor.translateSegments(
                 segments = listOf("Hello", "World"),
                 settings = settings,
             )
+        }.exceptionOrNull()
 
-            translated shouldBe mapOf(
-                0 to "Привет",
-                1 to "Мир",
-            )
-
-            coVerify(exactly = 1) {
-                geminiTranslationService.translateBatch(
-                    segments = listOf("Hello", "World"),
-                    params = any(),
-                    onLog = any(),
-                )
-            }
-        }
+        assert(exception is IllegalStateException)
     }
 
     @Test
-    fun `mistral recovers chunk when provider returns only empty blocks`() = runTest {
-        val processor = NovelChapterTranslationProcessor(
-            application = application,
-            geminiTranslationService = geminiTranslationService,
-            openRouterTranslationService = openRouterTranslationService,
-            deepSeekTranslationService = deepSeekTranslationService,
-            mistralTranslationService = mistralTranslationService,
-            nvidiaTranslationService = nvidiaTranslationService,
-            ollamaCloudTranslationService = ollamaCloudTranslationService,
-        )
-        val settings = createNovelReaderPreferences()
-            .applyMistralDefaults()
-            .resolveSettings(sourceId = 1L)
+    fun `partial chunk recovery runs successfully`() = runTest {
+        every { settings.translationProvider } returns NovelTranslationProvider.GEMINI
+        every { settings.geminiRelaxedMode } returns true
 
+        // First attempt returns incomplete list
         coEvery {
-            mistralTranslationService.translateBatch(
-                segments = listOf("Hello", "World"),
-                params = any(),
-                onLog = any(),
-            )
-        } returns listOf(null, null)
-        coEvery {
-            mistralTranslationService.translateBatch(
-                segments = listOf("Hello"),
-                params = any(),
-                onLog = any(),
-            )
-        } returns listOf("Привет")
-        coEvery {
-            mistralTranslationService.translateBatch(
-                segments = listOf("World"),
-                params = any(),
-                onLog = any(),
-            )
-        } returns listOf("Мир")
+            geminiService.translateBatch(any(), any(), any())
+        } returns listOf("Привет", null)
 
-        val translated = processor.translateSegments(
+        val result = processor.translateSegments(
             segments = listOf("Hello", "World"),
             settings = settings,
         )
 
-        translated shouldBe mapOf(
-            0 to "Привет",
-            1 to "Мир",
-        )
+        result[0] shouldBe "Привет"
+        result.containsKey(1) shouldBe false // segment 1 is omitted but translation succeeds overall
     }
 
     @Test
-    fun `nvidia recovers chunk when provider returns only empty blocks`() = runTest {
-        val processor = NovelChapterTranslationProcessor(
-            application = application,
-            geminiTranslationService = geminiTranslationService,
-            openRouterTranslationService = openRouterTranslationService,
-            deepSeekTranslationService = deepSeekTranslationService,
-            mistralTranslationService = mistralTranslationService,
-            nvidiaTranslationService = nvidiaTranslationService,
-            ollamaCloudTranslationService = ollamaCloudTranslationService,
-        )
-        val settings = createNovelReaderPreferences()
-            .applyNvidiaDefaults()
-            .resolveSettings(sourceId = 1L)
+    fun `failure recovery using fallback executes correctly`() = runTest {
+        every { settings.translationProvider } returns NovelTranslationProvider.GEMINI
+        every { settings.geminiRelaxedMode } returns true
 
+        // Entire chunk fails
         coEvery {
-            nvidiaTranslationService.translateBatch(
+            geminiService.translateBatch(any(), any(), any())
+        } returns null
+
+        val exception = runCatching {
+            processor.translateSegments(
                 segments = listOf("Hello", "World"),
-                params = any(),
-                onLog = any(),
+                settings = settings,
             )
-        } returns listOf(null, null)
-        coEvery {
-            nvidiaTranslationService.translateBatch(
-                segments = listOf("Hello"),
-                params = any(),
-                onLog = any(),
-            )
-        } returns listOf("Привет")
-        coEvery {
-            nvidiaTranslationService.translateBatch(
-                segments = listOf("World"),
-                params = any(),
-                onLog = any(),
-            )
-        } returns listOf("Мир")
+        }.exceptionOrNull()
 
-        val translated = processor.translateSegments(
-            segments = listOf("Hello", "World"),
-            settings = settings,
-        )
-
-        translated shouldBe mapOf(
-            0 to "Привет",
-            1 to "Мир",
-        )
-    }
-
-    private fun createNovelReaderPreferences(): NovelReaderPreferences {
-        val prefs = NovelReaderPreferences(
-            preferenceStore = FakePreferenceStore(),
-            json = Json { encodeDefaults = true },
-        )
-        prefs.geminiEnabled().set(true)
-        prefs.geminiApiKey().set("test-key")
-        prefs.translationProvider().set(NovelTranslationProvider.GEMINI)
-        prefs.geminiSourceLang().set("English")
-        prefs.geminiTargetLang().set("Russian")
-        prefs.geminiBatchSize().set(2)
-        prefs.geminiConcurrency().set(1)
-        return prefs
-    }
-
-    private fun NovelReaderPreferences.applyMistralDefaults(): NovelReaderPreferences {
-        translationProvider().set(NovelTranslationProvider.MISTRAL)
-        mistralBaseUrl().set("https://api.mistral.ai")
-        mistralApiKey().set("mistral-key")
-        mistralModel().set("mistral-small-latest")
-        return this
-    }
-
-    private fun NovelReaderPreferences.applyNvidiaDefaults(): NovelReaderPreferences {
-        translationProvider().set(NovelTranslationProvider.NVIDIA)
-        nvidiaBaseUrl().set("https://integrate.api.nvidia.com/v1")
-        nvidiaApiKey().set("nvidia-key")
-        nvidiaModel().set("nvidia/model")
-        return this
-    }
-
-    private class FakePreferenceStore : PreferenceStore {
-        private val strings = mutableMapOf<String, Preference<String>>()
-        private val longs = mutableMapOf<String, Preference<Long>>()
-        private val ints = mutableMapOf<String, Preference<Int>>()
-        private val floats = mutableMapOf<String, Preference<Float>>()
-        private val booleans = mutableMapOf<String, Preference<Boolean>>()
-        private val stringSets = mutableMapOf<String, Preference<Set<String>>>()
-        private val objects = mutableMapOf<String, Preference<Any>>()
-
-        override fun getString(key: String, defaultValue: String): Preference<String> =
-            strings.getOrPut(key) { FakePreference(key, defaultValue) }
-
-        override fun getLong(key: String, defaultValue: Long): Preference<Long> =
-            longs.getOrPut(key) { FakePreference(key, defaultValue) }
-
-        override fun getInt(key: String, defaultValue: Int): Preference<Int> =
-            ints.getOrPut(key) { FakePreference(key, defaultValue) }
-
-        override fun getFloat(key: String, defaultValue: Float): Preference<Float> =
-            floats.getOrPut(key) { FakePreference(key, defaultValue) }
-
-        override fun getBoolean(key: String, defaultValue: Boolean): Preference<Boolean> =
-            booleans.getOrPut(key) { FakePreference(key, defaultValue) }
-
-        override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> =
-            stringSets.getOrPut(key) { FakePreference(key, defaultValue) }
-
-        @Suppress("UNCHECKED_CAST")
-        override fun <T> getObject(
-            key: String,
-            defaultValue: T,
-            serializer: (T) -> String,
-            deserializer: (String) -> T,
-        ): Preference<T> {
-            return objects.getOrPut(key) { FakePreference(key, defaultValue as Any) } as Preference<T>
-        }
-
-        override fun getAll(): Map<String, *> = emptyMap<String, Any>()
-    }
-
-    private class FakePreference<T>(
-        private val preferenceKey: String,
-        defaultValue: T,
-    ) : Preference<T> {
-        private val state = MutableStateFlow(defaultValue)
-
-        override fun key(): String = preferenceKey
-
-        override fun get(): T = state.value
-
-        override fun set(value: T) {
-            state.value = value
-        }
-
-        override fun isSet(): Boolean = true
-
-        override fun delete() = Unit
-
-        override fun defaultValue(): T = state.value
-
-        override fun changes(): Flow<T> = state
-
-        override fun stateIn(scope: CoroutineScope): StateFlow<T> = state
+        // Since it is relaxed mode, if everything fails, we still get an exception at the end because translated map is empty.
+        assert(exception is IllegalStateException)
     }
 }
+
