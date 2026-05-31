@@ -231,21 +231,21 @@ class EpubReader(private val reader: ArchiveReader) : Closeable by reader {
             getInputStream(entryPath)?.use { inputStream ->
                 val document = Jsoup.parse(inputStream, null, "")
 
-                // Link images to standard schema to support NovelWebViewViewer
+                // Inline images as data URIs for self-contained rendering
                 val imageBasePath = getParentDirectory(entryPath)
                 document.select("img[src], image[xlink:href]").forEach { img ->
                     val src = if (img.hasAttr("src")) img.attr("src") else img.attr("xlink:href")
                     if (!src.startsWith("http") &&
-                        !src.startsWith("data:") &&
-                        !src.startsWith("tsundoku-novel-image://")
+                        !src.startsWith("data:")
                     ) {
                         val imagePath = resolveZipPath(imageBasePath, src)
-                        val novelUrl =
-                            "tsundoku-novel-image://${java.net.URLEncoder.encode(imagePath, "UTF-8")}"
-                        if (img.hasAttr("src")) {
-                            img.attr("src", novelUrl)
-                        } else {
-                            img.attr("xlink:href", novelUrl)
+                        val dataUri = inlineAssetAsDataUri(imagePath)
+                        if (dataUri != null) {
+                            if (img.hasAttr("src")) {
+                                img.attr("src", dataUri)
+                            } else {
+                                img.attr("xlink:href", dataUri)
+                            }
                         }
                     }
                 }
@@ -428,7 +428,7 @@ class EpubReader(private val reader: ArchiveReader) : Closeable by reader {
     fun getChapterContent(chapterHref: String): String {
         return getChapterContentInternal(
             chapterHref = chapterHref,
-            useReaderImageScheme = true,
+            useReaderImageScheme = false,
             bodyOnly = false,
         )
     }
