@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.data.suggestions.sources.SuggestionMediaType
 import eu.kanade.tachiyomi.novelsource.model.SNovel
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import tachiyomi.domain.entries.novel.model.Novel
@@ -150,5 +151,71 @@ class NovelSearchFallbackEngineTest {
 
         assertEquals(2, (carouselOutcome as NovelFallbackOutcome.Success).items.size)
         assertEquals(4, (fullOutcome as NovelFallbackOutcome.Success).items.size)
+    }
+
+    @Test
+    fun `genre backfill is used before popular and skips popular if target is reached`() = runTest {
+        val novel = Novel.create().copy(
+            id = 123L,
+            title = "Solo Leveling",
+            url = "/solo-genre-first",
+            genre = listOf("Action", "Fantasy", "Adventure"),
+        )
+        val source = FakeNovelCatalogueSource()
+        source.searchNovelsToReturn = List(20) { i ->
+            SNovel.create().apply {
+                title = "Action Novel $i"
+                url = "/genre-action-$i"
+            }
+        }
+        source.popularNovelsToReturn = List(20) { i ->
+            SNovel.create().apply {
+                title = "Popular Novel $i"
+                url = "/popular-$i"
+            }
+        }
+        source.popularNovelsWithFiltersToReturn = source.searchNovelsToReturn
+        val seed = SuggestionSeed(
+            mediaType = SuggestionMediaType.NOVEL,
+            primaryTitle = "Solo Leveling",
+            candidateTitles = listOf("Solo Leveling"),
+            description = "",
+        )
+
+        val engine = NovelSearchFallbackEngine()
+        val outcome = engine.fetchSearchFallback(novel, source, seed, maxResults = 20)
+
+        assertTrue(outcome is NovelFallbackOutcome.Success)
+        val success = outcome as NovelFallbackOutcome.Success
+        assertEquals(20, success.items.size)
+        assertTrue(success.items.all { it.title.startsWith("Action Novel") })
+        assertFalse(source.getPopularNovelsCalled)
+    }
+
+    @Test
+    fun `popular backfill is capped for carousel when relevance layers are empty`() = runTest {
+        val novel = Novel.create().copy(id = 123L, title = "Solo Leveling", url = "/solo-popular-cap")
+        val source = FakeNovelCatalogueSource()
+        source.popularNovelsToReturn = List(30) { i ->
+            SNovel.create().apply {
+                title = "Popular Fill $i"
+                url = "/popular-fill-$i"
+            }
+        }
+        val seed = SuggestionSeed(
+            mediaType = SuggestionMediaType.NOVEL,
+            primaryTitle = "Solo Leveling",
+            candidateTitles = listOf("Solo Leveling"),
+            description = "",
+        )
+
+        val engine = NovelSearchFallbackEngine()
+        val outcome = engine.fetchSearchFallback(novel, source, seed, maxResults = 20)
+
+        assertTrue(outcome is NovelFallbackOutcome.Success)
+        val success = outcome as NovelFallbackOutcome.Success
+        assertEquals(8, success.items.size)
+        assertTrue(source.getPopularNovelsCalled)
+        assertEquals(1, source.getPopularNovelsCallCount)
     }
 }

@@ -22,7 +22,12 @@ class SuggestionCoordinatorTest {
         assertTrue(mangaSources.any { it.name == "MangaUpdates" })
 
         val novelSources = coordinator.createSources(SuggestionMediaType.NOVEL)
-        assertEquals(1, novelSources.size)
+        // F1.1 + F1.2: MangaUpdates and NovelUpdates are now part of the
+        // NOVEL source set. The shim SourcePreferences defaults to "true"
+        // for all F3.2 toggles, so all three sources are present.
+        assertEquals(3, novelSources.size)
         assertTrue(novelSources.any { it.name == "AniList" })
+        assertTrue(novelSources.any { it.name == "MangaUpdates" })
+        assertTrue(novelSources.any { it.name == "NovelUpdates" })
     }
 }

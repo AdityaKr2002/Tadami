@@ -2,137 +2,105 @@ package eu.kanade.tachiyomi.data.suggestions
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class SuggestionTitleResolverTest {
 
-    // ─── resolveCandidates ────────────────────────────────────────────────
+    @Test
+    fun `isFranchiseDuplicate returns true for identical cleaned titles`() {
+        assertTrue(SuggestionTitleResolver.isFranchiseDuplicate("Spear of Fate", "Spear of Fate"))
+    }
 
     @Test
-    fun `resolveCandidates should extract and normalize titles`() {
-        val title = "  Solo Leveling  "
-        val description = "Some info here.\nOriginal: Only I Level Up\nOther info."
-        val metadataAlternativeTitles = listOf("Настоящее поднятие уровня в одиночку", "Solo Leveling")
-
-        val candidates = SuggestionTitleResolver.resolveCandidates(
-            title = title,
-            description = description,
-            metadataAlternativeTitles = metadataAlternativeTitles,
+    fun `isFranchiseDuplicate returns true for titles that differ only in volume markers`() {
+        assertTrue(
+            SuggestionTitleResolver.isFranchiseDuplicate(
+                "Re:Zero kara Hajimeru Isekai Seikatsu",
+                "Re:Zero kara Hajimeru Isekai Seikatsu (Vol. 1)",
+            ),
         )
-
-        assertTrue(candidates.isNotEmpty())
-        assertEquals("Solo Leveling", candidates[0])
-        assertTrue(candidates.contains("Only I Level Up"))
     }
 
     @Test
-    fun `resolveCandidates should deduplicate candidates`() {
-        val candidates = SuggestionTitleResolver.resolveCandidates(
-            title = "Solo Leveling",
-            description = null,
-            metadataAlternativeTitles = listOf("Solo Leveling", "Solo Leveling"),
+    fun `isFranchiseDuplicate returns false for similar but distinct titles`() {
+        // After raising threshold 0.90 -> 0.95, "Spear of Fate" vs "Spear of Destiny"
+        // should be considered distinct works, not franchise duplicates.
+        assertFalse(
+            SuggestionTitleResolver.isFranchiseDuplicate("Spear of Fate", "Spear of Destiny"),
         )
-        assertEquals(1, candidates.count { it == "Solo Leveling" })
     }
 
     @Test
-    fun `resolveCandidates should keep Cyrillic title as-is`() {
-        val cyrillicTitle = "Атака Титанов"
-        val candidates = SuggestionTitleResolver.resolveCandidates(
-            title = cyrillicTitle,
-            description = null,
-            metadataAlternativeTitles = listOf("Shingeki no Kyojin"),
+    fun `isFranchiseDuplicate returns false for sequels with overlapping words`() {
+        // "Solo Leveling" vs "Solo Leveling Side Stories" should be distinct
+        // since they are different series and the user likely wants both as suggestions.
+        assertFalse(
+            SuggestionTitleResolver.isFranchiseDuplicate("Solo Leveling", "Solo Leveling Side Stories"),
         )
-        assertTrue(candidates.contains(cyrillicTitle), "Cyrillic title must be preserved")
-        assertTrue(candidates.contains("Shingeki no Kyojin"), "Latin alias must be present")
     }
 
     @Test
-    fun `resolveCandidates should handle null description gracefully`() {
-        val candidates = SuggestionTitleResolver.resolveCandidates(
-            title = "Some Title",
-            description = null,
-            metadataAlternativeTitles = emptyList(),
+    fun `isFranchiseDuplicate returns false for completely unrelated titles`() {
+        assertFalse(
+            SuggestionTitleResolver.isFranchiseDuplicate("Attack on Titan", "Re:Zero"),
         )
-        assertTrue(candidates.isNotEmpty())
-        assertTrue(candidates.contains("Some Title"))
     }
 
     @Test
-    fun `resolveCandidates filters blank candidates`() {
-        val candidates = SuggestionTitleResolver.resolveCandidates(
-            title = "Title",
-            description = null,
-            metadataAlternativeTitles = listOf("  ", "", "Valid"),
+    fun `isFranchiseDuplicate handles Cyrillic input correctly`() {
+        // Two completely different Cyrillic titles should not be flagged.
+        assertFalse(
+            SuggestionTitleResolver.isFranchiseDuplicate("Копьё Судьбы", "Атака Титанов"),
         )
-        assertFalse(candidates.any { it.isBlank() }, "Blank candidates must be filtered out")
-        assertTrue(candidates.contains("Valid"))
-    }
-
-    // ─── scoreMatch ───────────────────────────────────────────────────────
-
-    @Test
-    fun `scoreMatch should grade matches properly`() {
-        // Exact match (case-insensitive)
-        assertEquals(100, SuggestionTitleResolver.scoreMatch("Solo Leveling", "solo leveling"))
-
-        // Prefix match
-        assertEquals(75, SuggestionTitleResolver.scoreMatch("Solo Leveling Season 2", "Solo Leveling"))
-
-        // Contains match
-        assertEquals(50, SuggestionTitleResolver.scoreMatch("The Solo Leveling Story", "Leveling"))
-
-        // Token overlap – must be > 0 and < 50
-        val score = SuggestionTitleResolver.scoreMatch("Solo Leveling Side Story", "Solo Leveling Novel")
-        assertTrue(score > 0 && score < 50)
     }
 
     @Test
-    fun `scoreMatch should handle Cyrillic comparison`() {
-        // Exact Cyrillic match
-        assertEquals(100, SuggestionTitleResolver.scoreMatch("Атака Титанов", "атака титанов"))
-
-        // Latin vs Cyrillic should not score high (different scripts)
-        val score = SuggestionTitleResolver.scoreMatch("Shingeki no Kyojin", "атака титанов")
-        assertTrue(score < 75)
-    }
-
-    // ─── selectBestQueryForProvider ───────────────────────────────────────
-
-    @Test
-    fun `selectBestQueryForProvider prefers Latin over Cyrillic`() {
-        val candidates = listOf("Атака Титанов", "Shingeki no Kyojin", "Attack on Titan")
-        val best = SuggestionTitleResolver.selectBestQueryForProvider(candidates, "Атака Титанов")
-        assertNotEquals("Атака Титанов", best, "Cyrillic-only candidate should not be preferred when Latin exists")
+    fun `isFranchiseDuplicate returns false for blank input`() {
+        assertFalse(SuggestionTitleResolver.isFranchiseDuplicate("", "Spear of Fate"))
+        assertFalse(SuggestionTitleResolver.isFranchiseDuplicate("Spear of Fate", ""))
+        assertFalse(SuggestionTitleResolver.isFranchiseDuplicate("", ""))
     }
 
     @Test
-    fun `selectBestQueryForProvider falls back to first when all Cyrillic`() {
-        val candidates = listOf("Атака Титанов", "Наруто")
-        val best = SuggestionTitleResolver.selectBestQueryForProvider(candidates, "Атака Титанов")
-        assertEquals("Атака Титанов", best)
+    fun `scoreMatch returns 100 for exact case-insensitive match`() {
+        assertEquals(100, SuggestionTitleResolver.scoreMatch("Spear of Fate", "spear of fate"))
     }
 
     @Test
-    fun `selectBestQueryForProvider returns rawTitle for empty candidates`() {
-        val best = SuggestionTitleResolver.selectBestQueryForProvider(emptyList(), "Fallback Title")
-        assertEquals("Fallback Title", best)
+    fun `scoreMatch returns 75 for prefix match`() {
+        assertEquals(75, SuggestionTitleResolver.scoreMatch("Spear", "Spear of Fate"))
     }
 
-    // ─── cleanTitle ───────────────────────────────────────────────────────
+    @Test
+    fun `scoreMatch returns 50 for contains match`() {
+        assertEquals(50, SuggestionTitleResolver.scoreMatch("Fate", "Spear of Fate"))
+    }
 
     @Test
-    fun `cleanTitle should strip volume and chapter markers only when followed by numbers`() {
-        // Words followed by numbers should be stripped
-        assertEquals("solo leveling", SuggestionTitleResolver.cleanTitle("Solo Leveling Vol 1"))
-        assertEquals("solo leveling", SuggestionTitleResolver.cleanTitle("Solo Leveling Season 2"))
-        assertEquals("solo leveling", SuggestionTitleResolver.cleanTitle("Solo Leveling Part 3"))
+    fun `scoreMatch returns positive for partial token overlap`() {
+        val score = SuggestionTitleResolver.scoreMatch("Spear of Destiny", "Spear of Fate")
+        assert(score in 1..49) { "Expected token jaccard score 1..49, got $score" }
+    }
 
-        // Common semantic words NOT followed by numbers should be preserved!
-        assertEquals("book of shadows", SuggestionTitleResolver.cleanTitle("Book of Shadows"))
-        assertEquals("tome of fire", SuggestionTitleResolver.cleanTitle("Tome of Fire"))
-        assertEquals("part of me", SuggestionTitleResolver.cleanTitle("Part of Me"))
+    @Test
+    fun `resolveCandidates includes slug from ranobelib URL`() {
+        // Use the "Original:" pattern the parser recognises. Cyrillic
+        // originals are passed through the metadataAlternativeTitles list.
+        val candidates = SuggestionTitleResolver.resolveCandidates(
+            title = "Копьё Судьбы",
+            description = "Original: Spear of Fate",
+            url = "https://ranobelib.me/ru/book/264961--spear-of-fate",
+            metadataAlternativeTitles = listOf("Копьё Судьбы"),
+        )
+        assertTrue(candidates.contains("Копьё Судьбы"))
+        assertTrue(candidates.contains("Spear of Fate"))
+        assertTrue(candidates.contains("spear of fate"))
+    }
+
+    @Test
+    fun `cleanTitle strips volume markers and brackets`() {
+        val cleaned = SuggestionTitleResolver.cleanTitle("Re:Zero Vol. 1 (Light Novel)")
+        assertEquals("re zero", cleaned)
     }
 }

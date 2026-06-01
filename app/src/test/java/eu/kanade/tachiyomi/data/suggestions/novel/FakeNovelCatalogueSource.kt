@@ -16,10 +16,14 @@ open class FakeNovelCatalogueSource(
 
     var relatedNovelsToReturn: List<SNovel> = emptyList()
     var searchNovelsToReturn: List<SNovel> = emptyList()
+    var searchNovelsByQuery: Map<String, List<SNovel>> = emptyMap()
     var popularNovelsToReturn: List<SNovel> = emptyList()
+    var popularNovelsWithFiltersToReturn: List<SNovel>? = null
     var getRelatedNovelsCalled = false
     var getSearchNovelsCalledWithQuery: String? = null
+    var searchQueriesCalled: MutableList<String> = mutableListOf()
     var getPopularNovelsCalled = false
+    var getPopularNovelsCallCount = 0
 
     override suspend fun getRelatedNovels(novel: SNovel): List<SNovel> {
         getRelatedNovelsCalled = true
@@ -28,12 +32,23 @@ open class FakeNovelCatalogueSource(
 
     override suspend fun getSearchNovels(page: Int, query: String, filters: NovelFilterList): NovelsPage {
         getSearchNovelsCalledWithQuery = query
-        return NovelsPage(searchNovelsToReturn, false)
+        searchQueriesCalled.add(query)
+        val byQuery = searchNovelsByQuery[query]
+        return NovelsPage(byQuery ?: searchNovelsToReturn, false)
     }
 
     override suspend fun getPopularNovels(page: Int): NovelsPage {
         getPopularNovelsCalled = true
+        getPopularNovelsCallCount++
         return NovelsPage(popularNovelsToReturn, false)
+    }
+
+    override suspend fun getPopularNovels(page: Int, filters: NovelFilterList): NovelsPage {
+        val filtered = popularNovelsWithFiltersToReturn
+        if (filtered != null) {
+            return NovelsPage(filtered, false)
+        }
+        return getPopularNovels(page)
     }
 
     override fun getFilterList(): NovelFilterList = NovelFilterList()
