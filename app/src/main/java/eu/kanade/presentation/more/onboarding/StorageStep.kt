@@ -1,6 +1,7 @@
 package eu.kanade.presentation.more.onboarding
 
 import android.content.ActivityNotFoundException
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,8 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,14 +33,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.more.resolveAuroraMoreCardBorderColor
 import eu.kanade.presentation.more.settings.screen.SettingsDataScreen
 import eu.kanade.presentation.theme.AuroraSurfaceLevel
 import eu.kanade.presentation.theme.AuroraTheme
-import eu.kanade.presentation.theme.auroraFloatingSurface
-import eu.kanade.presentation.theme.resolveAuroraBorderColor
+import eu.kanade.presentation.theme.resolveAuroraElevation
 import eu.kanade.presentation.theme.resolveAuroraSurfaceColor
 import eu.kanade.tachiyomi.util.system.isTvBox
 import eu.kanade.tachiyomi.util.system.toast
@@ -48,6 +52,8 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.LocalAppHaptics
+import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -75,14 +81,17 @@ internal class StorageStep : OnboardingStep {
     override fun Content() {
         val context = LocalContext.current
         val handler = LocalUriHandler.current
+        val appHaptics = LocalAppHaptics.current
 
         val isTvBox = isTvBox(LocalContext.current)
         val colors = AuroraTheme.colors
 
         val pickStorageLocation = SettingsDataScreen.storageLocationPicker(storagePref)
 
-        val currentPath = storagePref.get()
+        // Reactive Compose State collection to fix real-time folder selection updates!
+        val currentPath by storagePref.collectAsState()
         val isRisky = isRiskyStoragePath(currentPath)
+        val isFolderSelected = currentPath.isNotEmpty()
 
         Column(
             modifier = Modifier.padding(16.dp),
@@ -130,17 +139,67 @@ internal class StorageStep : OnboardingStep {
                 }
             }
 
-            // Folder details block
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .auroraFloatingSurface(colors, AuroraSurfaceLevel.Glass, RoundedCornerShape(16.dp))
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Glass))
-                    .border(1.dp, resolveAuroraBorderColor(colors, false), RoundedCornerShape(16.dp))
-                    .padding(16.dp),
+            // Folder details block redesigned with premium selected/floating cards
+            val cardBgColor = when {
+                colors.isEInk -> if (isFolderSelected) {
+                    resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Strong)
+                } else {
+                    resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Subtle)
+                }
+                colors.isDark -> if (isFolderSelected) {
+                    colors.accent.copy(alpha = 0.12f)
+                } else {
+                    Color.White.copy(alpha = 0.05f)
+                }
+                else -> if (isFolderSelected) {
+                    colors.accent.copy(alpha = 0.06f)
+                } else {
+                    Color.White
+                }
+            }
+
+            val cardBorderColor = when {
+                colors.isEInk -> if (isFolderSelected) {
+                    colors.accent
+                } else {
+                    resolveAuroraMoreCardBorderColor(colors)
+                }
+                colors.isDark -> if (isFolderSelected) {
+                    colors.accent.copy(alpha = 0.4f)
+                } else {
+                    Color.White.copy(alpha = 0.08f)
+                }
+                else -> if (isFolderSelected) {
+                    colors.accent.copy(alpha = 0.35f)
+                } else {
+                    Color.Transparent
+                }
+            }
+
+            val cardElevation = if (!colors.isDark && !colors.isEInk && !isFolderSelected) {
+                resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
+            } else {
+                0.dp
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = cardBgColor,
+                ),
+                border = BorderStroke(
+                    width = if (isFolderSelected && !colors.isEInk) 1.5.dp else 1.dp,
+                    color = cardBorderColor,
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = cardElevation,
+                ),
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -170,6 +229,7 @@ internal class StorageStep : OnboardingStep {
                             Button(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
+                                    appHaptics.tap()
                                     val storage = folderProvider.directory()
                                     if (!storage.exists()) {
                                         storage.mkdirs()
@@ -189,6 +249,7 @@ internal class StorageStep : OnboardingStep {
                         Button(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
+                                appHaptics.tap()
                                 try {
                                     pickStorageLocation.launch(null)
                                 } catch (e: ActivityNotFoundException) {
@@ -220,7 +281,10 @@ internal class StorageStep : OnboardingStep {
 
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = { handler.openUri(SettingsDataScreen.HELP_URL) },
+                onClick = {
+                    appHaptics.tap()
+                    handler.openUri(SettingsDataScreen.HELP_URL)
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colors.textPrimary.copy(alpha = 0.05f),
                     contentColor = colors.textPrimary,

@@ -2,10 +2,12 @@ package eu.kanade.presentation.more.onboarding
 
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,16 +31,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
 import com.tadami.aurora.R
+import eu.kanade.presentation.more.resolveAuroraMoreCardBorderColor
 import eu.kanade.presentation.theme.AuroraSurfaceLevel
 import eu.kanade.presentation.theme.AuroraTheme
-import eu.kanade.presentation.theme.auroraFloatingSurface
-import eu.kanade.presentation.theme.resolveAuroraBorderColor
-import eu.kanade.presentation.theme.resolveAuroraSelectionBorderColor
-import eu.kanade.presentation.theme.resolveAuroraSelectionContainerColor
+import eu.kanade.presentation.theme.resolveAuroraElevation
 import eu.kanade.presentation.theme.resolveAuroraSurfaceColor
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import org.xmlpull.v1.XmlPullParser
@@ -119,42 +123,96 @@ internal class LanguageStep : OnboardingStep {
             ) {
                 langs.forEach { lang ->
                     val isSelected = currentLanguage == lang.langTag
-                    val baseBg = resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Glass)
-                    val selectedBg = resolveAuroraSelectionContainerColor(colors)
-                    val bgAnim by animateColorAsState(
-                        targetValue = if (isSelected) selectedBg else baseBg,
-                        label = "langBg",
-                    )
-                    val baseBorder = resolveAuroraBorderColor(colors, false)
-                    val selectedBorder = resolveAuroraSelectionBorderColor(colors)
-                    val borderAnim by animateColorAsState(
-                        targetValue = if (isSelected) selectedBorder else baseBorder,
-                        label = "langBorder",
+
+                    // Interactive spring scale states
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.96f else 1f,
+                        animationSpec = androidx.compose.animation.core.spring(
+                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow,
+                        ),
+                        label = "lang_${lang.langTag}_scale",
                     )
 
-                    Box(
+                    // Resolve card container and border colors
+                    val cardBgColor = when {
+                        colors.isEInk -> if (isSelected) {
+                            resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Strong)
+                        } else {
+                            resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Subtle)
+                        }
+                        colors.isDark -> if (isSelected) {
+                            colors.accent.copy(alpha = 0.18f)
+                        } else {
+                            Color.White.copy(alpha = 0.05f)
+                        }
+                        else -> if (isSelected) {
+                            colors.accent.copy(alpha = 0.12f)
+                        } else {
+                            Color.White
+                        }
+                    }
+
+                    val cardBorderColor = when {
+                        colors.isEInk -> if (isSelected) {
+                            colors.accent
+                        } else {
+                            resolveAuroraMoreCardBorderColor(colors)
+                        }
+                        colors.isDark -> if (isSelected) {
+                            colors.accent.copy(alpha = 0.5f)
+                        } else {
+                            Color.White.copy(alpha = 0.08f)
+                        }
+                        else -> if (isSelected) {
+                            colors.accent.copy(alpha = 0.35f)
+                        } else {
+                            Color.Transparent
+                        }
+                    }
+
+                    val cardElevation = if (!colors.isDark && !colors.isEInk && !isSelected) {
+                        resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
+                    } else {
+                        0.dp
+                    }
+
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .auroraFloatingSurface(
-                                colors,
-                                AuroraSurfaceLevel.Glass,
-                                RoundedCornerShape(14.dp),
-                            )
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(bgAnim)
-                            .border(1.dp, borderAnim, RoundedCornerShape(14.dp))
-                            .clickable {
-                                currentLanguage = lang.langTag
-                                val locale = if (lang.langTag.isEmpty()) {
-                                    LocaleListCompat.getEmptyLocaleList()
-                                } else {
-                                    LocaleListCompat.forLanguageTags(lang.langTag)
-                                }
-                                AppCompatDelegate.setApplicationLocales(locale)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
                             }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = androidx.compose.foundation.LocalIndication.current,
+                                onClick = {
+                                    currentLanguage = lang.langTag
+                                    val locale = if (lang.langTag.isEmpty()) {
+                                        LocaleListCompat.getEmptyLocaleList()
+                                    } else {
+                                        LocaleListCompat.forLanguageTags(lang.langTag)
+                                    }
+                                    AppCompatDelegate.setApplicationLocales(locale)
+                                },
+                            ),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = cardBgColor,
+                        ),
+                        border = BorderStroke(
+                            width = if (isSelected && !colors.isEInk) 1.5.dp else 1.dp,
+                            color = cardBorderColor,
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = cardElevation,
+                        ),
                     ) {
                         Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {

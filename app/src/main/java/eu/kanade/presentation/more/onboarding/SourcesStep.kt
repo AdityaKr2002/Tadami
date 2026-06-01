@@ -1,10 +1,14 @@
 package eu.kanade.presentation.more.onboarding
 
 import android.content.Context
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,15 +40,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.presentation.more.resolveAuroraMoreCardBorderColor
 import eu.kanade.presentation.theme.AuroraSurfaceLevel
 import eu.kanade.presentation.theme.AuroraTheme
-import eu.kanade.presentation.theme.auroraFloatingSurface
-import eu.kanade.presentation.theme.resolveAuroraBorderColor
-import eu.kanade.presentation.theme.resolveAuroraSelectionBorderColor
-import eu.kanade.presentation.theme.resolveAuroraSelectionContainerColor
+import eu.kanade.presentation.theme.resolveAuroraElevation
 import eu.kanade.presentation.theme.resolveAuroraSurfaceColor
 import mihon.domain.extensionrepo.anime.interactor.CreateAnimeExtensionRepo
 import mihon.domain.extensionrepo.manga.interactor.CreateMangaExtensionRepo
@@ -50,6 +57,7 @@ import org.json.JSONArray
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.LocalAppHaptics
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -182,124 +190,105 @@ internal class SourcesStep : OnboardingStep {
             )
 
             if (isRegistering) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .auroraFloatingSurface(colors, AuroraSurfaceLevel.Glass, RoundedCornerShape(16.dp))
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Glass))
-                        .border(1.dp, resolveAuroraBorderColor(colors, false), RoundedCornerShape(16.dp))
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center,
+                // Loading state card — Aurora-styled
+                val loadingBg = when {
+                    colors.isEInk -> resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Subtle)
+                    colors.isDark -> Color.White.copy(alpha = 0.05f)
+                    else -> Color.White
+                }
+                val loadingBorder = when {
+                    colors.isEInk -> resolveAuroraMoreCardBorderColor(colors)
+                    colors.isDark -> Color.White.copy(alpha = 0.08f)
+                    else -> Color.Transparent
+                }
+                val loadingElevation = if (!colors.isDark && !colors.isEInk) {
+                    resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
+                } else {
+                    0.dp
+                }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = loadingBg),
+                    border = BorderStroke(1.dp, loadingBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = loadingElevation),
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        CircularProgressIndicator(
-                            color = colors.accent,
-                        )
-                        Text(
-                            text = stringResource(MR.strings.onboarding_sources_loading),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textSecondary,
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            CircularProgressIndicator(color = colors.accent)
+                            Text(
+                                text = stringResource(MR.strings.onboarding_sources_loading),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary,
+                            )
+                        }
                     }
                 }
             } else {
                 if (filteredRepos.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .auroraFloatingSurface(colors, AuroraSurfaceLevel.Glass, RoundedCornerShape(16.dp))
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Glass))
-                            .border(1.dp, resolveAuroraBorderColor(colors, false), RoundedCornerShape(16.dp))
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center,
+                    // Empty state card
+                    val emptyBg = when {
+                        colors.isEInk -> resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Subtle)
+                        colors.isDark -> Color.White.copy(alpha = 0.05f)
+                        else -> Color.White
+                    }
+                    val emptyBorder = when {
+                        colors.isEInk -> resolveAuroraMoreCardBorderColor(colors)
+                        colors.isDark -> Color.White.copy(alpha = 0.08f)
+                        else -> Color.Transparent
+                    }
+                    val emptyElevation = if (!colors.isDark && !colors.isEInk) {
+                        resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
+                    } else {
+                        0.dp
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = emptyBg),
+                        border = BorderStroke(1.dp, emptyBorder),
+                        elevation = CardDefaults.cardElevation(defaultElevation = emptyElevation),
                     ) {
-                        Text(
-                            text = stringResource(MR.strings.onboarding_sources_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textSecondary,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = stringResource(MR.strings.onboarding_sources_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary,
+                            )
+                        }
                     }
                 } else {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         filteredRepos.forEach { repo ->
-                            val isChecked = selectedRepos.contains(repo)
-                            val baseBg = resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Glass)
-                            val selectedBg = resolveAuroraSelectionContainerColor(colors)
-                            val bgAnim by animateColorAsState(
-                                targetValue = if (isChecked) selectedBg else baseBg,
-                                label = "sourceBg",
-                            )
-
-                            val baseBorder = resolveAuroraBorderColor(colors, false)
-                            val selectedBorder = resolveAuroraSelectionBorderColor(colors)
-                            val borderAnim by animateColorAsState(
-                                targetValue = if (isChecked) selectedBorder else baseBorder,
-                                label = "sourceBorder",
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .auroraFloatingSurface(colors, AuroraSurfaceLevel.Glass, RoundedCornerShape(16.dp))
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(bgAnim)
-                                    .border(1.dp, borderAnim, RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        if (isChecked) {
-                                            selectedRepos.remove(repo)
-                                        } else {
-                                            selectedRepos.add(repo)
-                                        }
+                            RepoItem(
+                                repo = repo,
+                                isChecked = selectedRepos.contains(repo),
+                                onToggle = {
+                                    if (selectedRepos.contains(repo)) {
+                                        selectedRepos.remove(repo)
+                                    } else {
+                                        selectedRepos.add(repo)
                                     }
-                                    .padding(12.dp),
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    Checkbox(
-                                        checked = isChecked,
-                                        onCheckedChange = {
-                                            if (isChecked) {
-                                                selectedRepos.remove(repo)
-                                            } else {
-                                                selectedRepos.add(repo)
-                                            }
-                                        },
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = colors.accent,
-                                            uncheckedColor = colors.textSecondary,
-                                            checkmarkColor = colors.textOnAccent,
-                                        ),
-                                    )
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = repo.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = colors.textPrimary,
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = repo.url,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = colors.textSecondary,
-                                        )
-                                    }
-                                }
-                            }
+                                },
+                            )
                         }
                     }
                 }
 
-                // Beautiful informative tip
+                // Informative tip — accent-tinted accent box (no card double-layer)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -322,6 +311,141 @@ internal class SourcesStep : OnboardingStep {
                             text = stringResource(MR.strings.onboarding_sources_tip),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textPrimary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun RepoItem(
+        repo: PredefinedRepo,
+        isChecked: Boolean,
+        onToggle: () -> Unit,
+    ) {
+        val colors = AuroraTheme.colors
+        val appHaptics = LocalAppHaptics.current
+
+        val interactionSource = remember { MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val scale by animateFloatAsState(
+            targetValue = if (isPressed) 0.96f else 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow,
+            ),
+            label = "repo_${repo.name}_scale",
+        )
+
+        val cardBgColor = when {
+            colors.isEInk -> if (isChecked) {
+                resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Strong)
+            } else {
+                resolveAuroraSurfaceColor(colors, AuroraSurfaceLevel.Subtle)
+            }
+            colors.isDark -> if (isChecked) {
+                colors.accent.copy(alpha = 0.18f)
+            } else {
+                Color.White.copy(alpha = 0.05f)
+            }
+            else -> if (isChecked) {
+                colors.accent.copy(alpha = 0.12f)
+            } else {
+                Color.White
+            }
+        }
+
+        val cardBorderColor = when {
+            colors.isEInk -> if (isChecked) {
+                colors.accent
+            } else {
+                resolveAuroraMoreCardBorderColor(colors)
+            }
+            colors.isDark -> if (isChecked) {
+                colors.accent.copy(alpha = 0.5f)
+            } else {
+                Color.White.copy(alpha = 0.08f)
+            }
+            else -> if (isChecked) {
+                colors.accent.copy(alpha = 0.35f)
+            } else {
+                Color.Transparent
+            }
+        }
+
+        // Floating elevation in light theme when not selected; 0.dp when selected to avoid stencil artifact
+        val cardElevation = if (!colors.isDark && !colors.isEInk && !isChecked) {
+            resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
+        } else {
+            0.dp
+        }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBgColor),
+            border = BorderStroke(
+                width = if (isChecked && !colors.isEInk) 1.5.dp else 1.dp,
+                color = cardBorderColor,
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
+            onClick = {
+                appHaptics.tap()
+                onToggle()
+            },
+            interactionSource = interactionSource,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Checkbox(
+                    checked = isChecked,
+                    onCheckedChange = {
+                        appHaptics.tap()
+                        onToggle()
+                    },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = colors.accent,
+                        uncheckedColor = colors.textSecondary,
+                        checkmarkColor = colors.textOnAccent,
+                    ),
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = repo.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = repo.url,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+
+                if (isChecked) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.accent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }
