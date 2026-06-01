@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import tachiyomi.domain.source.anime.model.StubAnimeSource
 import tachiyomi.domain.source.anime.repository.AnimeStubSourceRepository
 import tachiyomi.domain.source.anime.service.AnimeSourceManager
@@ -77,9 +76,9 @@ class AndroidAnimeSourceManager(
         scope.launch {
             sourceRepository.subscribeAllAnime()
                 .collectLatest { sources ->
-                    val mutableMap = stubSourcesMap.toMutableMap()
+                    stubSourcesMap.clear()
                     sources.forEach {
-                        mutableMap[it.id] = it
+                        stubSourcesMap[it.id] = it
                     }
                 }
         }
@@ -90,9 +89,14 @@ class AndroidAnimeSourceManager(
     }
 
     override fun getOrStub(sourceKey: Long): AnimeSource {
-        return sourcesMapFlow.value[sourceKey] ?: stubSourcesMap.getOrPut(sourceKey) {
-            runBlocking { createStubSource(sourceKey) }
-        }
+        return sourcesMapFlow.value[sourceKey]
+            ?: stubSourcesMap[sourceKey]
+            ?: run {
+                val stub = StubAnimeSource(id = sourceKey, lang = "", name = "")
+                registerStubSourceAsync(sourceKey)
+                stubSourcesMap[sourceKey] = stub
+                stub
+            }
     }
 
     override fun getOnlineSources() = sourcesMapFlow.value.values.filterIsInstance<AnimeHttpSource>()
@@ -115,14 +119,17 @@ class AndroidAnimeSourceManager(
         }
     }
 
-    private suspend fun createStubSource(id: Long): StubAnimeSource {
-        sourceRepository.getStubAnimeSource(id)?.let {
-            return it
+    private fun registerStubSourceAsync(id: Long) {
+        scope.launch {
+            val dbSource = sourceRepository.getStubAnimeSource(id)
+            if (dbSource != null) {
+                stubSourcesMap[id] = dbSource
+                return@launch
+            }
+            extensionManager.getSourceData(id)?.let { extensionStub ->
+                registerStubSource(extensionStub)
+                stubSourcesMap[id] = extensionStub
+            }
         }
-        extensionManager.getSourceData(id)?.let {
-            registerStubSource(it)
-            return it
-        }
-        return StubAnimeSource(id = id, lang = "", name = "")
     }
 }
