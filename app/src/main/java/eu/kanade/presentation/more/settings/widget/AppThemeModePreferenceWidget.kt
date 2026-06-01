@@ -143,7 +143,7 @@ internal fun AppThemeModePreferenceWidget(
                         color = cardBorderColor,
                     ),
                     elevation = CardDefaults.cardElevation(
-                        defaultElevation = if (!auroraColors.isDark && !auroraColors.isEInk) {
+                        defaultElevation = if (!auroraColors.isDark && !auroraColors.isEInk && !isSelected) {
                             resolveAuroraElevation(auroraColors, AuroraSurfaceLevel.Glass)
                         } else {
                             0.dp
