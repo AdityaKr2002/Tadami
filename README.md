@@ -94,6 +94,11 @@ For local debug builds:
 ./gradlew assembleDebug
 ```
 
+Google Drive sync uses a local-only OAuth override file at
+`app/src/main/assets/client_secrets.local.json`. Keep the tracked
+`app/src/main/assets/client_secrets.json` file as the placeholder template
+and put real OAuth credentials only in the ignored local file.
+
 ## Contributing
 
 Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
