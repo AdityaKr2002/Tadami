@@ -120,7 +120,9 @@ object SuggestionTitleResolver {
     }
 
     private val volumeChapterRegex =
-        Regex("""(?i)\b(vol|volume|ch|chapter|season|part|book|tome|s\d+|том|часть|книга|глава|сезон|т)\b\s*\d+""")
+        Regex(
+            """(?i)\b(vol|volume|ch|chapter|season|part|book|tome|s\d+|том|часть|книга|глава|сезон|т)\b\s*\.?\s*\d+""",
+        )
     private val nonAlphanumericRegex = Regex("""[^\p{L}\p{N}\s-]""")
     private val consecutiveSpacesRegex = Regex(" +")
 
@@ -192,6 +194,6 @@ object SuggestionTitleResolver {
         if (cleanA.isBlank() || cleanB.isBlank()) return false
         if (cleanA == cleanB) return true
         val similarity = calculateSimilarity(cleanA, cleanB)
-        return similarity > 0.90
+        return similarity > 0.95
     }
 }

@@ -4,7 +4,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 object SuggestionCache {
     private val cache = ConcurrentHashMap<String, Pair<Long, List<SuggestionItem>>>()
-    private const val TTL_MS = 15 * 60 * 1000L // 15 minutes
+    private const val TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
 
     fun get(key: String): List<SuggestionItem>? {
         val entry = cache[key] ?: return null
@@ -26,29 +26,44 @@ object SuggestionCache {
     }
 
     /**
-     * Build a cache key that includes a fingerprint of the candidate title list.
-     * This ensures that a metadata-enriched seed (with more aliases) produces a
-     * different cache key than the initial weak seed, enabling a real second fetch.
+     * Build a cache key that includes a fingerprint of the candidate title
+     * list, plus optional description/author fingerprint when those are
+     * provided. This ensures that:
+     *  - a metadata-enriched seed (with more aliases) produces a different
+     *    cache key than the initial weak seed, enabling a real second fetch;
+     *  - changes in the novel's description or author invalidate the cache
+     *    entry, since both are inputs to the suggestion pipeline.
      */
     fun makeKey(
         sourceName: String,
         primaryTitle: String,
         mediaType: String,
         candidateTitles: List<String> = emptyList(),
+        description: String? = null,
+        author: String? = null,
     ): String {
         val baseKey = "$sourceName:${primaryTitle.lowercase().trim()}:$mediaType"
-        if (candidateTitles.isEmpty()) return baseKey
-        val fingerprint = candidateTitles
-            .map { it.lowercase().trim() }
-            .sorted()
-            .joinToString("|")
-        return "$baseKey:$fingerprint"
+        val parts = mutableListOf(baseKey)
+        if (candidateTitles.isNotEmpty()) {
+            val fingerprint = candidateTitles
+                .map { it.lowercase().trim() }
+                .sorted()
+                .joinToString("|")
+            parts.add(fingerprint)
+        }
+        if (!description.isNullOrBlank()) {
+            parts.add("d:" + description.lowercase().trim().hashCode().toString())
+        }
+        if (!author.isNullOrBlank()) {
+            parts.add("a:" + author.lowercase().trim().hashCode().toString())
+        }
+        return parts.joinToString(":")
     }
 
     /**
      * Legacy key without candidate fingerprint – kept for backward compatibility.
-     * Prefer [makeKey] with candidateTitles for new code.
+     * Prefer [makeKey] with candidateTitles / description / author for new code.
      */
     fun makeKey(sourceName: String, title: String, mediaType: String): String =
-        makeKey(sourceName, title, mediaType, emptyList())
+        makeKey(sourceName, title, mediaType, emptyList(), null, null)
 }
