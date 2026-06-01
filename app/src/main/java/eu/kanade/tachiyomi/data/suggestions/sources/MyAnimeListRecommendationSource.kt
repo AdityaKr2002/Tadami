@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.suggestions.sources
 
 import eu.kanade.tachiyomi.data.suggestions.SuggestionCache
 import eu.kanade.tachiyomi.data.suggestions.SuggestionItem
+import eu.kanade.tachiyomi.data.suggestions.SuggestionReason
 import eu.kanade.tachiyomi.data.suggestions.SuggestionSeed
 import eu.kanade.tachiyomi.data.suggestions.SuggestionTitleResolver
 import eu.kanade.tachiyomi.data.suggestions.sources.dto.JikanRecommendationResponse
@@ -88,12 +89,13 @@ class MyAnimeListRecommendationSource(
                 .map { item ->
                     SuggestionItem(
                         title = item.entry.title,
-                        searchQuery = item.entry.title,
+                        searchQueries = listOf(item.entry.title),
                         thumbnailUrl = item.entry.images?.jpg?.imageUrl,
                         providerName = name,
                         providerUrl = item.entry.url,
                         providerId = item.entry.malId.toString(),
                         mediaType = mediaType,
+                        reason = SuggestionReason.EXTERNAL_MAL,
                     )
                 }
         } catch (e: Exception) {

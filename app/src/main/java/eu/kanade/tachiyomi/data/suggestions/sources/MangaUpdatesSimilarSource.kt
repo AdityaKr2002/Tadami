@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.suggestions.sources
 
 import eu.kanade.tachiyomi.data.suggestions.SuggestionCache
 import eu.kanade.tachiyomi.data.suggestions.SuggestionItem
+import eu.kanade.tachiyomi.data.suggestions.SuggestionReason
 import eu.kanade.tachiyomi.data.suggestions.SuggestionSeed
 import eu.kanade.tachiyomi.data.suggestions.SuggestionTitleResolver
 import eu.kanade.tachiyomi.data.suggestions.sources.dto.MuSearchResponse
@@ -32,12 +33,23 @@ class MangaUpdatesSimilarSource(
     private val client by lazy { Injekt.get<NetworkHelper>().client }
     private val json by lazy { Injekt.get<Json>() }
 
-    private val allowedTypes = setOf("Manga", "Manhwa", "Manhua", "Comic", "Webtoon")
+    private val allowedTypes = setOf("Manga", "Manhwa", "Manhua", "Comic", "Webtoon", "Novel")
 
     override suspend fun fetchSuggestions(seed: SuggestionSeed): List<SuggestionItem> = coroutineScope {
-        if (mediaType != SuggestionMediaType.MANGA) return@coroutineScope emptyList()
+        // Enabled for both MANGA and NOVEL: MangaUpdates has a large light-novel
+        // catalogue (type "Novel") that the old code was throwing away.
+        if (mediaType != SuggestionMediaType.MANGA && mediaType != SuggestionMediaType.NOVEL) {
+            return@coroutineScope emptyList()
+        }
 
-        val cacheKey = SuggestionCache.makeKey(name, seed.primaryTitle, mediaType.name, seed.candidateTitles)
+        val cacheKey = SuggestionCache.makeKey(
+            name,
+            seed.primaryTitle,
+            mediaType.name,
+            seed.candidateTitles,
+            seed.description,
+            seed.author,
+        )
         SuggestionCache.get(cacheKey)?.let {
             logcat { "[MangaUpdates] CACHE HIT for '${seed.primaryTitle}' (${seed.candidateTitles.size} candidates)" }
             return@coroutineScope it
@@ -115,12 +127,13 @@ class MangaUpdatesSimilarSource(
                         if (recDetail.type in allowedTypes) {
                             SuggestionItem(
                                 title = rec.seriesName,
-                                searchQuery = rec.seriesName,
+                                searchQueries = listOf(rec.seriesName),
                                 thumbnailUrl = rec.seriesImage?.url?.thumb ?: rec.seriesImage?.url?.original,
                                 providerName = name,
                                 providerUrl = rec.seriesUrl,
                                 providerId = rec.seriesId.toString(),
                                 mediaType = mediaType,
+                                reason = SuggestionReason.EXTERNAL_MU,
                             )
                         } else {
                             null
