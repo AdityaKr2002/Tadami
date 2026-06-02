@@ -8,6 +8,7 @@ import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import coil3.key.Keyer
 import coil3.request.Options
+import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.network.interceptor.CoverRequestPolicy
 import okhttp3.Call
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -97,7 +98,7 @@ internal suspend fun loadAuroraPosterSource(
         }
 
         val response = try {
-            callFactory.newCall(requestBuilder.build()).execute()
+            callFactory.newCall(requestBuilder.build()).await()
         } catch (e: IOException) {
             lastError = e
             continue

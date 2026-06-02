@@ -357,8 +357,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             if (networkPreferences.verboseLogging().get()) logger(DebugLogger())
 
             // Coil spawns a new thread for every image load by default
-            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(8))
-            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(3))
+            val isLowRam = DeviceUtil.isLowRamDevice(this@App)
+            fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(if (isLowRam) 8 else 16))
+            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(if (isLowRam) 3 else 4))
         }
             .build()
     }

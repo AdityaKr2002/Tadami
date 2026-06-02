@@ -42,6 +42,7 @@ data class MigrateSeasonSelectScreen(
 
         val screenModel = rememberScreenModel { MigrateSeasonSelectScreenModel(anime) }
         val state by screenModel.state.collectAsStateWithLifecycle()
+        val favoriteAnimeUrls by screenModel.favoriteAnimeUrls.collectAsStateWithLifecycle()
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -60,6 +61,7 @@ data class MigrateSeasonSelectScreen(
             BrowseAnimeSourceContent(
                 source = screenModel.source,
                 animeList = screenModel.seasonPagerFlowFlow.collectAsLazyPagingItems(),
+                favoriteAnimeUrls = favoriteAnimeUrls,
                 columns = screenModel.getColumnsPreference(LocalConfiguration.current.orientation),
                 displayMode = screenModel.displayMode,
                 snackbarHostState = snackbarHostState,

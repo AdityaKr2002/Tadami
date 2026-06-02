@@ -57,6 +57,7 @@ data class MangaSourceSearchScreen(
 
         val screenModel = rememberScreenModel { BrowseMangaSourceScreenModel(sourceId, query) }
         val state by screenModel.state.collectAsStateWithLifecycle()
+        val favoriteMangaUrls by screenModel.favoriteMangaUrls.collectAsStateWithLifecycle()
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -87,6 +88,7 @@ data class MangaSourceSearchScreen(
             BrowseSourceContent(
                 source = screenModel.source,
                 mangaList = screenModel.mangaPagerFlowFlow.collectAsLazyPagingItems(),
+                favoriteMangaUrls = favoriteMangaUrls,
                 columns = screenModel.getColumnsPreference(LocalConfiguration.current.orientation),
                 displayMode = screenModel.displayMode,
                 snackbarHostState = snackbarHostState,

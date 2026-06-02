@@ -20,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import eu.kanade.domain.ui.UiPreferences
@@ -38,7 +37,6 @@ import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.novelsource.NovelSource
 import eu.kanade.tachiyomi.source.novel.NovelPluginImageWarmupEffect
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.entries.novel.model.Novel
 import tachiyomi.domain.entries.novel.model.NovelCover
@@ -63,7 +61,8 @@ internal fun novelBrowseItemKey(url: String?, index: Int): String {
 @Composable
 fun BrowseNovelSourceContent(
     source: NovelSource?,
-    novels: LazyPagingItems<StateFlow<Novel>>,
+    novels: LazyPagingItems<Novel>,
+    favoriteNovelUrls: Set<String>,
     displayMode: LibraryDisplayMode,
     snackbarHostState: SnackbarHostState,
     contentPadding: PaddingValues,
@@ -127,6 +126,7 @@ fun BrowseNovelSourceContent(
         LibraryDisplayMode.List -> {
             NovelListContent(
                 novels = novels,
+                favoriteNovelUrls = favoriteNovelUrls,
                 sourceLanguage = source?.lang,
                 contentPadding = effectiveContentPadding,
                 translationEnabled = browseTitleTranslationEnabled,
@@ -138,6 +138,7 @@ fun BrowseNovelSourceContent(
         LibraryDisplayMode.ComfortableGrid -> {
             NovelComfortableGridContent(
                 novels = novels,
+                favoriteNovelUrls = favoriteNovelUrls,
                 columns = GridCells.Adaptive(120.dp),
                 sourceLanguage = source?.lang,
                 contentPadding = effectiveContentPadding,
@@ -150,6 +151,7 @@ fun BrowseNovelSourceContent(
         LibraryDisplayMode.CompactGrid -> {
             NovelCompactGridContent(
                 novels = novels,
+                favoriteNovelUrls = favoriteNovelUrls,
                 columns = GridCells.Adaptive(96.dp),
                 sourceLanguage = source?.lang,
                 contentPadding = effectiveContentPadding,
@@ -163,6 +165,7 @@ fun BrowseNovelSourceContent(
         LibraryDisplayMode.CoverOnlyGrid -> {
             NovelCompactGridContent(
                 novels = novels,
+                favoriteNovelUrls = favoriteNovelUrls,
                 columns = GridCells.Adaptive(96.dp),
                 sourceLanguage = source?.lang,
                 contentPadding = effectiveContentPadding,
@@ -178,7 +181,8 @@ fun BrowseNovelSourceContent(
 
 @Composable
 private fun NovelListContent(
-    novels: LazyPagingItems<StateFlow<Novel>>,
+    novels: LazyPagingItems<Novel>,
+    favoriteNovelUrls: Set<String>,
     sourceLanguage: String?,
     contentPadding: PaddingValues,
     translationEnabled: Boolean,
@@ -191,7 +195,7 @@ private fun NovelListContent(
             buildList {
                 val upperBound = minOf(novels.itemCount, BROWSE_NOVEL_WARMUP_WINDOW)
                 for (index in 0 until upperBound) {
-                    add(novels[index]?.value?.thumbnailUrl)
+                    add(novels[index]?.thumbnailUrl)
                 }
             }
         }
@@ -207,10 +211,11 @@ private fun NovelListContent(
     ) {
         items(
             count = novels.itemCount,
-            key = { index -> novelBrowseItemKey(novels[index]?.value?.url, index) },
+            key = { index -> novelBrowseItemKey(novels[index]?.url, index) },
         ) { index ->
-            val novel by novels[index]?.collectAsStateWithLifecycle() ?: return@items
-            val cover = novel.asBrowseNovelCover()
+            val novel = novels[index] ?: return@items
+            val isFavorite = remember(novel.url, favoriteNovelUrls) { novel.url in favoriteNovelUrls }
+            val cover = novel.asBrowseNovelCover(isFavorite)
             val translatedTitle = rememberBrowseNovelTitleTranslation(
                 title = novel.title,
                 sourceLanguage = sourceLanguage,
@@ -220,8 +225,8 @@ private fun NovelListContent(
             EntryListItem(
                 title = translatedTitle,
                 coverData = cover,
-                coverAlpha = if (novel.favorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-                badge = { InLibraryBadge(enabled = novel.favorite) },
+                coverAlpha = if (isFavorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
+                badge = { InLibraryBadge(enabled = isFavorite) },
                 onLongClick = onNovelLongClick?.let { callback -> { callback(novel) } } ?: {},
                 onClick = { onNovelClick(novel) },
             )
@@ -231,7 +236,8 @@ private fun NovelListContent(
 
 @Composable
 private fun NovelComfortableGridContent(
-    novels: LazyPagingItems<StateFlow<Novel>>,
+    novels: LazyPagingItems<Novel>,
+    favoriteNovelUrls: Set<String>,
     columns: GridCells,
     sourceLanguage: String?,
     contentPadding: PaddingValues,
@@ -245,7 +251,7 @@ private fun NovelComfortableGridContent(
             buildList {
                 val upperBound = minOf(novels.itemCount, BROWSE_NOVEL_WARMUP_WINDOW)
                 for (index in 0 until upperBound) {
-                    add(novels[index]?.value?.thumbnailUrl)
+                    add(novels[index]?.thumbnailUrl)
                 }
             }
         }
@@ -270,10 +276,11 @@ private fun NovelComfortableGridContent(
 
         items(
             count = novels.itemCount,
-            key = { index -> novelBrowseItemKey(novels[index]?.value?.url, index) },
+            key = { index -> novelBrowseItemKey(novels[index]?.url, index) },
         ) { index ->
-            val novel by novels[index]?.collectAsStateWithLifecycle() ?: return@items
-            val cover = novel.asBrowseNovelCover()
+            val novel = novels[index] ?: return@items
+            val isFavorite = remember(novel.url, favoriteNovelUrls) { novel.url in favoriteNovelUrls }
+            val cover = novel.asBrowseNovelCover(isFavorite)
             val translatedTitle = rememberBrowseNovelTitleTranslation(
                 title = novel.title,
                 sourceLanguage = sourceLanguage,
@@ -283,8 +290,8 @@ private fun NovelComfortableGridContent(
             EntryComfortableGridItem(
                 title = translatedTitle,
                 coverData = cover,
-                coverAlpha = if (novel.favorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-                coverBadgeStart = { InLibraryBadge(enabled = novel.favorite) },
+                coverAlpha = if (isFavorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
+                coverBadgeStart = { InLibraryBadge(enabled = isFavorite) },
                 onLongClick = onNovelLongClick?.let { callback -> { callback(novel) } } ?: {},
                 onClick = { onNovelClick(novel) },
             )
@@ -300,7 +307,8 @@ private fun NovelComfortableGridContent(
 
 @Composable
 private fun NovelCompactGridContent(
-    novels: LazyPagingItems<StateFlow<Novel>>,
+    novels: LazyPagingItems<Novel>,
+    favoriteNovelUrls: Set<String>,
     columns: GridCells,
     sourceLanguage: String?,
     contentPadding: PaddingValues,
@@ -315,7 +323,7 @@ private fun NovelCompactGridContent(
             buildList {
                 val upperBound = minOf(novels.itemCount, BROWSE_NOVEL_WARMUP_WINDOW)
                 for (index in 0 until upperBound) {
-                    add(novels[index]?.value?.thumbnailUrl)
+                    add(novels[index]?.thumbnailUrl)
                 }
             }
         }
@@ -340,10 +348,11 @@ private fun NovelCompactGridContent(
 
         items(
             count = novels.itemCount,
-            key = { index -> novelBrowseItemKey(novels[index]?.value?.url, index) },
+            key = { index -> novelBrowseItemKey(novels[index]?.url, index) },
         ) { index ->
-            val novel by novels[index]?.collectAsStateWithLifecycle() ?: return@items
-            val cover = novel.asBrowseNovelCover()
+            val novel = novels[index] ?: return@items
+            val isFavorite = remember(novel.url, favoriteNovelUrls) { novel.url in favoriteNovelUrls }
+            val cover = novel.asBrowseNovelCover(isFavorite)
             val translatedTitle = rememberBrowseNovelTitleTranslation(
                 title = novel.title,
                 sourceLanguage = sourceLanguage,
@@ -353,8 +362,8 @@ private fun NovelCompactGridContent(
             EntryCompactGridItem(
                 title = translatedTitle.takeIf { showTitle },
                 coverData = cover,
-                coverAlpha = if (novel.favorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
-                coverBadgeStart = { InLibraryBadge(enabled = novel.favorite) },
+                coverAlpha = if (isFavorite) CommonEntryItemDefaults.BrowseFavoriteCoverAlpha else 1f,
+                coverBadgeStart = { InLibraryBadge(enabled = isFavorite) },
                 onLongClick = onNovelLongClick?.let { callback -> { callback(novel) } } ?: {},
                 onClick = { onNovelClick(novel) },
             )
@@ -370,11 +379,11 @@ private fun NovelCompactGridContent(
 
 private const val BROWSE_NOVEL_WARMUP_WINDOW = 12
 
-internal fun Novel.asBrowseNovelCover(): NovelCover {
+internal fun Novel.asBrowseNovelCover(isFavorite: Boolean): NovelCover {
     return NovelCover(
         novelId = id,
         sourceId = source,
-        isNovelFavorite = favorite,
+        isNovelFavorite = isFavorite,
         url = thumbnailUrl,
         lastModified = coverLastModified,
     )

@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -84,6 +83,7 @@ class BrowseNovelSourceScreenModel(
 
     var displayMode by sourcePreferences.sourceDisplayMode().asState(screenModelScope)
     private val novelDetailsInFlight = ConcurrentHashMap.newKeySet<Long>()
+    private val novelDetailsDispatcher = kotlinx.coroutines.Dispatchers.IO.limitedParallelism(3)
 
     val source = sourceManager.getOrStub(sourceId)
 
@@ -242,6 +242,11 @@ class BrowseNovelSourceScreenModel(
 
     private val autoFavoriteLocalNovels = sourcePreferences.importEpubAddToLibrary().get()
 
+    val favoriteNovelUrls = resolveGetNovelFavorites()?.subscribe(sourceId)
+        ?.map { list -> list.map { it.url }.toSet() }
+        ?.stateIn(screenModelScope, SharingStarted.Lazily, emptySet())
+        ?: MutableStateFlow(emptySet())
+
     val novelPagerFlowFlow = state
         .map { state ->
             val listing = state.listing
@@ -270,13 +275,9 @@ class BrowseNovelSourceScreenModel(
                                 autoFavorite = autoFavorite,
                             )
                             maybeFetchMissingNovelDetails(localNovel)
-                            resolveGetNovel()
-                                ?.subscribe(localNovel.url, localNovel.source)
-                                ?.filterNotNull()
-                                ?.stateIn(ioCoroutineScope)
-                                ?: MutableStateFlow(localNovel)
+                            localNovel
                         }
-                        .filter { !hideInLibraryItems || !it.value.favorite }
+                        .filter { !hideInLibraryItems || !it.favorite }
                 }
                 .cachedIn(ioCoroutineScope)
         }
@@ -289,7 +290,7 @@ class BrowseNovelSourceScreenModel(
         if (source !is NovelCatalogueSource) return
         if (!novelDetailsInFlight.add(novel.id)) return
 
-        screenModelScope.launch(ioCoroutineScope.coroutineContext) {
+        screenModelScope.launch(novelDetailsDispatcher) {
             try {
                 val networkNovel = source.getNovelDetails(novel.toSNovel())
                 val updatePayload = NovelUpdate(

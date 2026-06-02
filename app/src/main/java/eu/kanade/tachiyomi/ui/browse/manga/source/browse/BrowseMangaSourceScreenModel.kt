@@ -30,7 +30,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -48,6 +47,7 @@ import tachiyomi.domain.category.manga.interactor.GetMangaCategories
 import tachiyomi.domain.category.manga.interactor.SetMangaCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.entries.manga.interactor.GetDuplicateLibraryManga
+import tachiyomi.domain.entries.manga.interactor.GetLibraryManga
 import tachiyomi.domain.entries.manga.interactor.GetManga
 import tachiyomi.domain.entries.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.entries.manga.model.Manga
@@ -92,6 +92,7 @@ class BrowseMangaSourceScreenModel(
     private val insertSavedSearch: InsertSavedSearch = Injekt.get(),
     private val deleteSavedSearchById: DeleteSavedSearchById = Injekt.get(),
     private val filterSerializer: FilterSerializer = Injekt.get(),
+    private val getLibraryManga: GetLibraryManga = Injekt.get(),
 ) : StateScreenModel<BrowseMangaSourceScreenModel.State>(State(Listing.valueOf(listingQuery))) {
 
     var displayMode by sourcePreferences.sourceDisplayMode().asState(screenModelScope)
@@ -211,6 +212,15 @@ class BrowseMangaSourceScreenModel(
         setDialog(null)
     }
 
+    val favoriteMangaUrls = getLibraryManga.subscribe()
+        .map { libraryMangaList ->
+            libraryMangaList
+                .filter { it.manga.source == sourceId }
+                .map { it.manga.url }
+                .toSet()
+        }
+        .stateIn(screenModelScope, SharingStarted.Lazily, emptySet())
+
     /**
      * Flow of Pager flow tied to [State.listing]
      */
@@ -223,11 +233,8 @@ class BrowseMangaSourceScreenModel(
             }.flow.map { pagingData ->
                 pagingData.map {
                     networkToLocalManga.await(it.toDomainManga(sourceId))
-                        .let { localManga -> getManga.subscribe(localManga.url, localManga.source) }
-                        .filterNotNull()
-                        .stateIn(ioCoroutineScope)
                 }
-                    .filter { !hideInLibraryItems || !it.value.favorite }
+                    .filter { !hideInLibraryItems || !it.favorite }
             }
                 .cachedIn(ioCoroutineScope)
         }

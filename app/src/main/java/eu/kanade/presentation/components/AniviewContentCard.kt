@@ -38,9 +38,6 @@ import eu.kanade.presentation.components.buildAuroraCoverImageRequest
 import eu.kanade.presentation.theme.AuroraTheme
 import tachiyomi.i18n.aniyomi.AYMR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 /**
  * Aniview Universal Content Card
@@ -55,6 +52,8 @@ fun AniviewContentCard(
     badge: String? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabledAuras: Set<String> = emptySet(),
+    isFavorite: Boolean = false,
 ) {
     val colors = AuroraTheme.colors
     val context = LocalContext.current
@@ -62,8 +61,6 @@ fun AniviewContentCard(
     val contentCardRequest = remember(imageUrl) {
         buildAuroraCoverImageRequest(context, imageUrl)
     }
-    val uiPreferences: eu.kanade.domain.ui.UiPreferences = Injekt.get()
-    val enabledAuras by uiPreferences.enabledAuras().collectAsState()
 
     Column(
         modifier = modifier.clickable { onClick() },
@@ -88,6 +85,7 @@ fun AniviewContentCard(
                             else -> Modifier.cyanGlow(blurRadius = 12.dp, alpha = 0.4f)
                         },
                     ),
+                alpha = if (isFavorite) 0.34f else 1f,
                 contentScale = ContentScale.Crop,
                 error = placeholderPainter,
                 fallback = placeholderPainter,

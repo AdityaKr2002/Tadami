@@ -74,6 +74,7 @@ data class BrowseNovelSourceScreen(
     override fun Content() {
         val screenModel = rememberScreenModel { BrowseNovelSourceScreenModel(sourceId, listingQuery, savedSearchId) }
         val state by screenModel.state.collectAsStateWithLifecycle()
+        val favoriteNovelUrls by screenModel.favoriteNovelUrls.collectAsStateWithLifecycle()
         val navigator = LocalNavigator.currentOrThrow
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
@@ -202,6 +203,7 @@ data class BrowseNovelSourceScreen(
             BrowseNovelSourceContent(
                 source = screenModel.source,
                 novels = screenModel.novelPagerFlowFlow.collectAsLazyPagingItems(),
+                favoriteNovelUrls = favoriteNovelUrls,
                 displayMode = screenModel.displayMode,
                 snackbarHostState = snackbarHostState,
                 contentPadding = paddingValues,
@@ -209,8 +211,9 @@ data class BrowseNovelSourceScreen(
                 onNovelLongClick = { novel ->
                     scope.launchIO {
                         val duplicateNovel = screenModel.getDuplicateLibraryNovel(novel)
+                        val isFavorite = novel.url in favoriteNovelUrls
                         when {
-                            novel.favorite -> screenModel.setDialog(
+                            isFavorite -> screenModel.setDialog(
                                 BrowseNovelSourceScreenModel.Dialog.RemoveNovel(novel),
                             )
                             duplicateNovel != null -> screenModel.setDialog(

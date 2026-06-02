@@ -23,7 +23,6 @@ import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.coroutines.flow.StateFlow
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.library.model.LibraryDisplayMode
@@ -39,7 +38,8 @@ import tachiyomi.source.local.entries.anime.LocalAnimeSource
 @Composable
 fun BrowseAnimeSourceContent(
     source: AnimeSource?,
-    animeList: LazyPagingItems<StateFlow<Anime>>,
+    animeList: LazyPagingItems<Anime>,
+    favoriteAnimeUrls: Set<String>,
     columns: GridCells,
     entries: Int = 0,
     topBarHeight: Int = 0,
@@ -122,6 +122,7 @@ fun BrowseAnimeSourceContent(
         LibraryDisplayMode.ComfortableGrid -> {
             BrowseAnimeSourceComfortableGrid(
                 animeList = animeList,
+                favoriteAnimeUrls = favoriteAnimeUrls,
                 columns = columns,
                 contentPadding = contentPadding,
                 onAnimeClick = onAnimeClick,
@@ -131,6 +132,7 @@ fun BrowseAnimeSourceContent(
         LibraryDisplayMode.List -> {
             BrowseAnimeSourceList(
                 animeList = animeList,
+                favoriteAnimeUrls = favoriteAnimeUrls,
                 entries = entries,
                 topBarHeight = topBarHeight,
                 contentPadding = contentPadding,
@@ -141,6 +143,7 @@ fun BrowseAnimeSourceContent(
         LibraryDisplayMode.CompactGrid, LibraryDisplayMode.CoverOnlyGrid -> {
             BrowseAnimeSourceCompactGrid(
                 animeList = animeList,
+                favoriteAnimeUrls = favoriteAnimeUrls,
                 columns = columns,
                 contentPadding = contentPadding,
                 onAnimeClick = onAnimeClick,

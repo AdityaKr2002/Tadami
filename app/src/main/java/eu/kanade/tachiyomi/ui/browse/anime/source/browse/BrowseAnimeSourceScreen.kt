@@ -95,6 +95,7 @@ data class BrowseAnimeSourceScreen(
 
         val screenModel = rememberScreenModel { BrowseAnimeSourceScreenModel(sourceId, listingQuery, savedSearchId) }
         val state by screenModel.state.collectAsStateWithLifecycle()
+        val favoriteAnimeUrls by screenModel.favoriteAnimeUrls.collectAsStateWithLifecycle()
 
         val navigator = LocalNavigator.currentOrThrow
         val navigateUp: () -> Unit = {
@@ -235,6 +236,7 @@ data class BrowseAnimeSourceScreen(
             BrowseAnimeSourceContent(
                 source = screenModel.source,
                 animeList = screenModel.animePagerFlowFlow.collectAsLazyPagingItems(),
+                favoriteAnimeUrls = favoriteAnimeUrls,
                 columns = screenModel.getColumnsPreference(LocalConfiguration.current.orientation),
                 entries = screenModel.getColumnsPreferenceForCurrentOrientation(LocalConfiguration.current.orientation),
                 topBarHeight = topBarHeight,

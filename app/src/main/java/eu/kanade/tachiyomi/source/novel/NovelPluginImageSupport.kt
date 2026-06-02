@@ -134,6 +134,7 @@ internal object HexNovelImageOnDemandDecoder {
     suspend fun decode(
         request: NovelPluginImageRequest,
         networkHelper: NetworkHelper,
+        decodeLimiter: Semaphore,
     ): NovelPluginImagePayload? {
         if (!canHandle(request)) return null
 
@@ -153,7 +154,9 @@ internal object HexNovelImageOnDemandDecoder {
             if (sourceBytes.isEmpty()) return null
             if (sourceBytes.size.toLong() > MAX_SOURCE_BYTES) return null
 
-            val decodedBytes = xorDecode(sourceBytes, parsedRef.secretKey)
+            val decodedBytes = decodeLimiter.withPermit {
+                xorDecode(sourceBytes, parsedRef.secretKey)
+            }
             if (decodedBytes.isEmpty()) return null
 
             return NovelPluginImagePayload(
@@ -356,9 +359,12 @@ object NovelPluginImageResolver {
         val source = sourceManager.get(sourceId) as? NovelPluginImageSource
 
         val payload = withTimeoutOrNull(TIMEOUT_MS) {
-            decodeLimiter.withPermit {
-                HexNovelImageOnDemandDecoder.decode(request, networkHelper)
-                    ?: source?.fetchImage(request.imageRef)
+            if (HexNovelImageOnDemandDecoder.canHandle(request)) {
+                HexNovelImageOnDemandDecoder.decode(request, networkHelper, decodeLimiter)
+            } else {
+                decodeLimiter.withPermit {
+                    source?.fetchImage(request.imageRef)
+                }
             }
         } ?: return null
 

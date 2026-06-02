@@ -33,7 +33,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -49,6 +48,7 @@ import tachiyomi.domain.category.anime.interactor.SetAnimeCategories
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.entries.anime.interactor.GetAnime
 import tachiyomi.domain.entries.anime.interactor.GetDuplicateLibraryAnime
+import tachiyomi.domain.entries.anime.interactor.GetLibraryAnime
 import tachiyomi.domain.entries.anime.interactor.NetworkToLocalAnime
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.entries.anime.model.toAnimeUpdate
@@ -91,6 +91,7 @@ class BrowseAnimeSourceScreenModel(
     private val getSavedSearchBySourceId: GetSavedSearchBySourceId = Injekt.get(),
     private val insertSavedSearch: InsertSavedSearch = Injekt.get(),
     private val deleteSavedSearchById: DeleteSavedSearchById = Injekt.get(),
+    private val getLibraryAnime: GetLibraryAnime = Injekt.get(),
 ) : StateScreenModel<BrowseAnimeSourceScreenModel.State>(State(Listing.valueOf(listingQuery))) {
 
     var displayMode by sourcePreferences.sourceDisplayMode().asState(screenModelScope)
@@ -207,6 +208,15 @@ class BrowseAnimeSourceScreenModel(
         setDialog(null)
     }
 
+    val favoriteAnimeUrls = getLibraryAnime.subscribe()
+        .map { libraryAnimeList ->
+            libraryAnimeList
+                .filter { it.anime.source == sourceId }
+                .map { it.anime.url }
+                .toSet()
+        }
+        .stateIn(screenModelScope, SharingStarted.Lazily, emptySet())
+
     /**
      * Flow of Pager flow tied to [State.listing]
      */
@@ -219,11 +229,8 @@ class BrowseAnimeSourceScreenModel(
             }.flow.map { pagingData ->
                 pagingData.map {
                     networkToLocalAnime.await(it.toDomainAnime(sourceId))
-                        .let { localAnime -> getAnime.subscribe(localAnime.url, localAnime.source) }
-                        .filterNotNull()
-                        .stateIn(ioCoroutineScope)
                 }
-                    .filter { !hideInLibraryItems || !it.value.favorite }
+                    .filter { !hideInLibraryItems || !it.favorite }
             }
                 .cachedIn(ioCoroutineScope)
         }

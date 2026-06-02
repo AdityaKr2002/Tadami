@@ -58,6 +58,7 @@ data class AnimeSourceSearchScreen(
 
         val screenModel = rememberScreenModel { BrowseAnimeSourceScreenModel(sourceId, query) }
         val state by screenModel.state.collectAsStateWithLifecycle()
+        val favoriteAnimeUrls by screenModel.favoriteAnimeUrls.collectAsStateWithLifecycle()
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -88,6 +89,7 @@ data class AnimeSourceSearchScreen(
             BrowseAnimeSourceContent(
                 source = screenModel.source,
                 animeList = screenModel.animePagerFlowFlow.collectAsLazyPagingItems(),
+                favoriteAnimeUrls = favoriteAnimeUrls,
                 columns = screenModel.getColumnsPreference(LocalConfiguration.current.orientation),
                 displayMode = screenModel.displayMode,
                 snackbarHostState = snackbarHostState,

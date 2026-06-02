@@ -36,7 +36,7 @@ class BrowseNovelSourceScreenTest {
             coverLastModified = 1234L,
         )
 
-        val cover = novel.asBrowseNovelCover()
+        val cover = novel.asBrowseNovelCover(isFavorite = true)
 
         cover.novelId shouldBe 12L
         cover.sourceId shouldBe 99L
