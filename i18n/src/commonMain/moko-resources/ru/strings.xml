@@ -1215,4 +1215,12 @@
     <string name="pref_group_library_update_type_global">Общие настройки (по умолчанию)</string>
     <string name="pref_group_library_update_type_all_but_ungrouped">Все группы, кроме \"Без группы\"</string>
     <string name="pref_group_library_update_type_all">Все динамические группы</string>
+
+    <!-- Support Project -->
+    <string name="support_project">Поддержать проект</string>
+    <string name="support_project_summary">Добровольный донат для поддержки разработки</string>
+    <string name="support_info">Донаты являются полностью добровольными и не разблокируют никаких платных функций, контента или преимуществ. Приложение остаётся полностью бесплатным и доступным для всех.</string>
+    <string name="copied_to_clipboard">Скопировано в буфер обмена: %s</string>
+    <string name="open_link">Открыть ссылку</string>
+    <string name="copy_address">Копировать адрес</string>
 </resources>

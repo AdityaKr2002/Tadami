@@ -296,6 +296,15 @@ object AboutScreen : Screen() {
                     item {
                         TextPreferenceWidget(
                             modifier = itemModifier,
+                            title = stringResource(MR.strings.support_project),
+                            subtitle = stringResource(MR.strings.support_project_summary),
+                            onPreferenceClick = { navigator.push(SupportProjectScreen()) },
+                        )
+                    }
+
+                    item {
+                        TextPreferenceWidget(
+                            modifier = itemModifier,
                             title = stringResource(MR.strings.help_translate),
                             onPreferenceClick = {
                                 uriHandler.openUri(
