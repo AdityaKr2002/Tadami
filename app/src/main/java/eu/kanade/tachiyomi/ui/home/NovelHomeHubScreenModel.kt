@@ -44,7 +44,7 @@ internal class NovelHomeHubScreenModel(
 
     override val avatarFileName: String = "user_avatar_novel.jpg"
 
-    private val fastCache = NovelHomeHubFastCache(context)
+    private val fastCache = HomeHubFastCache(context, HomeHubSection.Novel)
 
     @Volatile
     private var liveUpdatesStarted = false
@@ -63,33 +63,33 @@ internal class NovelHomeHubScreenModel(
     init {
         val cached = fastCache.load()
         if (!cached.isEmpty || cached.isInitialized) {
-            originalHeroChapterId = cached.hero?.chapterId
+            originalHeroChapterId = cached.hero?.subId
             mutableState.update {
                 it.copy(
                     hero = cached.hero?.let { h ->
                         HomeHubHero(
-                            entryId = h.novelId,
+                            entryId = h.entryId,
                             title = h.title,
-                            progressNumber = h.chapterNumber,
-                            coverData = NovelCover(h.novelId, -1, true, h.coverUrl, h.coverLastModified),
+                            progressNumber = h.progressNumber,
+                            coverData = NovelCover(h.entryId, -1, true, h.coverUrl, h.coverLastModified),
                         )
                     },
                     history = cached.history.map { h ->
                         HomeHubHistory(
-                            entryId = h.novelId,
+                            entryId = h.entryId,
                             title = h.title,
-                            progressNumber = h.chapterNumber,
-                            coverData = NovelCover(h.novelId, -1, true, h.coverUrl, h.coverLastModified),
+                            progressNumber = h.progressNumber,
+                            coverData = NovelCover(h.entryId, -1, true, h.coverUrl, h.coverLastModified),
                             section = HomeHubSection.Novel,
                         )
                     },
                     recommendations = cached.recommendations.map { r ->
                         HomeHubRecommendation(
-                            entryId = r.novelId,
+                            entryId = r.entryId,
                             title = r.title,
-                            coverData = NovelCover(r.novelId, -1, true, r.coverUrl, r.coverLastModified),
+                            coverData = NovelCover(r.entryId, -1, true, r.coverUrl, r.coverLastModified),
                             section = HomeHubSection.Novel,
-                            progressNumerator = r.readCount,
+                            progressNumerator = r.progressNumerator,
                             progressDenominator = r.totalCount,
                         )
                     },
@@ -106,7 +106,7 @@ internal class NovelHomeHubScreenModel(
 
         cached.hero?.let { hero ->
             screenModelScope.launchIO {
-                loadHeroChapterId(hero.novelId, hero.chapterId)
+                loadHeroChapterId(hero.entryId, hero.subId)
             }
         }
     }
@@ -153,10 +153,11 @@ internal class NovelHomeHubScreenModel(
                     .take(6)
 
                 val hasData = hero != null || history.isNotEmpty() || filteredNovel.isNotEmpty()
-                val isInitialized = hasData || (
-                    state.value.showFilteredEmpty ||
-                        (state.value.showWelcome.not() && state.value.isLoading.not())
-                    )
+                val isInitialized = hasData ||
+                    (
+                        state.value.showFilteredEmpty ||
+                            (state.value.showWelcome.not() && state.value.isLoading.not())
+                        )
 
                 val novelRecommendations = filteredNovel
                     .sortedByDescending { it.novel.dateAdded }
@@ -247,34 +248,34 @@ internal class NovelHomeHubScreenModel(
     fun saveCache() {
         val currentState = state.value
         fastCache.save(
-            CachedNovelHomeState(
+            CachedHomeState(
                 hero = currentState.hero?.let { hero ->
-                    CachedNovelHeroItem(
-                        novelId = hero.entryId,
+                    CachedHeroItem(
+                        entryId = hero.entryId,
                         title = hero.title,
-                        chapterNumber = hero.progressNumber,
+                        progressNumber = hero.progressNumber,
                         coverUrl = (hero.coverData as? NovelCover)?.url,
                         coverLastModified = (hero.coverData as? NovelCover)?.lastModified ?: 0L,
-                        chapterId = originalHeroChapterId ?: 0L,
+                        subId = originalHeroChapterId ?: 0L,
                     )
                 },
                 history = currentState.history.map { h ->
-                    CachedNovelHistoryItem(
-                        novelId = h.entryId,
+                    CachedHistoryItem(
+                        entryId = h.entryId,
                         title = h.title,
-                        chapterNumber = h.progressNumber,
+                        progressNumber = h.progressNumber,
                         coverUrl = (h.coverData as? NovelCover)?.url,
                         coverLastModified = (h.coverData as? NovelCover)?.lastModified ?: 0L,
                     )
                 },
                 recommendations = currentState.recommendations.map { r ->
-                    CachedNovelRecommendationItem(
-                        novelId = r.entryId,
+                    CachedRecommendationItem(
+                        entryId = r.entryId,
                         title = r.title,
                         coverUrl = (r.coverData as? NovelCover)?.url,
                         coverLastModified = (r.coverData as? NovelCover)?.lastModified ?: 0L,
                         totalCount = r.progressDenominator,
-                        readCount = r.progressNumerator,
+                        progressCount = r.progressNumerator,
                     )
                 },
                 userName = currentState.userName,

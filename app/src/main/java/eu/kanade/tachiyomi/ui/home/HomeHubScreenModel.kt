@@ -49,7 +49,7 @@ internal class HomeHubScreenModel(
 
     override val avatarFileName: String = "user_avatar.jpg"
 
-    private val fastCache = HomeHubFastCache(context)
+    private val fastCache = HomeHubFastCache(context, HomeHubSection.Anime)
 
     @Volatile
     private var liveUpdatesStarted = false
@@ -82,33 +82,33 @@ internal class HomeHubScreenModel(
     init {
         val cached = fastCache.load()
         if (!cached.isEmpty || cached.isInitialized) {
-            originalHeroEpisodeId = cached.hero?.episodeId
+            originalHeroEpisodeId = cached.hero?.subId
             mutableState.update {
                 it.copy(
                     hero = cached.hero?.let { h ->
                         HomeHubHero(
-                            entryId = h.animeId,
+                            entryId = h.entryId,
                             title = h.title,
-                            progressNumber = h.episodeNumber,
-                            coverData = AnimeCover(h.animeId, -1, true, h.coverUrl, h.coverLastModified),
+                            progressNumber = h.progressNumber,
+                            coverData = AnimeCover(h.entryId, -1, true, h.coverUrl, h.coverLastModified),
                         )
                     },
                     history = cached.history.map { h ->
                         HomeHubHistory(
-                            entryId = h.animeId,
+                            entryId = h.entryId,
                             title = h.title,
-                            progressNumber = h.episodeNumber,
-                            coverData = AnimeCover(h.animeId, -1, true, h.coverUrl, h.coverLastModified),
+                            progressNumber = h.progressNumber,
+                            coverData = AnimeCover(h.entryId, -1, true, h.coverUrl, h.coverLastModified),
                             section = HomeHubSection.Anime,
                         )
                     },
                     recommendations = cached.recommendations.map { r ->
                         HomeHubRecommendation(
-                            entryId = r.animeId,
+                            entryId = r.entryId,
                             title = r.title,
-                            coverData = AnimeCover(r.animeId, -1, true, r.coverUrl, r.coverLastModified),
+                            coverData = AnimeCover(r.entryId, -1, true, r.coverUrl, r.coverLastModified),
                             section = HomeHubSection.Anime,
-                            progressNumerator = r.seenCount,
+                            progressNumerator = r.progressNumerator,
                             progressDenominator = r.totalCount,
                         )
                     },
@@ -125,7 +125,7 @@ internal class HomeHubScreenModel(
 
         cached.hero?.let { hero ->
             screenModelScope.launchIO {
-                loadHeroEpisode(hero.animeId, hero.episodeId)
+                loadHeroEpisode(hero.entryId, hero.subId)
             }
         }
     }
@@ -172,10 +172,11 @@ internal class HomeHubScreenModel(
                     .take(6)
 
                 val hasData = hero != null || history.isNotEmpty() || filteredAnime.isNotEmpty()
-                val isInitialized = hasData || (
-                    state.value.showFilteredEmpty ||
-                        (state.value.showWelcome.not() && state.value.isLoading.not())
-                    )
+                val isInitialized = hasData ||
+                    (
+                        state.value.showFilteredEmpty ||
+                            (state.value.showWelcome.not() && state.value.isLoading.not())
+                        )
 
                 val animeRecommendations = filteredAnime
                     .sortedByDescending { it.anime.dateAdded }
@@ -267,31 +268,31 @@ internal class HomeHubScreenModel(
             CachedHomeState(
                 hero = currentState.hero?.let { hero ->
                     CachedHeroItem(
-                        animeId = hero.entryId,
+                        entryId = hero.entryId,
                         title = hero.title,
-                        episodeNumber = hero.progressNumber,
+                        progressNumber = hero.progressNumber,
                         coverUrl = (hero.coverData as? AnimeCover)?.url,
                         coverLastModified = (hero.coverData as? AnimeCover)?.lastModified ?: 0L,
-                        episodeId = originalHeroEpisodeId ?: 0L,
+                        subId = originalHeroEpisodeId ?: 0L,
                     )
                 },
                 history = currentState.history.map { h ->
                     CachedHistoryItem(
-                        animeId = h.entryId,
+                        entryId = h.entryId,
                         title = h.title,
-                        episodeNumber = h.progressNumber,
+                        progressNumber = h.progressNumber,
                         coverUrl = (h.coverData as? AnimeCover)?.url,
                         coverLastModified = (h.coverData as? AnimeCover)?.lastModified ?: 0L,
                     )
                 },
                 recommendations = currentState.recommendations.map { r ->
                     CachedRecommendationItem(
-                        animeId = r.entryId,
+                        entryId = r.entryId,
                         title = r.title,
                         coverUrl = (r.coverData as? AnimeCover)?.url,
                         coverLastModified = (r.coverData as? AnimeCover)?.lastModified ?: 0L,
                         totalCount = r.progressDenominator,
-                        seenCount = r.progressNumerator,
+                        progressCount = r.progressNumerator,
                     )
                 },
                 userName = currentState.userName,

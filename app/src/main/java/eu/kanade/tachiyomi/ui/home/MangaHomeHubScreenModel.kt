@@ -47,7 +47,7 @@ internal class MangaHomeHubScreenModel(
 
     override val avatarFileName: String = "user_avatar_manga.jpg"
 
-    private val fastCache = MangaHomeHubFastCache(context)
+    private val fastCache = HomeHubFastCache(context, HomeHubSection.Manga)
 
     @Volatile
     private var liveUpdatesStarted = false
@@ -66,33 +66,33 @@ internal class MangaHomeHubScreenModel(
     init {
         val cached = fastCache.load()
         if (!cached.isEmpty || cached.isInitialized) {
-            originalHeroChapterId = cached.hero?.chapterId
+            originalHeroChapterId = cached.hero?.subId
             mutableState.update {
                 it.copy(
                     hero = cached.hero?.let { h ->
                         HomeHubHero(
-                            entryId = h.mangaId,
+                            entryId = h.entryId,
                             title = h.title,
-                            progressNumber = h.chapterNumber,
-                            coverData = MangaCover(h.mangaId, -1, true, h.coverUrl, h.coverLastModified),
+                            progressNumber = h.progressNumber,
+                            coverData = MangaCover(h.entryId, -1, true, h.coverUrl, h.coverLastModified),
                         )
                     },
                     history = cached.history.map { h ->
                         HomeHubHistory(
-                            entryId = h.mangaId,
+                            entryId = h.entryId,
                             title = h.title,
-                            progressNumber = h.chapterNumber,
-                            coverData = MangaCover(h.mangaId, -1, true, h.coverUrl, h.coverLastModified),
+                            progressNumber = h.progressNumber,
+                            coverData = MangaCover(h.entryId, -1, true, h.coverUrl, h.coverLastModified),
                             section = HomeHubSection.Manga,
                         )
                     },
                     recommendations = cached.recommendations.map { r ->
                         HomeHubRecommendation(
-                            entryId = r.mangaId,
+                            entryId = r.entryId,
                             title = r.title,
-                            coverData = MangaCover(r.mangaId, -1, true, r.coverUrl, r.coverLastModified),
+                            coverData = MangaCover(r.entryId, -1, true, r.coverUrl, r.coverLastModified),
                             section = HomeHubSection.Manga,
-                            progressNumerator = r.totalCount - r.unreadCount,
+                            progressNumerator = r.progressNumerator,
                             progressDenominator = r.totalCount,
                         )
                     },
@@ -109,7 +109,7 @@ internal class MangaHomeHubScreenModel(
 
         cached.hero?.let { hero ->
             screenModelScope.launchIO {
-                loadHeroChapter(hero.mangaId, hero.chapterId)
+                loadHeroChapter(hero.entryId, hero.subId)
             }
         }
     }
@@ -253,34 +253,34 @@ internal class MangaHomeHubScreenModel(
     fun saveCache() {
         val currentState = state.value
         fastCache.save(
-            CachedMangaHomeState(
+            CachedHomeState(
                 hero = currentState.hero?.let { hero ->
-                    CachedMangaHeroItem(
-                        mangaId = hero.entryId,
+                    CachedHeroItem(
+                        entryId = hero.entryId,
                         title = hero.title,
-                        chapterNumber = hero.progressNumber,
+                        progressNumber = hero.progressNumber,
                         coverUrl = (hero.coverData as? MangaCover)?.url,
                         coverLastModified = (hero.coverData as? MangaCover)?.lastModified ?: 0L,
-                        chapterId = originalHeroChapterId ?: 0L,
+                        subId = originalHeroChapterId ?: 0L,
                     )
                 },
                 history = currentState.history.map { h ->
-                    CachedMangaHistoryItem(
-                        mangaId = h.entryId,
+                    CachedHistoryItem(
+                        entryId = h.entryId,
                         title = h.title,
-                        chapterNumber = h.progressNumber,
+                        progressNumber = h.progressNumber,
                         coverUrl = (h.coverData as? MangaCover)?.url,
                         coverLastModified = (h.coverData as? MangaCover)?.lastModified ?: 0L,
                     )
                 },
                 recommendations = currentState.recommendations.map { r ->
-                    CachedMangaRecommendationItem(
-                        mangaId = r.entryId,
+                    CachedRecommendationItem(
+                        entryId = r.entryId,
                         title = r.title,
                         coverUrl = (r.coverData as? MangaCover)?.url,
                         coverLastModified = (r.coverData as? MangaCover)?.lastModified ?: 0L,
                         totalCount = r.progressDenominator,
-                        unreadCount = r.progressDenominator - r.progressNumerator,
+                        progressCount = r.progressNumerator,
                     )
                 },
                 userName = currentState.userName,

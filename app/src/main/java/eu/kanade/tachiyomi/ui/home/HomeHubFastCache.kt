@@ -5,10 +5,18 @@ import android.content.SharedPreferences
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNames
 
-class HomeHubFastCache(context: Context) {
+internal class HomeHubFastCache(context: Context, section: HomeHubSection) {
 
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences(
+        when (section) {
+            HomeHubSection.Anime -> "home_hub_cache"
+            HomeHubSection.Manga -> "manga_home_hub_cache"
+            HomeHubSection.Novel -> "novel_home_hub_cache"
+        },
+        Context.MODE_PRIVATE,
+    )
     private val json = Json { ignoreUnknownKeys = true }
 
     @Volatile
@@ -26,14 +34,12 @@ class HomeHubFastCache(context: Context) {
 
         val state = CachedHomeState(
             hero = heroJson?.let { runCatching { json.decodeFromString<CachedHeroItem>(it) }.getOrNull() },
-            history =
-            historyJson?.let { runCatching { json.decodeFromString<List<CachedHistoryItem>>(it) }.getOrNull() }
-                ?: emptyList(),
-            recommendations =
-            recommendationsJson?.let {
+            history = historyJson?.let {
+                runCatching { json.decodeFromString<List<CachedHistoryItem>>(it) }.getOrNull()
+            } ?: emptyList(),
+            recommendations = recommendationsJson?.let {
                 runCatching { json.decodeFromString<List<CachedRecommendationItem>>(it) }.getOrNull()
-            }
-                ?: emptyList(),
+            } ?: emptyList(),
             userName = userName,
             userAvatar = userAvatar,
             isInitialized = initialized,
@@ -73,7 +79,6 @@ class HomeHubFastCache(context: Context) {
     }
 
     companion object {
-        private const val PREFS_NAME = "home_hub_cache"
         private const val KEY_HERO = "hero"
         private const val KEY_HISTORY = "history"
         private const val KEY_RECOMMENDATIONS = "recommendations"
@@ -98,29 +103,40 @@ data class CachedHomeState(
 
 @Serializable
 data class CachedHeroItem(
-    val animeId: Long,
+    @JsonNames("animeId", "mangaId", "novelId")
+    val entryId: Long,
     val title: String,
-    val episodeNumber: Double,
+    @JsonNames("episodeNumber", "chapterNumber")
+    val progressNumber: Double,
     val coverUrl: String?,
     val coverLastModified: Long,
-    val episodeId: Long,
+    @JsonNames("episodeId", "chapterId")
+    val subId: Long,
 )
 
 @Serializable
 data class CachedHistoryItem(
-    val animeId: Long,
+    @JsonNames("animeId", "mangaId", "novelId")
+    val entryId: Long,
     val title: String,
-    val episodeNumber: Double,
+    @JsonNames("episodeNumber", "chapterNumber")
+    val progressNumber: Double,
     val coverUrl: String?,
     val coverLastModified: Long,
 )
 
 @Serializable
 data class CachedRecommendationItem(
-    val animeId: Long,
+    @JsonNames("animeId", "mangaId", "novelId")
+    val entryId: Long,
     val title: String,
     val coverUrl: String?,
     val coverLastModified: Long,
     val totalCount: Long = 0,
-    val seenCount: Long = 0,
-)
+    @JsonNames("seenCount", "readCount")
+    val progressCount: Long = 0,
+    val unreadCount: Long? = null,
+) {
+    val progressNumerator: Long
+        get() = unreadCount?.let { totalCount - it } ?: progressCount
+}
