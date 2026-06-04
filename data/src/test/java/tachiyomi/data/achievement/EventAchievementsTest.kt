@@ -13,12 +13,15 @@ import tachiyomi.data.achievement.handler.checkers.DiversityAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.FeatureBasedAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.StreakAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.TimeBasedAchievementChecker
-import tachiyomi.data.achievement.model.AchievementEvent
 import tachiyomi.data.achievement.repository.AchievementRepositoryImpl
+import tachiyomi.data.achievement.rules.EventRule
 import tachiyomi.data.handlers.anime.AnimeDatabaseHandler
 import tachiyomi.data.handlers.manga.MangaDatabaseHandler
 import tachiyomi.data.handlers.novel.NovelDatabaseHandler
+import tachiyomi.domain.achievement.model.AchievementEvent
 import tachiyomi.domain.achievement.repository.AchievementRepository
+import tachiyomi.domain.achievement.rule.RuleContext
+import tachiyomi.domain.achievement.rule.RuleResult
 import tachiyomi.domain.entries.anime.repository.AnimeRepository
 import tachiyomi.domain.entries.manga.repository.MangaRepository
 import tachiyomi.domain.entries.novel.repository.NovelRepository
@@ -81,6 +84,7 @@ class EventAchievementsTest : AchievementTestBase() {
             novelRepository = novelRepository,
             userProfileManager = mockk(relaxed = true),
             activityDataRepository = activityDataRepo,
+            ruleRegistry = mockk(relaxed = true),
         )
     }
 
@@ -240,12 +244,11 @@ class EventAchievementsTest : AchievementTestBase() {
      * Helper to invoke private isEventMatch method via reflection
      */
     private fun invokeIsEventMatch(achievementId: String, event: AchievementEvent): Boolean {
-        val method = handler.javaClass.getDeclaredMethod(
-            "isEventMatch",
-            String::class.java,
-            AchievementEvent::class.java,
-        )
-        method.isAccessible = true
-        return method.invoke(handler, achievementId, event) as Boolean
+        val rule = EventRule(achievementId)
+        val context = mockk<RuleContext>(relaxed = true)
+        val result = kotlinx.coroutines.runBlocking {
+            rule.evaluateDelta(event, 0, context)
+        }
+        return result is RuleResult.Update
     }
 }

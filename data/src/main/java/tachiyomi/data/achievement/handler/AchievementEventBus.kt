@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import logcat.LogPriority
 import logcat.logcat
-import tachiyomi.data.achievement.model.AchievementEvent
+import tachiyomi.domain.achievement.model.AchievementEvent
 
 /**
  * Event bus для системы достижений.

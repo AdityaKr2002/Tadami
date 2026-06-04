@@ -16,19 +16,20 @@ import org.junit.jupiter.api.parallel.Execution
 import org.junit.jupiter.api.parallel.ExecutionMode
 import tachiyomi.data.achievement.handler.AchievementEventBus
 import tachiyomi.data.achievement.handler.AchievementHandler
+import tachiyomi.data.achievement.handler.AchievementRuleRegistry
 import tachiyomi.data.achievement.handler.FeatureUsageCollector
 import tachiyomi.data.achievement.handler.PointsManager
 import tachiyomi.data.achievement.handler.checkers.DiversityAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.FeatureBasedAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.StreakAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.TimeBasedAchievementChecker
-import tachiyomi.data.achievement.model.AchievementEvent
 import tachiyomi.data.achievement.repository.AchievementRepositoryImpl
 import tachiyomi.data.handlers.anime.AnimeDatabaseHandler
 import tachiyomi.data.handlers.manga.MangaDatabaseHandler
 import tachiyomi.data.handlers.novel.NovelDatabaseHandler
 import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.domain.achievement.model.AchievementCategory
+import tachiyomi.domain.achievement.model.AchievementEvent
 import tachiyomi.domain.achievement.model.AchievementType
 import tachiyomi.domain.achievement.model.UserPoints
 import tachiyomi.domain.achievement.repository.AchievementRepository
@@ -48,6 +49,7 @@ class AchievementHandlerRoutingTest : AchievementTestBase() {
     private lateinit var timeBasedChecker: TimeBasedAchievementChecker
     private lateinit var featureBasedChecker: FeatureBasedAchievementChecker
     private lateinit var pointsManager: PointsManager
+    private lateinit var ruleRegistry: AchievementRuleRegistry
 
     @BeforeEach
     override fun setup() {
@@ -61,6 +63,15 @@ class AchievementHandlerRoutingTest : AchievementTestBase() {
         timeBasedChecker = mockk(relaxed = true)
         featureBasedChecker = mockk(relaxed = true)
         pointsManager = mockk(relaxed = true)
+
+        val mRepo = mockk<MangaRepository>(relaxed = true)
+        val aRepo = mockk<AnimeRepository>(relaxed = true)
+        val nRepo = mockk<NovelRepository>(relaxed = true)
+        ruleRegistry = AchievementRuleRegistry(
+            mangaRepository = mRepo,
+            animeRepository = aRepo,
+            novelRepository = nRepo,
+        )
 
         coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
         coEvery { animeHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
@@ -83,11 +94,12 @@ class AchievementHandlerRoutingTest : AchievementTestBase() {
             mangaHandler = mangaHandler,
             animeHandler = animeHandler,
             novelHandler = novelHandler,
-            mangaRepository = mockk<MangaRepository>(relaxed = true),
-            animeRepository = mockk<AnimeRepository>(relaxed = true),
-            novelRepository = mockk<NovelRepository>(relaxed = true),
+            mangaRepository = mRepo,
+            animeRepository = aRepo,
+            novelRepository = nRepo,
             userProfileManager = mockk(relaxed = true),
             activityDataRepository = mockk(relaxed = true),
+            ruleRegistry = ruleRegistry,
         )
 
         handler.start()
@@ -171,7 +183,7 @@ class AchievementHandlerRoutingTest : AchievementTestBase() {
             ),
         )
 
-        coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 200L
+        coEvery { mangaHandler.awaitOneOrNull<Boolean>(any(), any()) } returns true
 
         emitAndSettle(AchievementEvent.MangaCompleted(mangaId = 7L))
 
@@ -189,7 +201,7 @@ class AchievementHandlerRoutingTest : AchievementTestBase() {
             ),
         )
 
-        coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 199L
+        coEvery { mangaHandler.awaitOneOrNull<Boolean>(any(), any()) } returns false
 
         emitAndSettle(AchievementEvent.MangaCompleted(mangaId = 7L))
 

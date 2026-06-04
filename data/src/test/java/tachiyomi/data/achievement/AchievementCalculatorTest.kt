@@ -11,8 +11,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.parallel.Execution
 import org.junit.jupiter.api.parallel.ExecutionMode
 import tachiyomi.data.achievement.handler.AchievementCalculator
+import tachiyomi.data.achievement.handler.AchievementRuleRegistry
+import tachiyomi.data.achievement.handler.FeatureUsageCollector
+import tachiyomi.data.achievement.handler.PointsManager
 import tachiyomi.data.achievement.handler.checkers.DiversityAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.StreakAchievementChecker
+import tachiyomi.data.achievement.rules.DiversityRule
+import tachiyomi.data.achievement.rules.EventRule
+import tachiyomi.data.achievement.rules.QuantityRule
+import tachiyomi.data.achievement.rules.StreakRule
 import tachiyomi.data.handlers.anime.AnimeDatabaseHandler
 import tachiyomi.data.handlers.manga.MangaDatabaseHandler
 import tachiyomi.data.handlers.novel.NovelDatabaseHandler
@@ -20,6 +27,9 @@ import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.domain.achievement.model.AchievementCategory
 import tachiyomi.domain.achievement.model.AchievementType
 import tachiyomi.domain.achievement.repository.AchievementRepository
+import tachiyomi.domain.entries.anime.repository.AnimeRepository
+import tachiyomi.domain.entries.manga.repository.MangaRepository
+import tachiyomi.domain.entries.novel.repository.NovelRepository
 
 @Execution(ExecutionMode.CONCURRENT)
 class AchievementCalculatorTest : AchievementTestBase() {
@@ -30,6 +40,12 @@ class AchievementCalculatorTest : AchievementTestBase() {
     private lateinit var novelHandler: NovelDatabaseHandler
     private lateinit var diversityChecker: DiversityAchievementChecker
     private lateinit var streakChecker: StreakAchievementChecker
+    private lateinit var ruleRegistry: AchievementRuleRegistry
+    private lateinit var featureCollector: FeatureUsageCollector
+    private lateinit var pointsManager: PointsManager
+    private lateinit var mangaRepository: MangaRepository
+    private lateinit var animeRepository: AnimeRepository
+    private lateinit var novelRepository: NovelRepository
     private lateinit var calculator: AchievementCalculator
 
     @BeforeEach
@@ -42,6 +58,12 @@ class AchievementCalculatorTest : AchievementTestBase() {
         novelHandler = mockk()
         diversityChecker = mockk(relaxed = true)
         streakChecker = mockk()
+        ruleRegistry = mockk(relaxed = true)
+        featureCollector = mockk(relaxed = true)
+        pointsManager = mockk(relaxed = true)
+        mangaRepository = mockk(relaxed = true)
+        animeRepository = mockk(relaxed = true)
+        novelRepository = mockk(relaxed = true)
 
         calculator = AchievementCalculator(
             repository = repository,
@@ -51,6 +73,12 @@ class AchievementCalculatorTest : AchievementTestBase() {
             diversityChecker = diversityChecker,
             streakChecker = streakChecker,
             achievementsDatabase = database,
+            ruleRegistry = ruleRegistry,
+            featureCollector = featureCollector,
+            pointsManager = pointsManager,
+            mangaRepository = mangaRepository,
+            animeRepository = animeRepository,
+            novelRepository = novelRepository,
         )
 
         // Default stubs
@@ -58,6 +86,28 @@ class AchievementCalculatorTest : AchievementTestBase() {
         coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
         coEvery { animeHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
         coEvery { novelHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
+
+        coEvery { ruleRegistry.getRule(any()) } answers {
+            val id = firstArg<String>()
+            when {
+                id.startsWith("manga_100") -> QuantityRule(id, AchievementCategory.MANGA)
+                id.startsWith("anime_50") -> QuantityRule(id, AchievementCategory.ANIME)
+                id == "read_10_novel_chapters" -> QuantityRule(id, AchievementCategory.NOVEL)
+                id == "genre_5" -> DiversityRule(id, AchievementCategory.BOTH)
+                id == "manga_source_3" -> DiversityRule(id, AchievementCategory.MANGA)
+                id == "streak_7" -> StreakRule(id)
+                id == "first_chapter" -> EventRule(id)
+                id == "first_episode" -> EventRule(id)
+                id == "first_novel_chapter" -> EventRule(id)
+                id == "test_ach" -> QuantityRule(id, AchievementCategory.MANGA)
+                id.startsWith("ach_") -> {
+                    val index = id.removePrefix("ach_").toIntOrNull() ?: 1
+                    val category = if (index % 2 == 0) AchievementCategory.MANGA else AchievementCategory.ANIME
+                    QuantityRule(id, category)
+                }
+                else -> null
+            }
+        }
     }
 
     @Test

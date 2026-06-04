@@ -1,6 +1,6 @@
 package tachiyomi.data.achievement.handler
 
-import tachiyomi.data.achievement.model.AchievementEvent
+import tachiyomi.domain.achievement.model.AchievementEvent
 import java.util.Calendar
 
 class SessionManager(

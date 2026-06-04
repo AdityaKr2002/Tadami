@@ -109,6 +109,7 @@ import tachiyomi.data.achievement.UserProfileManager
 import tachiyomi.data.achievement.handler.AchievementCalculator
 import tachiyomi.data.achievement.handler.AchievementEventBus
 import tachiyomi.data.achievement.handler.AchievementHandler
+import tachiyomi.data.achievement.handler.AchievementRuleRegistry
 import tachiyomi.data.achievement.handler.FeatureUsageCollector
 import tachiyomi.data.achievement.handler.SessionManager
 import tachiyomi.data.achievement.handler.checkers.DiversityAchievementChecker
@@ -668,7 +669,14 @@ class DomainModule : InjektModule {
         addSingletonFactory { FeatureUsageCollector(get()) }
         addSingletonFactory { TimeBasedAchievementChecker(get(), get()) }
         addSingletonFactory { FeatureBasedAchievementChecker(get(), get()) }
-        addSingletonFactory { AchievementCalculator(get(), get(), get(), get(), get(), get(), get()) }
+        addSingletonFactory { AchievementRuleRegistry(get(), get(), get()) }
+        addSingletonFactory {
+            AchievementCalculator(
+                get(), get(), get(), get(), get(),
+                get(), get(), get(), get(), get(),
+                get(), get(), get(),
+            )
+        }
         addSingletonFactory { AchievementEventBus() }
         addSingletonFactory { SessionManager(get(), get()) }
         addSingletonFactory {
@@ -679,7 +687,7 @@ class DomainModule : InjektModule {
                 get(), get(), get(), get(), get(),
                 get(), get(), get(), get(), get(),
                 get(), get(), get(), get(), get(),
-                get(), get(),
+                get(), get(), get(),
             )
         }
         // Note: AchievementLoader, PointsManager, UnlockableManager require Context

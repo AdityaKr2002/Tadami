@@ -1,4 +1,4 @@
-package tachiyomi.data.achievement.model
+package tachiyomi.domain.achievement.model
 
 import tachiyomi.domain.achievement.model.AchievementCategory
 

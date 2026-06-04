@@ -25,7 +25,7 @@ import eu.kanade.tachiyomi.ui.stats.manga.mangaStatsTab
 import eu.kanade.tachiyomi.ui.stats.novel.novelStatsTab
 import kotlinx.collections.immutable.toPersistentList
 import tachiyomi.data.achievement.handler.AchievementHandler
-import tachiyomi.data.achievement.model.AchievementEvent
+import tachiyomi.domain.achievement.model.AchievementEvent
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsStateWithLifecycle
