@@ -1,6 +1,7 @@
 package tachiyomi.data.achievement
 
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -27,6 +28,7 @@ import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.domain.achievement.model.AchievementCategory
 import tachiyomi.domain.achievement.model.AchievementType
 import tachiyomi.domain.achievement.repository.AchievementRepository
+import tachiyomi.domain.achievement.repository.ActivityDataRepository
 import tachiyomi.domain.entries.anime.repository.AnimeRepository
 import tachiyomi.domain.entries.manga.repository.MangaRepository
 import tachiyomi.domain.entries.novel.repository.NovelRepository
@@ -46,6 +48,9 @@ class AchievementCalculatorTest : AchievementTestBase() {
     private lateinit var mangaRepository: MangaRepository
     private lateinit var animeRepository: AnimeRepository
     private lateinit var novelRepository: NovelRepository
+    private lateinit var unlockableManager: tachiyomi.data.achievement.UnlockableManager
+    private lateinit var userProfileManager: tachiyomi.data.achievement.UserProfileManager
+    private lateinit var activityDataRepository: ActivityDataRepository
     private lateinit var calculator: AchievementCalculator
 
     @BeforeEach
@@ -64,6 +69,9 @@ class AchievementCalculatorTest : AchievementTestBase() {
         mangaRepository = mockk(relaxed = true)
         animeRepository = mockk(relaxed = true)
         novelRepository = mockk(relaxed = true)
+        unlockableManager = mockk(relaxed = true)
+        userProfileManager = mockk(relaxed = true)
+        activityDataRepository = mockk(relaxed = true)
 
         calculator = AchievementCalculator(
             repository = repository,
@@ -79,6 +87,9 @@ class AchievementCalculatorTest : AchievementTestBase() {
             mangaRepository = mangaRepository,
             animeRepository = animeRepository,
             novelRepository = novelRepository,
+            unlockableManager = unlockableManager,
+            userProfileManager = userProfileManager,
+            activityDataRepository = activityDataRepository,
         )
 
         // Default stubs
@@ -86,6 +97,7 @@ class AchievementCalculatorTest : AchievementTestBase() {
         coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
         coEvery { animeHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
         coEvery { novelHandler.awaitOneOrNull<Long>(any(), any()) } returns 0L
+        coEvery { repository.getAllProgress() } returns flowOf(emptyList())
 
         coEvery { ruleRegistry.getRule(any()) } answers {
             val id = firstArg<String>()
@@ -441,5 +453,147 @@ class AchievementCalculatorTest : AchievementTestBase() {
 
         result.success shouldBe true
         assert(result.duration >= 0L)
+    }
+
+    @Test
+    fun `retroactive calculation preserves existing unlocked timestamp`() = runTest {
+        val originalUnlockedAt = 1_234_567_890L
+        val achievement = Achievement(
+            id = "manga_100",
+            type = AchievementType.QUANTITY,
+            category = AchievementCategory.MANGA,
+            threshold = 100,
+            points = 100,
+            title = "Read 100 Chapters",
+        )
+        val existing = tachiyomi.domain.achievement.model.AchievementProgress(
+            achievementId = "manga_100",
+            progress = 150,
+            maxProgress = 100,
+            isUnlocked = true,
+            unlockedAt = originalUnlockedAt,
+        )
+
+        val captured = mutableListOf<tachiyomi.domain.achievement.model.AchievementProgress>()
+
+        coEvery { repository.getAll() } returns flowOf(listOf(achievement))
+        coEvery { repository.getAllProgress() } returns flowOf(listOf(existing))
+        coEvery { repository.insertOrUpdateProgress(capture(captured)) } returns Unit
+        coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 150L
+        coEvery { diversityChecker.getGenreDiversity() } returns 0
+        coEvery { diversityChecker.getSourceDiversity() } returns 0
+        coEvery { diversityChecker.getMangaGenreDiversity() } returns 0
+        coEvery { diversityChecker.getAnimeGenreDiversity() } returns 0
+        coEvery { diversityChecker.getNovelGenreDiversity() } returns 0
+        coEvery { diversityChecker.getMangaSourceDiversity() } returns 0
+        coEvery { diversityChecker.getAnimeSourceDiversity() } returns 0
+        coEvery { diversityChecker.getNovelSourceDiversity() } returns 0
+
+        val result = calculator.calculateInitialProgress()
+
+        result.success shouldBe true
+        val saved = captured.single { it.achievementId == "manga_100" }
+        saved.isUnlocked shouldBe true
+        saved.unlockedAt shouldBe originalUnlockedAt
+    }
+
+    @Test
+    fun `retroactive calculation recalculates user level from total points`() = runTest {
+        val achievement = Achievement(
+            id = "manga_100",
+            type = AchievementType.QUANTITY,
+            category = AchievementCategory.MANGA,
+            threshold = 100,
+            points = 900,
+            title = "Read 100 Chapters",
+        )
+
+        coEvery { repository.getAll() } returns flowOf(listOf(achievement))
+        coEvery { repository.getAllProgress() } returns flowOf(emptyList())
+        coEvery { repository.insertOrUpdateProgress(any()) } returns Unit
+        coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 100L
+        coEvery { diversityChecker.getGenreDiversity() } returns 0
+        coEvery { diversityChecker.getSourceDiversity() } returns 0
+        coEvery { diversityChecker.getMangaGenreDiversity() } returns 0
+        coEvery { diversityChecker.getAnimeGenreDiversity() } returns 0
+        coEvery { diversityChecker.getNovelGenreDiversity() } returns 0
+        coEvery { diversityChecker.getMangaSourceDiversity() } returns 0
+        coEvery { diversityChecker.getAnimeSourceDiversity() } returns 0
+        coEvery { diversityChecker.getNovelSourceDiversity() } returns 0
+
+        // Seed a default user profile row so updateXP has a target to update.
+        database.userProfileQueries.insertProfileIfNotExists(
+            user_id = "default",
+            username = null,
+            level = 1,
+            current_xp = 0,
+            xp_to_next_level = 100,
+            total_xp = 0,
+            titles = "[]",
+            badges = "[]",
+            unlocked_themes = "[]",
+            achievements_unlocked = 0,
+            total_achievements = 0,
+            join_date = 0L,
+            last_updated = 0L,
+        )
+
+        // 900 XP -> sqrt(9)+1 = 4
+        calculator.calculateInitialProgress()
+
+        val profile = database.userProfileQueries.getDefaultProfile().executeAsOneOrNull()
+        profile shouldNotBe null
+        profile!!.level shouldNotBe 1L
+    }
+
+    @Test
+    fun `retroactive calculation replays rewards only for newly unlocked achievements`() = runTest {
+        val alreadyUnlocked = Achievement(
+            id = "manga_100",
+            type = AchievementType.QUANTITY,
+            category = AchievementCategory.MANGA,
+            threshold = 100,
+            points = 100,
+            title = "Read 100 Chapters",
+        )
+        val newlyUnlocked = Achievement(
+            id = "anime_50",
+            type = AchievementType.QUANTITY,
+            category = AchievementCategory.ANIME,
+            threshold = 50,
+            points = 50,
+            title = "Watch 50 Episodes",
+        )
+
+        val existingManga100 = tachiyomi.domain.achievement.model.AchievementProgress(
+            achievementId = "manga_100",
+            progress = 150,
+            maxProgress = 100,
+            isUnlocked = true,
+            unlockedAt = 1_700_000_000L,
+        )
+
+        coEvery { repository.getAll() } returns flowOf(listOf(alreadyUnlocked, newlyUnlocked))
+        coEvery { repository.getAllProgress() } returns flowOf(listOf(existingManga100))
+        coEvery { repository.insertOrUpdateProgress(any()) } returns Unit
+        coEvery { mangaHandler.awaitOneOrNull<Long>(any(), any()) } returns 150L
+        coEvery { animeHandler.awaitOneOrNull<Long>(any(), any()) } returns 50L
+        coEvery { diversityChecker.getGenreDiversity() } returns 0
+        coEvery { diversityChecker.getSourceDiversity() } returns 0
+        coEvery { diversityChecker.getMangaGenreDiversity() } returns 0
+        coEvery { diversityChecker.getAnimeGenreDiversity() } returns 0
+        coEvery { diversityChecker.getNovelGenreDiversity() } returns 0
+        coEvery { diversityChecker.getMangaSourceDiversity() } returns 0
+        coEvery { diversityChecker.getAnimeSourceDiversity() } returns 0
+        coEvery { diversityChecker.getNovelSourceDiversity() } returns 0
+
+        calculator.calculateInitialProgress()
+
+        coVerify(exactly = 0) {
+            unlockableManager.unlockAchievementRewards(match { it.id == "manga_100" })
+        }
+        coVerify(exactly = 1) {
+            unlockableManager.unlockAchievementRewards(match { it.id == "anime_50" })
+        }
     }
 }

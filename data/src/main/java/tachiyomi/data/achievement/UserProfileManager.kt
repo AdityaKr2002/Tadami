@@ -4,6 +4,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
 import logcat.logcat
 import tachiyomi.domain.achievement.model.Reward
@@ -11,16 +13,12 @@ import tachiyomi.domain.achievement.model.RewardType
 import tachiyomi.domain.achievement.model.UserProfile
 import tachiyomi.domain.achievement.repository.UserProfileRepository
 
-/**
- * Менеджер профиля пользователя
- * Управляет XP, уровнями, званиями и наградами
- * Хранит профиль в базе данных через UserProfileRepository
- */
 class UserProfileManager(
     private val repository: UserProfileRepository,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val mutationMutex = Mutex()
 
     private val userId = "default"
 
@@ -42,64 +40,80 @@ class UserProfileManager(
      */
     suspend fun addXP(amount: Int): Boolean {
         if (amount <= 0) return false
+        return mutationMutex.withLock {
+            val currentProfile = getCurrentProfile()
+            val newTotalXP = currentProfile.totalXP + amount
+            val newLevel = UserProfile.getLevelFromXP(newTotalXP)
 
-        val currentProfile = getCurrentProfile()
-        val newTotalXP = currentProfile.totalXP + amount
-        val newLevel = UserProfile.getLevelFromXP(newTotalXP)
+            val oldLevel = currentProfile.level
+            val levelUp = newLevel > oldLevel
 
-        val oldLevel = currentProfile.level
-        val levelUp = newLevel > oldLevel
+            repository.updateXP(
+                userId = userId,
+                totalXP = newTotalXP,
+                currentXP = calculateCurrentLevelXP(newTotalXP, newLevel),
+                level = newLevel,
+                xpToNextLevel = UserProfile.getXPForLevel(newLevel + 1),
+            )
 
-        // Обновляем только XP-related поля через специальный метод
-        repository.updateXP(
-            userId = userId,
-            totalXP = newTotalXP,
-            currentXP = calculateCurrentLevelXP(newTotalXP, newLevel),
-            level = newLevel,
-            xpToNextLevel = UserProfile.getXPForLevel(newLevel + 1),
-        )
-
-        if (levelUp) {
-            logcat(LogPriority.INFO) {
-                "[ACHIEVEMENTS] LEVEL UP! $oldLevel -> $newLevel (Total XP: $newTotalXP)"
+            if (levelUp) {
+                logcat(LogPriority.INFO) {
+                    "[ACHIEVEMENTS] LEVEL UP! $oldLevel -> $newLevel (Total XP: $newTotalXP)"
+                }
             }
+
+            levelUp
         }
-
-        return levelUp
     }
 
-    /**
-     * Добавить звание профилю
-     */
     suspend fun addTitle(title: String) {
-        val currentProfile = getCurrentProfile()
-        if (currentProfile.titles.contains(title)) return
+        mutationMutex.withLock {
+            val currentProfile = getCurrentProfile()
+            if (currentProfile.titles.contains(title)) return@withLock
 
-        repository.addTitle(userId, title)
-        logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Title unlocked: $title" }
+            repository.addTitle(userId, title)
+            logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Title unlocked: $title" }
+        }
     }
 
-    /**
-     * Добавить бейдж профилю
-     */
     suspend fun addBadge(badge: String) {
-        val currentProfile = getCurrentProfile()
-        if (currentProfile.badges.contains(badge)) return
+        mutationMutex.withLock {
+            val currentProfile = getCurrentProfile()
+            if (currentProfile.badges.contains(badge)) return@withLock
 
-        repository.addBadge(userId, badge)
-        logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Badge unlocked: $badge" }
+            repository.addBadge(userId, badge)
+            logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Badge unlocked: $badge" }
+        }
     }
 
-    /**
-     * Разблокировать тему
-     * @param themeId ID темы для разблокировки
-     */
-    suspend fun unlockTheme(themeId: String) {
-        val currentProfile = getCurrentProfile()
-        if (currentProfile.unlockedThemes.contains(themeId)) return
+    suspend fun removeBadge(badge: String) {
+        mutationMutex.withLock {
+            val currentProfile = getCurrentProfile()
+            if (!currentProfile.badges.contains(badge)) return@withLock
 
-        repository.addTheme(userId, themeId)
-        logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Theme unlocked: $themeId" }
+            repository.removeBadge(userId, badge)
+            logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Badge removed: $badge" }
+        }
+    }
+
+    suspend fun unlockTheme(themeId: String) {
+        mutationMutex.withLock {
+            val currentProfile = getCurrentProfile()
+            if (currentProfile.unlockedThemes.contains(themeId)) return@withLock
+
+            repository.addTheme(userId, themeId)
+            logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Theme unlocked: $themeId" }
+        }
+    }
+
+    suspend fun removeTheme(themeId: String) {
+        mutationMutex.withLock {
+            val currentProfile = getCurrentProfile()
+            if (!currentProfile.unlockedThemes.contains(themeId)) return@withLock
+
+            repository.removeTheme(userId, themeId)
+            logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Theme removed: $themeId" }
+        }
     }
 
     /**

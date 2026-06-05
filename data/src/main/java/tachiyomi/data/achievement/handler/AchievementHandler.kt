@@ -131,7 +131,7 @@ class AchievementHandler(
         }
     }
 
-    private suspend fun sanitizeFirstAchievement(
+    internal suspend fun sanitizeFirstAchievement(
         achievementId: String,
         hasRelevantHistory: Boolean,
     ): Boolean {
@@ -146,6 +146,12 @@ class AchievementHandler(
                 lastUpdated = System.currentTimeMillis(),
             ),
         )
+
+        val achievement = repository.getAll().first().find { it.id == achievementId }
+        if (achievement != null) {
+            unlockableManager.lockUnlockablesForAchievement(achievement)
+        }
+
         logcat(LogPriority.WARN) {
             "[ACHIEVEMENTS] Corrected invalid unlock for $achievementId (no relevant history found)"
         }
@@ -391,19 +397,24 @@ class AchievementHandler(
 
         scope.launch {
             try {
-                activityDataRepository.recordAchievementUnlock()
-                pointsManager.addPoints(tier.points)
-            } catch (e: Exception) {
-                logcat(LogPriority.ERROR) {
-                    "Failed to add tier points for achievement: ${achievement.title}, ${e.message}"
-                }
-            }
-
-            try {
                 unlockableManager.unlockAchievementRewards(achievement)
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR) {
                     "Failed to unlock tier rewards for achievement: ${achievement.title}, ${e.message}"
+                }
+            }
+
+            // Use the shared reward-granting path so tier-ups stay consistent
+            // with normal unlocks. The current achievements.json does not
+            // declare rewards on tiered achievements, so this is a no-op
+            // today, but it future-proofs the path.
+            if (achievement.hasRewards) {
+                try {
+                    userProfileManager.grantRewards(achievement.getAllRewards())
+                } catch (e: Exception) {
+                    logcat(LogPriority.ERROR) {
+                        "Failed to grant tier rewards for achievement: ${achievement.title}, ${e.message}"
+                    }
                 }
             }
 

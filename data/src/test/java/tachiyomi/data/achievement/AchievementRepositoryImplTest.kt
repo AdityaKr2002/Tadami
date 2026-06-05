@@ -12,6 +12,8 @@ import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.domain.achievement.model.AchievementCategory
 import tachiyomi.domain.achievement.model.AchievementProgress
 import tachiyomi.domain.achievement.model.AchievementType
+import tachiyomi.domain.achievement.model.Reward
+import tachiyomi.domain.achievement.model.RewardType
 
 @Execution(ExecutionMode.CONCURRENT)
 class AchievementRepositoryImplTest : AchievementTestBase() {
@@ -256,6 +258,55 @@ class AchievementRepositoryImplTest : AchievementTestBase() {
         repository.deleteAllAchievements()
 
         repository.getAll().first().size shouldBe 0
+    }
+
+    @Test
+    fun `achievement rewards survive repository round trip`() = runTest {
+        val achievement = Achievement(
+            id = "secret_goku",
+            type = AchievementType.SECRET,
+            category = AchievementCategory.SECRET,
+            threshold = 9000,
+            points = 500,
+            title = "Not Even My Final Form!",
+            rewards = listOf(
+                Reward(type = RewardType.AURA, id = "aura_matrix", title = "Matrix Aura"),
+                Reward(type = RewardType.THEME, id = "theme_NEBULA_TIDE", title = "Nebula Tide"),
+            ),
+        )
+
+        repository.insertAchievement(achievement)
+
+        val restored = repository.getAll().first().single()
+        restored.rewards?.map { it.id } shouldBe listOf("aura_matrix", "theme_NEBULA_TIDE")
+    }
+
+    @Test
+    fun `reloading an existing achievement row does not delete progress`() = runTest {
+        val achievement = Achievement(
+            id = "secret_goku",
+            type = AchievementType.SECRET,
+            category = AchievementCategory.SECRET,
+            threshold = 9000,
+            points = 500,
+            title = "Not Even My Final Form!",
+        )
+        repository.insertAchievement(achievement)
+        repository.insertOrUpdateProgress(
+            AchievementProgress(
+                achievementId = "secret_goku",
+                progress = 1,
+                maxProgress = 1,
+                isUnlocked = true,
+                unlockedAt = 123L,
+            ),
+        )
+
+        repository.insertAchievement(achievement.copy(title = "Localized title"))
+
+        val restoredProgress = repository.getProgress("secret_goku").first()
+        restoredProgress?.isUnlocked shouldBe true
+        restoredProgress?.unlockedAt shouldBe 123L
     }
 
     @Test

@@ -10,7 +10,9 @@ interface UserProfileRepository {
     suspend fun updateXP(userId: String, totalXP: Int, currentXP: Int, level: Int, xpToNextLevel: Int)
     suspend fun addTitle(userId: String, title: String)
     suspend fun addBadge(userId: String, badge: String)
+    suspend fun removeBadge(userId: String, badge: String)
     suspend fun addTheme(userId: String, themeId: String)
+    suspend fun removeTheme(userId: String, themeId: String)
     suspend fun updateAchievementCounts(userId: String, unlocked: Int, total: Int)
     suspend fun deleteProfile(userId: String)
 }

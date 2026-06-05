@@ -1,7 +1,10 @@
 package tachiyomi.data.achievement
 
 import android.content.SharedPreferences
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import logcat.logcat
@@ -13,22 +16,14 @@ import tachiyomi.domain.achievement.model.Achievement
  */
 class UnlockableManager(
     private val preferences: SharedPreferences,
+    private val userProfileManager: UserProfileManager,
 ) {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     companion object {
         private const val PREFIX = "unlocked_"
         private val EXCLUSIVE_THEME_IDS = setOf("ONYX_GOLD", "SAKURA_NOIR", "NEBULA_TIDE")
-        private val FALLBACK_REWARDS_BY_ACHIEVEMENT = mapOf(
-            "master_achiever" to listOf("profile_nickname_effect_aurora_crown"),
-            "secret_crybaby" to listOf("profile_nickname_effect_glitch_rune"),
-            "secret_jojo" to listOf("profile_nickname_effect_cipher", "avatar_frame_neon"),
-            "secret_goku" to listOf("avatar_frame_hologram"),
-            "secret_onepiece" to listOf("theme_ONYX_GOLD"),
-            "read_100_novel_chapters" to listOf("home_badge_orbit"),
-            "secret_hall_unlocked" to listOf("home_badge_crown"),
-            "achievement_collector" to listOf("home_badge_shuriken"),
-            "achievement_hunter" to listOf("profile_nickname_glow_gold"),
-        )
     }
 
     /**
@@ -77,11 +72,6 @@ class UnlockableManager(
             setUnlockableUnlocked(reward.id)
             applyUnlockable(reward.id)
         }
-
-        FALLBACK_REWARDS_BY_ACHIEVEMENT[achievement.id]?.forEach { unlockableId ->
-            setUnlockableUnlocked(unlockableId)
-            applyUnlockable(unlockableId)
-        }
     }
 
     /**
@@ -92,16 +82,25 @@ class UnlockableManager(
         when {
             // Theme unlockables
             unlockableId.startsWith("theme_") -> {
-                logcat(LogPriority.INFO) { "Theme unlocked: $unlockableId" }
-                // TODO: Integrate with theme system
-                // Themes would be made available in theme selection
+                val themeId = unlockableId.removePrefix("theme_")
+                scope.launch {
+                    try {
+                        userProfileManager.unlockTheme(themeId)
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR) { "Failed to unlock theme $themeId: ${e.message}" }
+                    }
+                }
             }
 
-            // Badge unlockables
             unlockableId.startsWith("badge_") -> {
-                logcat(LogPriority.INFO) { "Badge unlocked: $unlockableId" }
-                // TODO: Store badge for profile display
-                // Badge would be available in profile customization
+                val badgeName = unlockableId.removePrefix("badge_")
+                scope.launch {
+                    try {
+                        userProfileManager.addBadge(badgeName)
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR) { "Failed to add badge $badgeName: ${e.message}" }
+                    }
+                }
             }
 
             // Aura unlockables
@@ -219,7 +218,6 @@ class UnlockableManager(
             "profile_nickname_effect_aurora_crown" -> "Никнейм-эффект «Aurora Crown»"
             "profile_nickname_effect_glitch_rune" -> "Никнейм-эффект «Glitch Rune»"
             "profile_nickname_effect_cipher" -> "Никнейм-эффект «Cipher Sigil»"
-            "profile_nickname_glow_gold" -> "Золотое свечение никнейма"
 
             // Avatar presets
             "avatar_frame_neon" -> "Неоновая рамка аватара"
@@ -272,6 +270,60 @@ class UnlockableManager(
             allKeys.forEach { remove(it) }
         }
         logcat(LogPriority.INFO) { "All unlockables reset" }
+    }
+
+    /**
+     * Rebuild unlockable prefs from the current set of unlocked achievements.
+     * Clears all existing prefs first, then re-derives them from DB state.
+     * Use after any operation that might cause DB ↔ prefs desync.
+     */
+    suspend fun recomputeUnlockablesFromUnlockedAchievements(
+        unlockedAchievements: List<Achievement>,
+    ) {
+        resetAllUnlockables()
+        unlockedAchievements.forEach { achievement ->
+            unlockAchievementRewards(achievement)
+        }
+        logcat(LogPriority.INFO) {
+            "Recomputed unlockables from ${unlockedAchievements.size} unlocked achievement(s)"
+        }
+    }
+
+    /**
+     * Lock the unlockables derived from a single achievement.
+     * Used when sanitization invalidates an unlock that had no real history.
+     */
+    fun lockUnlockablesForAchievement(achievement: Achievement) {
+        achievement.unlockableId?.let { unlockableId ->
+            preferences.edit { remove("$PREFIX$unlockableId") }
+            removeUnlockableFromProfile(unlockableId)
+        }
+        achievement.rewards?.forEach { reward ->
+            preferences.edit { remove("$PREFIX${reward.id}") }
+            removeUnlockableFromProfile(reward.id)
+        }
+        logcat(LogPriority.INFO) {
+            "Locked unlockables for achievement: ${achievement.id}"
+        }
+    }
+
+    private fun removeUnlockableFromProfile(unlockableId: String) {
+        scope.launch {
+            try {
+                when {
+                    unlockableId.startsWith("theme_") -> {
+                        userProfileManager.removeTheme(unlockableId.removePrefix("theme_"))
+                    }
+                    unlockableId.startsWith("badge_") -> {
+                        userProfileManager.removeBadge(unlockableId.removePrefix("badge_"))
+                    }
+                }
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR) {
+                    "Failed to remove unlockable $unlockableId from profile: ${e.message}"
+                }
+            }
+        }
     }
 }
 

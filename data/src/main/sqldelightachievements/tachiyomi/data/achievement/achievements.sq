@@ -11,7 +11,8 @@ CREATE TABLE achievements (
     is_secret INTEGER NOT NULL DEFAULT 0,
     unlockable_id TEXT,
     version INTEGER NOT NULL DEFAULT 1,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    rewards TEXT
 );
 
 CREATE INDEX achievement_category_idx ON achievements(category);
@@ -30,17 +31,33 @@ WHERE category = :category
 ORDER BY points DESC;
 
 insert:
-INSERT OR REPLACE INTO achievements(
+INSERT OR IGNORE INTO achievements(
     id, type, category, threshold, points,
     title, description, badge_icon,
     is_hidden, is_secret, unlockable_id,
-    version, created_at
+    version, created_at, rewards
 ) VALUES (
     :id, :type, :category, :threshold, :points,
     :title, :description, :badge_icon,
     :is_hidden, :is_secret, :unlockable_id,
-    :version, :created_at
+    :version, :created_at, :rewards
 );
+
+updateMutableFields:
+UPDATE achievements
+SET
+    type = :type,
+    category = :category,
+    threshold = :threshold,
+    points = :points,
+    title = :title,
+    description = :description,
+    badge_icon = :badge_icon,
+    is_hidden = :is_hidden,
+    is_secret = :is_secret,
+    unlockable_id = :unlockable_id,
+    rewards = :rewards
+WHERE id = :id;
 
 deleteById:
 DELETE FROM achievements

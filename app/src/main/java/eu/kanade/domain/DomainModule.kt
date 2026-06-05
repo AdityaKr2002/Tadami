@@ -674,7 +674,8 @@ class DomainModule : InjektModule {
             AchievementCalculator(
                 get(), get(), get(), get(), get(),
                 get(), get(), get(), get(), get(),
-                get(), get(), get(),
+                get(), get(), get(), get(), get(),
+                get(),
             )
         }
         addSingletonFactory { AchievementEventBus() }

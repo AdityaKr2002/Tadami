@@ -38,7 +38,6 @@ class DebugUnlockablePreviewTest {
             "profile_nickname_effect_aurora_crown",
             "profile_nickname_effect_glitch_rune",
             "profile_nickname_effect_cipher",
-            "profile_nickname_glow_gold",
             "avatar_frame_neon",
             "avatar_frame_hologram",
             "avatar_frame_prismatic",

@@ -95,7 +95,6 @@ object SettingsTreasuryScreen : SearchableSettings {
         val achievements by achievementRepository.getAll().collectAsStateWithLifecycle(initialValue = emptyList())
 
         val rewardToAchievementMap = remember(achievements) {
-            val achievementsById = achievements.associateBy { it.id }
             val map = mutableMapOf<String, Achievement>()
             achievements.forEach { achievement ->
                 achievement.rewards?.forEach { reward ->
@@ -103,30 +102,6 @@ object SettingsTreasuryScreen : SearchableSettings {
                 }
                 achievement.unlockableId?.let { uid ->
                     map[uid] = achievement
-                }
-            }
-            val fallbackRewardSources = mapOf(
-                "theme_ONYX_GOLD" to "secret_onepiece",
-                "theme_SAKURA_NOIR" to "secret_hall_unlocked",
-                "theme_NEBULA_TIDE" to "secret_goku",
-                "aura_harem" to "secret_harem_king",
-                "aura_matrix" to "secret_goku",
-                "aura_level_up" to "master_achiever",
-                "profile_nickname_effect_aurora_crown" to "master_achiever",
-                "profile_nickname_effect_glitch_rune" to "secret_crybaby",
-                "profile_nickname_effect_cipher" to "secret_jojo",
-                "avatar_frame_neon" to "secret_jojo",
-                "avatar_frame_hologram" to "secret_goku",
-                "avatar_frame_prismatic" to "secret_onepiece",
-                "home_badge_orbit" to "read_100_novel_chapters",
-                "home_badge_crown" to "secret_hall_unlocked",
-                "home_badge_shuriken" to "achievement_collector",
-                "special_background_petal_storm" to "secret_crybaby",
-                "special_background_neon_orbit" to "secret_jojo",
-            )
-            fallbackRewardSources.forEach { (rewardId, achievementId) ->
-                if (map[rewardId] == null) {
-                    achievementsById[achievementId]?.let { map[rewardId] = it }
                 }
             }
             map

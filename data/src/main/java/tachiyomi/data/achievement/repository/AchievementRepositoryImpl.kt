@@ -6,6 +6,8 @@ import app.cash.sqldelight.coroutines.mapToOneOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import logcat.logcat
 import tachiyomi.data.achievement.Achievement_progress
@@ -15,11 +17,15 @@ import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.domain.achievement.model.AchievementCategory
 import tachiyomi.domain.achievement.model.AchievementProgress
 import tachiyomi.domain.achievement.model.AchievementType
+import tachiyomi.domain.achievement.model.Reward
 import tachiyomi.domain.achievement.repository.AchievementRepository
 
 class AchievementRepositoryImpl(
     private val database: AchievementsDatabase,
+    private val json: Json = DefaultJson,
 ) : AchievementRepository {
+
+    private val rewardListSerializer = ListSerializer(Reward.serializer())
 
     override fun getAll(): Flow<List<Achievement>> {
         return database.achievementsQueries
@@ -71,6 +77,21 @@ class AchievementRepositoryImpl(
             unlockable_id = achievement.unlockableId,
             version = achievement.version.toLong(),
             created_at = achievement.createdAt,
+            rewards = achievement.rewards?.let { json.encodeToString(rewardListSerializer, it) },
+        )
+        database.achievementsQueries.updateMutableFields(
+            id = achievement.id,
+            type = achievement.type.name,
+            category = achievement.category.name,
+            threshold = achievement.threshold?.toLong(),
+            points = achievement.points.toLong(),
+            title = achievement.title,
+            description = achievement.description,
+            badge_icon = achievement.badgeIcon,
+            is_hidden = if (achievement.isHidden) 1L else 0L,
+            is_secret = if (achievement.isSecret) 1L else 0L,
+            unlockable_id = achievement.unlockableId,
+            rewards = achievement.rewards?.let { json.encodeToString(rewardListSerializer, it) },
         )
     }
 
@@ -127,7 +148,15 @@ class AchievementRepositoryImpl(
             unlockableId = unlockable_id,
             version = version.toInt(),
             createdAt = created_at,
+            rewards = rewards?.let { decodeRewards(it) },
         )
+    }
+
+    private fun decodeRewards(raw: String): List<Reward>? {
+        if (raw.isBlank()) return null
+        return runCatching { json.decodeFromString(rewardListSerializer, raw) }
+            .onFailure { logcat(LogPriority.WARN) { "[ACHIEVEMENTS] Failed to decode rewards: ${it.message}" } }
+            .getOrNull()
     }
 
     private fun Achievement_progress.toDomainModel(): AchievementProgress {
@@ -144,5 +173,12 @@ class AchievementRepositoryImpl(
             tierProgress = tier_progress.toInt(),
             tierMaxProgress = tier_max_progress.toInt(),
         )
+    }
+
+    private companion object {
+        val DefaultJson: Json = Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
     }
 }

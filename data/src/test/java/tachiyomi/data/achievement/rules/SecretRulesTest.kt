@@ -1,5 +1,7 @@
 package tachiyomi.data.achievement.rules
 
+import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.source.model.SManga
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -157,4 +159,185 @@ class SecretRulesTest {
         val event = AchievementEvent.AppStart(12)
         rule.evaluateDelta(event, 0, context) shouldBe RuleResult.Update(9000)
     }
+
+    @Test
+    fun `CrybabyRule evaluateFull returns 1 when a completed manga has Tragedy genre`() = runTest {
+        val mangaRepo = mockk<MangaRepository>()
+        val animeRepo = mockk<AnimeRepository>()
+        val novelRepo = mockk<NovelRepository>()
+        val rule = CrybabyRule(mangaRepo, animeRepo, novelRepo)
+
+        val completedManga = manga(
+            id = 1L,
+            status = SManga.COMPLETED.toLong(),
+            genre = listOf("Tragedy"),
+        )
+        coEvery { mangaRepo.getLibraryManga() } returns listOf(
+            libraryManga(completedManga, totalChapters = 100, readCount = 100),
+        )
+        coEvery { animeRepo.getLibraryAnime() } returns emptyList()
+        coEvery { novelRepo.getLibraryNovel() } returns emptyList()
+
+        rule.evaluateFull(context) shouldBe 1
+    }
+
+    @Test
+    fun `CrybabyRule evaluateFull returns 0 when no completed title has Tragedy or Drama`() = runTest {
+        val mangaRepo = mockk<MangaRepository>()
+        val animeRepo = mockk<AnimeRepository>()
+        val novelRepo = mockk<NovelRepository>()
+        val rule = CrybabyRule(mangaRepo, animeRepo, novelRepo)
+
+        val ongoingManga = manga(
+            id = 1L,
+            status = SManga.ONGOING.toLong(),
+            genre = listOf("Tragedy"),
+        )
+        coEvery { mangaRepo.getLibraryManga() } returns listOf(
+            libraryManga(ongoingManga, totalChapters = 100, readCount = 50),
+        )
+        coEvery { animeRepo.getLibraryAnime() } returns emptyList()
+        coEvery { novelRepo.getLibraryNovel() } returns emptyList()
+
+        rule.evaluateFull(context) shouldBe 0
+    }
+
+    @Test
+    fun `DekuRule evaluateFull returns 1 when a completed anime has Super Power genre`() = runTest {
+        val mangaRepo = mockk<MangaRepository>()
+        val animeRepo = mockk<AnimeRepository>()
+        val novelRepo = mockk<NovelRepository>()
+        val rule = DekuRule(mangaRepo, animeRepo, novelRepo)
+
+        val completedAnime = anime(
+            id = 2L,
+            status = SAnime.COMPLETED.toLong(),
+            genre = listOf("Super Power"),
+        )
+        coEvery { mangaRepo.getLibraryManga() } returns emptyList()
+        coEvery { animeRepo.getLibraryAnime() } returns listOf(
+            libraryAnime(completedAnime, totalEpisodes = 24, seenCount = 24),
+        )
+        coEvery { novelRepo.getLibraryNovel() } returns emptyList()
+
+        rule.evaluateFull(context) shouldBe 1
+    }
+
+    @Test
+    fun `ErenRule evaluateFull returns 1 when a completed novel has Military genre`() = runTest {
+        val mangaRepo = mockk<MangaRepository>()
+        val animeRepo = mockk<AnimeRepository>()
+        val novelRepo = mockk<NovelRepository>()
+        val rule = ErenRule(mangaRepo, animeRepo, novelRepo)
+
+        val completedNovel = novel(
+            id = 3L,
+            status = SManga.COMPLETED.toLong(),
+            genre = listOf("Military"),
+        )
+        coEvery { mangaRepo.getLibraryManga() } returns emptyList()
+        coEvery { animeRepo.getLibraryAnime() } returns emptyList()
+        coEvery { novelRepo.getLibraryNovel() } returns listOf(
+            libraryNovel(completedNovel, totalChapters = 100, readCount = 100),
+        )
+
+        rule.evaluateFull(context) shouldBe 1
+    }
+
+    @Test
+    fun `LelouchRule evaluateFull returns 1 when a completed manga has Psychological genre`() = runTest {
+        val mangaRepo = mockk<MangaRepository>()
+        val animeRepo = mockk<AnimeRepository>()
+        val novelRepo = mockk<NovelRepository>()
+        val rule = LelouchRule(mangaRepo, animeRepo, novelRepo)
+
+        val completedManga = manga(
+            id = 4L,
+            status = SManga.COMPLETED.toLong(),
+            genre = listOf("Psychological"),
+        )
+        coEvery { mangaRepo.getLibraryManga() } returns listOf(
+            libraryManga(completedManga, totalChapters = 100, readCount = 100),
+        )
+        coEvery { animeRepo.getLibraryAnime() } returns emptyList()
+        coEvery { novelRepo.getLibraryNovel() } returns emptyList()
+
+        rule.evaluateFull(context) shouldBe 1
+    }
+
+    private fun manga(
+        id: Long,
+        status: Long,
+        genre: List<String>?,
+    ): Manga = Manga.create().copy(
+        id = id,
+        status = status,
+        genre = genre,
+    )
+
+    private fun anime(
+        id: Long,
+        status: Long,
+        genre: List<String>?,
+    ): Anime = Anime.create().copy(
+        id = id,
+        status = status,
+        genre = genre,
+    )
+
+    private fun novel(
+        id: Long,
+        status: Long,
+        genre: List<String>?,
+    ): Novel = Novel.create().copy(
+        id = id,
+        status = status,
+        genre = genre,
+    )
+
+    private fun libraryManga(
+        manga: Manga,
+        totalChapters: Long,
+        readCount: Long,
+    ) = tachiyomi.domain.library.manga.LibraryManga(
+        manga = manga,
+        category = 0L,
+        totalChapters = totalChapters,
+        readCount = readCount,
+        bookmarkCount = 0L,
+        latestUpload = 0L,
+        chapterFetchedAt = 0L,
+        lastRead = 0L,
+    )
+
+    private fun libraryAnime(
+        anime: Anime,
+        totalEpisodes: Long,
+        seenCount: Long,
+    ) = tachiyomi.domain.library.anime.LibraryAnime(
+        anime = anime,
+        category = 0L,
+        totalCount = totalEpisodes,
+        seenCount = seenCount,
+        bookmarkCount = 0L,
+        fillermarkCount = 0L,
+        latestUpload = 0L,
+        episodeFetchedAt = 0L,
+        lastSeen = 0L,
+    )
+
+    private fun libraryNovel(
+        novel: Novel,
+        totalChapters: Long,
+        readCount: Long,
+    ) = tachiyomi.domain.library.novel.LibraryNovel(
+        novel = novel,
+        category = 0L,
+        totalChapters = totalChapters,
+        readCount = readCount,
+        bookmarkCount = 0L,
+        latestUpload = 0L,
+        chapterFetchedAt = 0L,
+        lastRead = 0L,
+    )
 }

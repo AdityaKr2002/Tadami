@@ -18,6 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import tachiyomi.data.achievement.ActivityDataRepositoryImpl
+import tachiyomi.data.achievement.UnlockableManager
 import tachiyomi.data.achievement.UserProfileManager
 import tachiyomi.data.achievement.UserProfileRepositoryImpl
 import tachiyomi.data.achievement.database.AchievementsDatabase
@@ -26,6 +27,8 @@ import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.domain.achievement.model.AchievementCategory
 import tachiyomi.domain.achievement.model.AchievementProgress
 import tachiyomi.domain.achievement.model.AchievementType
+import tachiyomi.domain.achievement.model.Reward
+import tachiyomi.domain.achievement.model.RewardType
 import tachiyomi.domain.achievement.model.UserProfile
 import java.time.LocalDate
 import kotlin.test.assertEquals
@@ -52,6 +55,7 @@ class AchievementBackupRestoreIntegrationTest {
     private lateinit var activityRepository: ActivityDataRepositoryImpl
     private lateinit var userProfileRepository: UserProfileRepositoryImpl
     private lateinit var userProfileManager: UserProfileManager
+    private lateinit var unlockableManager: UnlockableManager
     private lateinit var backupCreator: AchievementBackupCreator
     private lateinit var restorer: AchievementRestorer
 
@@ -67,6 +71,11 @@ class AchievementBackupRestoreIntegrationTest {
         activityRepository = ActivityDataRepositoryImpl(database)
         userProfileRepository = UserProfileRepositoryImpl(database)
         userProfileManager = UserProfileManager(userProfileRepository)
+        val treasuryPrefs = context.getSharedPreferences(
+            "achievement_unlockables_test",
+            Context.MODE_PRIVATE,
+        )
+        unlockableManager = UnlockableManager(treasuryPrefs, userProfileManager)
 
         // Note: AchievementBackupCreator requires more dependencies, simplified version for testing
         restorer = AchievementRestorer(
@@ -74,6 +83,7 @@ class AchievementBackupRestoreIntegrationTest {
             activityDataRepository = activityRepository,
             userProfileRepository = userProfileRepository,
             userProfileManager = userProfileManager,
+            unlockableManager = unlockableManager,
         )
     }
 
@@ -340,6 +350,50 @@ class AchievementBackupRestoreIntegrationTest {
             val existing = userProfileRepository.getProfileSync("default")
             assertNotNull(existing)
             assertEquals(10, existing.level)
+        }
+    }
+
+    @Test
+    fun `restore replays unlockables for unlocked achievements`() {
+        runTest {
+            // Sanity: prefs start empty (Robolectric shared prefs are isolated per test)
+            assertEquals(false, unlockableManager.isUnlockableUnlocked("theme_ONYX_GOLD"))
+
+            // An unlocked secret_onepiece achievement with its canonical reward.
+            val achievement = Achievement(
+                id = "secret_onepiece",
+                type = AchievementType.SECRET,
+                category = AchievementCategory.SECRET,
+                threshold = 1000,
+                points = 500,
+                title = "Pirate King",
+                rewards = listOf(
+                    Reward(
+                        type = RewardType.THEME,
+                        id = "theme_ONYX_GOLD",
+                        title = "Obsidian Gold",
+                    ),
+                ),
+            )
+            val progress = AchievementProgress(
+                achievementId = "secret_onepiece",
+                progress = 1000,
+                maxProgress = 1000,
+                isUnlocked = true,
+                unlockedAt = System.currentTimeMillis(),
+                lastUpdated = System.currentTimeMillis(),
+            )
+            val backup = BackupAchievement.fromAchievement(achievement, progress)
+
+            restorer.restoreAchievements(
+                backupAchievements = listOf(backup),
+                backupUserProfile = null,
+                backupActivityLog = emptyList(),
+                backupStats = null,
+            )
+
+            // Treasury should now be rehydrated
+            assertEquals(true, unlockableManager.isUnlockableUnlocked("theme_ONYX_GOLD"))
         }
     }
 

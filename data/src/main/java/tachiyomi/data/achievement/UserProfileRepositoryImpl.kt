@@ -85,11 +85,35 @@ class UserProfileRepositoryImpl(
         )
     }
 
+    override suspend fun removeBadge(userId: String, badge: String) {
+        val profile = getProfileSync(userId) ?: return
+        if (!profile.badges.contains(badge)) return
+
+        val newBadges = profile.badges - badge
+        database.userProfileQueries.addBadge(
+            user_id = userId,
+            badges = json.encodeToString(newBadges),
+            last_updated = System.currentTimeMillis(),
+        )
+    }
+
     override suspend fun addTheme(userId: String, themeId: String) {
         val profile = getProfileSync(userId) ?: return
         if (profile.unlockedThemes.contains(themeId)) return
 
         val newThemes = profile.unlockedThemes + themeId
+        database.userProfileQueries.addTheme(
+            user_id = userId,
+            unlocked_themes = json.encodeToString(newThemes),
+            last_updated = System.currentTimeMillis(),
+        )
+    }
+
+    override suspend fun removeTheme(userId: String, themeId: String) {
+        val profile = getProfileSync(userId) ?: return
+        if (!profile.unlockedThemes.contains(themeId)) return
+
+        val newThemes = profile.unlockedThemes - themeId
         database.userProfileQueries.addTheme(
             user_id = userId,
             unlocked_themes = json.encodeToString(newThemes),

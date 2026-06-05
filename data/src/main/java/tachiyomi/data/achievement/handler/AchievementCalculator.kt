@@ -3,6 +3,8 @@ package tachiyomi.data.achievement.handler
 import kotlinx.coroutines.flow.first
 import logcat.LogPriority
 import logcat.logcat
+import tachiyomi.data.achievement.UnlockableManager
+import tachiyomi.data.achievement.UserProfileManager
 import tachiyomi.data.achievement.database.AchievementsDatabase
 import tachiyomi.data.achievement.handler.checkers.DiversityAchievementChecker
 import tachiyomi.data.achievement.handler.checkers.StreakAchievementChecker
@@ -12,7 +14,9 @@ import tachiyomi.data.handlers.novel.NovelDatabaseHandler
 import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.domain.achievement.model.AchievementProgress
 import tachiyomi.domain.achievement.model.AchievementType
+import tachiyomi.domain.achievement.model.UserProfile
 import tachiyomi.domain.achievement.repository.AchievementRepository
+import tachiyomi.domain.achievement.repository.ActivityDataRepository
 import tachiyomi.domain.entries.anime.repository.AnimeRepository
 import tachiyomi.domain.entries.manga.repository.MangaRepository
 import tachiyomi.domain.entries.novel.repository.NovelRepository
@@ -31,6 +35,9 @@ class AchievementCalculator(
     private val mangaRepository: MangaRepository,
     private val animeRepository: AnimeRepository,
     private val novelRepository: NovelRepository,
+    private val unlockableManager: UnlockableManager,
+    private val userProfileManager: UserProfileManager,
+    private val activityDataRepository: ActivityDataRepository,
 ) {
     companion object {
         private const val BATCH_SIZE = 50
@@ -46,6 +53,8 @@ class AchievementCalculator(
 
             val allAchievements = repository.getAll().first()
             val achievementsById = allAchievements.associateBy { it.id }
+            val existingProgress = repository.getAllProgress().first()
+                .associateBy { it.achievementId }
 
             val context = RuleContextImpl(
                 mangaHandler = mangaHandler,
@@ -69,7 +78,7 @@ class AchievementCalculator(
             val standardProgressUpdates = standardAchievements.map { achievement ->
                 val rule = ruleRegistry.getRule(achievement.id)
                 val progress = rule?.evaluateFull(context) ?: 0
-                buildProgress(achievement, progress)
+                buildProgress(achievement, progress, existingProgress[achievement.id])
             }
 
             // Step 2: Evaluate meta rules & Goku rule
@@ -77,7 +86,7 @@ class AchievementCalculator(
             val metaProgressUpdates = metaAchievements.map { achievement ->
                 val rule = ruleRegistry.getRule(achievement.id)
                 val progress = rule?.evaluateFull(context) ?: 0
-                buildProgress(achievement, progress)
+                buildProgress(achievement, progress, existingProgress[achievement.id])
             }
 
             val allProgressUpdates = standardProgressUpdates + metaProgressUpdates
@@ -90,16 +99,33 @@ class AchievementCalculator(
                 }
             }
 
+            // Replay side effects for newly-unlocked achievements only.
+            // Achievements that were already unlocked (existing.isUnlocked) must not
+            // be replayed: that would double-count points/XP and re-unlock already-
+            // granted treasury rewards.
+            val newlyUnlocked = allProgressUpdates.filter { progress ->
+                val wasUnlocked = existingProgress[progress.achievementId]?.isUnlocked == true
+                progress.isUnlocked && !wasUnlocked
+            }
+            newlyUnlocked.forEach { progress ->
+                val achievement = achievementsById[progress.achievementId] ?: return@forEach
+                replayUnlockSideEffects(achievement)
+            }
+
             val totalPoints = allProgressUpdates
                 .filter { it.isUnlocked }
                 .sumOf { achievementsById[it.achievementId]?.points ?: 0 }
+            val newLevel = pointsManager.calculateLevel(totalPoints)
+            val xpSpentForCurrentLevel = (1..newLevel).sumOf { UserProfile.getXPForLevel(it) }
+            val currentXP = (totalPoints - xpSpentForCurrentLevel).coerceAtLeast(0)
+            val xpToNextLevel = UserProfile.getXPForLevel(newLevel + 1)
 
             achievementsDatabase.userProfileQueries.updateXP(
                 user_id = "default",
                 total_xp = totalPoints.toLong(),
-                current_xp = (totalPoints % 100).toLong(),
-                level = 1, // Will be calculated by PointsManager
-                xp_to_next_level = 100,
+                current_xp = currentXP.toLong(),
+                level = newLevel.toLong(),
+                xp_to_next_level = xpToNextLevel.toLong(),
                 last_updated = System.currentTimeMillis(),
             )
             achievementsDatabase.userProfileQueries.updateAchievementCounts(
@@ -131,21 +157,73 @@ class AchievementCalculator(
         }
     }
 
-    private fun buildProgress(achievement: Achievement, progress: Int): AchievementProgress {
+    private fun buildProgress(
+        achievement: Achievement,
+        progress: Int,
+        existing: AchievementProgress?,
+    ): AchievementProgress {
         val threshold = achievement.threshold ?: 1
         val isUnlocked = progress >= threshold
+        val now = System.currentTimeMillis()
+        // Merge semantics: preserve unlock state and timestamp for achievements
+        // that were already unlocked. The fresh evaluation must never silently
+        // re-lock or rewrite the unlock metadata of an already-unlocked row.
+        val preservedUnlock = existing?.takeIf { it.isUnlocked } != null
         return AchievementProgress(
             achievementId = achievement.id,
             progress = progress,
             maxProgress = threshold,
-            isUnlocked = isUnlocked,
-            unlockedAt = if (isUnlocked) System.currentTimeMillis() else null,
-            lastUpdated = System.currentTimeMillis(),
+            isUnlocked = isUnlocked || preservedUnlock,
+            unlockedAt = when {
+                existing?.unlockedAt != null -> existing.unlockedAt
+                isUnlocked -> now
+                else -> null
+            },
+            lastUpdated = now,
         )
     }
 
     private suspend fun populateActivityLog() {
-        logcat(LogPriority.INFO) { "Activity log population not yet implemented - streaks will build from first use" }
+        // Activity log is populated incrementally via recordAchievementUnlock()
+        // called in replayUnlockSideEffects for each newly-unlocked achievement.
+        // No additional bulk population is needed here.
+    }
+
+    private suspend fun replayUnlockSideEffects(achievement: Achievement) {
+        logcat(LogPriority.INFO) {
+            "Replaying unlock side effects for ${achievement.id} (+${achievement.points} points)"
+        }
+        try {
+            pointsManager.addPoints(achievement.points)
+            pointsManager.incrementUnlocked()
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) {
+                "Failed to add points for retroactively unlocked achievement: ${achievement.id}, ${e.message}"
+            }
+        }
+        try {
+            unlockableManager.unlockAchievementRewards(achievement)
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) {
+                "Failed to unlock treasury rewards for retroactively unlocked achievement: ${achievement.id}, ${e.message}"
+            }
+        }
+        if (achievement.hasRewards) {
+            try {
+                userProfileManager.grantRewards(achievement.getAllRewards())
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR) {
+                    "Failed to grant profile rewards for retroactively unlocked achievement: ${achievement.id}, ${e.message}"
+                }
+            }
+        }
+        try {
+            activityDataRepository.recordAchievementUnlock()
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) {
+                "Failed to log activity for retroactively unlocked achievement: ${achievement.id}, ${e.message}"
+            }
+        }
     }
 
     data class CalculationResult(

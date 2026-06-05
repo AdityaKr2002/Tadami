@@ -5,15 +5,19 @@ import app.cash.sqldelight.coroutines.mapToOneOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import tachiyomi.data.achievement.User_profile
 import tachiyomi.data.achievement.database.AchievementsDatabase
 import tachiyomi.domain.achievement.model.UserPoints
-import kotlin.math.sqrt
+import tachiyomi.domain.achievement.model.UserProfile
 
 class PointsManager(
     private val database: AchievementsDatabase,
 ) {
+
+    private val mutationMutex = Mutex()
 
     init {
         // Initialize stats on creation
@@ -41,30 +45,43 @@ class PointsManager(
 
     suspend fun addPoints(points: Int) {
         if (points > 0) {
-            withContext(Dispatchers.IO) {
-                val current = getCurrentPoints()
-                val newTotal = current.totalPoints + points
-                val newLevel = calculateLevel(newTotal)
+            mutationMutex.withLock {
+                withContext(Dispatchers.IO) {
+                    database.userProfileQueries.addXPAtomic(
+                        user_id = "default",
+                        xp_delta = points.toLong(),
+                        last_updated = System.currentTimeMillis(),
+                    )
+                    recalculateLevel()
+                }
+            }
+        }
+    }
 
-                database.userProfileQueries.updateXP(
+    suspend fun incrementUnlocked() {
+        mutationMutex.withLock {
+            withContext(Dispatchers.IO) {
+                database.userProfileQueries.incrementAchievementUnlocked(
                     user_id = "default",
-                    total_xp = newTotal.toLong(),
-                    current_xp = (newTotal % 100).toLong(), // Simple XP calculation
-                    level = newLevel.toLong(),
-                    xp_to_next_level = 100,
                     last_updated = System.currentTimeMillis(),
                 )
             }
         }
     }
 
-    suspend fun incrementUnlocked() {
-        withContext(Dispatchers.IO) {
-            val current = getCurrentPoints()
-            database.userProfileQueries.updateAchievementCounts(
+    private fun recalculateLevel() {
+        val profile = database.userProfileQueries.getDefaultProfile().executeAsOneOrNull() ?: return
+        val newLevel = calculateLevel(profile.total_xp.toInt())
+        if (profile.level.toInt() != newLevel) {
+            val xpSpentForCurrentLevel = (1..newLevel).sumOf { UserProfile.getXPForLevel(it) }
+            val currentXP = (profile.total_xp.toInt() - xpSpentForCurrentLevel).coerceAtLeast(0)
+            val xpToNextLevel = UserProfile.getXPForLevel(newLevel + 1)
+            database.userProfileQueries.updateXP(
                 user_id = "default",
-                unlocked = (current.achievementsUnlocked + 1).toLong(),
-                total = current.achievementsUnlocked.toLong() + 1,
+                total_xp = profile.total_xp,
+                current_xp = currentXP.toLong(),
+                level = newLevel.toLong(),
+                xp_to_next_level = xpToNextLevel.toLong(),
                 last_updated = System.currentTimeMillis(),
             )
         }
@@ -111,7 +128,6 @@ class PointsManager(
     }
 
     fun calculateLevel(points: Int): Int {
-        // Formula: level = sqrt(points / 100) + 1
-        return (sqrt(points.toDouble() / 100.0)).toInt() + 1
+        return UserProfile.getLevelFromXP(points)
     }
 }

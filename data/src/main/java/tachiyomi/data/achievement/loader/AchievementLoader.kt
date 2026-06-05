@@ -57,7 +57,8 @@ class AchievementLoader(
                 }
                 if (!localeChanged) {
                     // Check if achievements exist in database
-                    val existingCount = repository.getAll().first().size
+                    val existingAchievements = repository.getAll().first()
+                    val existingCount = existingAchievements.size
                     logcat(LogPriority.INFO) {
                         "[ACHIEVEMENTS] Existing achievements in database: $existingCount, JSON has: ${definitions.achievements.size}"
                     }
@@ -72,6 +73,13 @@ class AchievementLoader(
                         logcat(LogPriority.WARN) {
                             "[ACHIEVEMENTS] WARNING: Version says up to date but database is empty! Forcing reload..."
                         }
+                        saveVersion(0)
+                    } else if (shouldBackfillRewards(existingAchievements, definitions.achievements)) {
+                        logcat(LogPriority.WARN) {
+                            "[ACHIEVEMENTS] WARNING: Reward data is missing for some achievements! Forcing reward backfill..."
+                        }
+                        // Drop the saved version gate so we re-insert reward-bearing rows
+                        // without invalidating other persisted state like user progress.
                         saveVersion(0)
                     } else {
                         return Result.success(0)
@@ -190,7 +198,7 @@ class AchievementLoader(
             isSecret = isSecret,
             unlockableId = unlockableId,
             version = 1,
-            createdAt = System.currentTimeMillis(),
+            createdAt = 0L,
             rewards = rewards,
         )
     }
@@ -201,4 +209,27 @@ internal fun shouldRefreshAchievementTexts(
     currentLocaleTag: String,
 ): Boolean {
     return savedLocaleTag.orEmpty() != currentLocaleTag
+}
+
+/**
+ * Decide whether the loader must rewrite achievement rows from JSON even
+ * though the saved version number says it is up to date.
+ *
+ * Older installs persisted achievement rows with a NULL `rewards` column.
+ * If a JSON definition carries rewards for an achievement and the matching
+ * DB row does not, we have to backfill the rewards data without forcing the
+ * user through a destructive version bump.
+ */
+internal fun shouldBackfillRewards(
+    existing: List<Achievement>,
+    json: List<AchievementJson>,
+): Boolean {
+    if (json.isEmpty()) return false
+    val existingById = existing.associateBy { it.id }
+    return json.any { jsonEntry ->
+        val jsonRewards = jsonEntry.rewards
+        if (jsonRewards.isNullOrEmpty()) return@any false
+        val dbEntry = existingById[jsonEntry.id] ?: return@any true
+        dbEntry.rewards.isNullOrEmpty()
+    }
 }

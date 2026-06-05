@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupStats
 import eu.kanade.tachiyomi.data.backup.models.BackupUserProfile
 import kotlinx.coroutines.flow.firstOrNull
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.data.achievement.UnlockableManager
 import tachiyomi.data.achievement.UserProfileManager
 import tachiyomi.domain.achievement.repository.AchievementRepository
 import tachiyomi.domain.achievement.repository.ActivityDataRepository
@@ -17,6 +18,7 @@ class AchievementRestorer(
     private val activityDataRepository: ActivityDataRepository = Injekt.get(),
     private val userProfileRepository: tachiyomi.domain.achievement.repository.UserProfileRepository = Injekt.get(),
     private val userProfileManager: UserProfileManager = Injekt.get(),
+    private val unlockableManager: UnlockableManager = Injekt.get(),
 ) {
 
     /**
@@ -43,6 +45,7 @@ class AchievementRestorer(
             restoreUserProfile(backupUserProfile)
             restoreActivityLog(backupActivityLog)
             restoreStats(backupStats)
+            rehydrateUnlockables(backupAchievements)
             logcat { "[BACKUP] Achievement data restored successfully" }
         } catch (e: Exception) {
             logcat(throwable = e) { "[BACKUP] Error restoring achievement data" }
@@ -226,6 +229,39 @@ class AchievementRestorer(
             }
         } catch (e: Exception) {
             logcat(throwable = e) { "[BACKUP] Error logging stats" }
+        }
+    }
+
+    /**
+     * Re-hydrate the treasury (unlockable SharedPreferences) from the
+     * achievement definitions. This is the durable fix for the
+     * `achievement_unlockables` prefs not being part of the backup: after a
+     * restore we replay the unlockables for every achievement that the user
+     * had unlocked, using the canonical reward ids in [Achievement.rewards].
+     * The canonical definitions in the DB are the source of truth; prefs are
+     * just a derived cache.
+     */
+    private suspend fun rehydrateUnlockables(backupAchievements: List<BackupAchievement>) {
+        if (backupAchievements.isEmpty()) return
+
+        val rehydrated = mutableListOf<String>()
+        backupAchievements.forEach { backupAchievement ->
+            val progress = backupAchievement.toAchievementProgress()
+            if (!progress.isUnlocked) return@forEach
+            try {
+                val achievement = backupAchievement.toAchievement()
+                unlockableManager.unlockAchievementRewards(achievement)
+                rehydrated += achievement.id
+            } catch (e: Exception) {
+                logcat(throwable = e) {
+                    "[BACKUP] Error rehydrating unlockables for ${backupAchievement.id}"
+                }
+            }
+        }
+        if (rehydrated.isNotEmpty()) {
+            logcat {
+                "[BACKUP] Rehydrated treasury for ${rehydrated.size} achievement(s): $rehydrated"
+            }
         }
     }
 }

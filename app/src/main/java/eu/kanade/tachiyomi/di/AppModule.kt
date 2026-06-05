@@ -705,6 +705,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory {
             tachiyomi.data.achievement.UnlockableManager(
                 app.getSharedPreferences("achievement_unlockables", Context.MODE_PRIVATE),
+                get(),
             )
         }
 

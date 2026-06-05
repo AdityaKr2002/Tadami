@@ -1,5 +1,7 @@
 package tachiyomi.data.achievement.rules
 
+import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.source.model.SManga
 import tachiyomi.domain.achievement.model.AchievementCategory
 import tachiyomi.domain.achievement.model.AchievementEvent
 import tachiyomi.domain.achievement.rule.AchievementRule
@@ -137,11 +139,33 @@ class CrybabyRule(
     }
 
     override suspend fun evaluateFull(context: RuleContext): Int {
-        // Evaluated during full calculation if they have ever completed one.
-        // Wait, to keep evaluateFull side-effect free and efficient, we can check if they have completed count.
-        // If they have completed it, they would have unlocked it. But if we need to do full calculation,
-        // the old calculator checked counts from db.
-        // For simplicity and correctness:
+        val completedManga = mangaRepository.getLibraryManga()
+            .filter { it.manga.status == SManga.COMPLETED.toLong() }
+        if (completedManga.any {
+                it.manga.genre?.any { g -> g.equals("Tragedy", true) || g.equals("Drama", true) } ==
+                    true
+            }
+        ) {
+            return 1
+        }
+        val completedAnime = animeRepository.getLibraryAnime()
+            .filter { it.anime.status == SAnime.COMPLETED.toLong() }
+        if (completedAnime.any {
+                it.anime.genre?.any { g -> g.equals("Tragedy", true) || g.equals("Drama", true) } ==
+                    true
+            }
+        ) {
+            return 1
+        }
+        val completedNovel = novelRepository.getLibraryNovel()
+            .filter { it.novel.status == SManga.COMPLETED.toLong() }
+        if (completedNovel.any {
+                it.novel.genre?.any { g -> g.equals("Tragedy", true) || g.equals("Drama", true) } ==
+                    true
+            }
+        ) {
+            return 1
+        }
         return 0
     }
 }
@@ -202,6 +226,21 @@ class DekuRule(
     }
 
     override suspend fun evaluateFull(context: RuleContext): Int {
+        val completedAnime = animeRepository.getLibraryAnime()
+            .filter { it.anime.status == SAnime.COMPLETED.toLong() }
+        if (completedAnime.any { it.anime.genre?.any { g -> g.equals("Super Power", true) } == true }) {
+            return 1
+        }
+        val completedManga = mangaRepository.getLibraryManga()
+            .filter { it.manga.status == SManga.COMPLETED.toLong() }
+        if (completedManga.any { it.manga.genre?.any { g -> g.equals("Super Power", true) } == true }) {
+            return 1
+        }
+        val completedNovel = novelRepository.getLibraryNovel()
+            .filter { it.novel.status == SManga.COMPLETED.toLong() }
+        if (completedNovel.any { it.novel.genre?.any { g -> g.equals("Super Power", true) } == true }) {
+            return 1
+        }
         return 0
     }
 }
@@ -237,6 +276,21 @@ class ErenRule(
     }
 
     override suspend fun evaluateFull(context: RuleContext): Int {
+        val completedNovel = novelRepository.getLibraryNovel()
+            .filter { it.novel.status == SManga.COMPLETED.toLong() }
+        if (completedNovel.any { it.novel.genre?.any { g -> g.equals("Military", true) } == true }) {
+            return 1
+        }
+        val completedManga = mangaRepository.getLibraryManga()
+            .filter { it.manga.status == SManga.COMPLETED.toLong() }
+        if (completedManga.any { it.manga.genre?.any { g -> g.equals("Military", true) } == true }) {
+            return 1
+        }
+        val completedAnime = animeRepository.getLibraryAnime()
+            .filter { it.anime.status == SAnime.COMPLETED.toLong() }
+        if (completedAnime.any { it.anime.genre?.any { g -> g.equals("Military", true) } == true }) {
+            return 1
+        }
         return 0
     }
 }
@@ -272,6 +326,21 @@ class LelouchRule(
     }
 
     override suspend fun evaluateFull(context: RuleContext): Int {
+        val completedManga = mangaRepository.getLibraryManga()
+            .filter { it.manga.status == SManga.COMPLETED.toLong() }
+        if (completedManga.any { it.manga.genre?.any { g -> g.equals("Psychological", true) } == true }) {
+            return 1
+        }
+        val completedAnime = animeRepository.getLibraryAnime()
+            .filter { it.anime.status == SAnime.COMPLETED.toLong() }
+        if (completedAnime.any { it.anime.genre?.any { g -> g.equals("Psychological", true) } == true }) {
+            return 1
+        }
+        val completedNovel = novelRepository.getLibraryNovel()
+            .filter { it.novel.status == SManga.COMPLETED.toLong() }
+        if (completedNovel.any { it.novel.genre?.any { g -> g.equals("Psychological", true) } == true }) {
+            return 1
+        }
         return 0
     }
 }

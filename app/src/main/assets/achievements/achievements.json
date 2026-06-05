@@ -539,6 +539,12 @@
                     "id": "aura_level_up",
                     "title": "Master Achiever Aura",
                     "description": "Золотое сияние превосходства"
+                },
+                {
+                    "type": "SPECIAL",
+                    "id": "profile_nickname_effect_aurora_crown",
+                    "title": "Aurora Crown Nickname Effect",
+                    "description": "Radial aurora corona around the Home Hub nickname"
                 }
             ]
         },
@@ -564,7 +570,15 @@
             "description": "Разблокируйте 50 достижений",
             "badge_icon": "ic_badge_collector_achievements",
             "is_hidden": false,
-            "is_secret": false
+            "is_secret": false,
+            "rewards": [
+                {
+                    "type": "SPECIAL",
+                    "id": "home_badge_shuriken",
+                    "title": "Shuriken Home Badge",
+                    "description": "Shuriken glyph wrapping the Home Hub nickname"
+                }
+            ]
         },
         {
             "id": "achievement_completionist",
@@ -819,6 +833,12 @@
                     "id": "theme_SAKURA_NOIR",
                     "title": "Sakura Noir",
                     "description": "Exclusive moody sakura theme with a cinematic noir palette"
+                },
+                {
+                    "type": "SPECIAL",
+                    "id": "home_badge_crown",
+                    "title": "Crown Home Badge",
+                    "description": "Crown glyph wrapping the Home Hub nickname"
                 }
             ]
         },
@@ -995,6 +1015,12 @@
                     "id": "theme_ONYX_GOLD",
                     "title": "Обсидиановое золото",
                     "description": "Эксклюзивная тема с роскошным тёмным золотым оттенком"
+                },
+                {
+                    "type": "SPECIAL",
+                    "id": "avatar_frame_prismatic",
+                    "title": "Prismatic Avatar Frame",
+                    "description": "Prismatic holographic frame around the profile avatar"
                 }
             ]
         },
