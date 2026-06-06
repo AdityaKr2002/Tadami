@@ -71,8 +71,9 @@ fun AuroraSuggestionsRow(
     val scrimBrush = if (!colors.isDark) {
         Brush.verticalGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.08f),
-                Color.White.copy(alpha = 0.03f),
+                Color.Transparent,
+                Color.White.copy(alpha = 0.06f),
+                Color.White.copy(alpha = 0.02f),
                 Color.Transparent,
             ),
         )
