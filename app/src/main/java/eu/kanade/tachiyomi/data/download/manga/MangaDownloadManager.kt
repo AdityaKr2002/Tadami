@@ -91,11 +91,10 @@ class MangaDownloadManager(
     fun startDownloads() {
         if (downloader.isRunning) return
 
-        if (MangaDownloadJob.isRunning(context)) {
-            downloader.start()
-        } else {
+        if (!MangaDownloadJob.isRunning(context)) {
             MangaDownloadJob.start(context)
         }
+        downloader.start()
     }
 
     /**

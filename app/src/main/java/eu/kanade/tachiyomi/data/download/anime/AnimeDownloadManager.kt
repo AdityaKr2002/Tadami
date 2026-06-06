@@ -89,11 +89,10 @@ class AnimeDownloadManager(
     fun startDownloads() {
         if (downloader.isRunning) return
 
-        if (AnimeDownloadJob.isRunning(context)) {
-            downloader.start()
-        } else {
+        if (!AnimeDownloadJob.isRunning(context)) {
             AnimeDownloadJob.start(context)
         }
+        downloader.start()
     }
 
     /**
