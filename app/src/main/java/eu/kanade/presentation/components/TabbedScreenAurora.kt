@@ -621,7 +621,7 @@ internal fun AuroraTabRow(
                 if (isLightTheme) {
                     Modifier
                         .shadow(
-                            elevation = 16.dp,
+                            elevation = 6.dp,
                             shape = tabShape,
                         )
                         .background(
