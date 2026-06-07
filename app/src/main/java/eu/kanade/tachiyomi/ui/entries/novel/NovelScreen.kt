@@ -86,6 +86,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.domain.entries.novel.interactor.UpdateNovel
+import eu.kanade.domain.entries.novel.model.hasCustomCover
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
 import eu.kanade.presentation.components.NavigatorAdaptiveSheet
 import eu.kanade.presentation.entries.EditCoverAction
@@ -123,7 +124,6 @@ import kotlinx.coroutines.launch
 import logcat.logcat
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import tachiyomi.core.common.util.lang.launchIO
-import eu.kanade.domain.entries.novel.model.hasCustomCover
 import tachiyomi.domain.entries.novel.model.NovelUpdate
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
@@ -842,12 +842,12 @@ class NovelScreen(
                         if (it == null) return@rememberLauncherForActivityResult
                         sm.editCover(context, it)
                     }
-                        NovelCoverDialog(
-                            novel = coverNovel,
-                            snackbarHostState = sm.snackbarHostState,
-                            isCustomCover = remember(coverNovel) {
-                                coverNovel.hasCustomCover(sm.coverCache)
-                            },
+                    NovelCoverDialog(
+                        novel = coverNovel,
+                        snackbarHostState = sm.snackbarHostState,
+                        isCustomCover = remember(coverNovel) {
+                            coverNovel.hasCustomCover(sm.coverCache)
+                        },
                         onShareClick = { sm.shareCover(context) },
                         onSaveClick = { sm.saveCover(context) },
                         onEditClick = {

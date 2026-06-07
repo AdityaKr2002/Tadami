@@ -60,6 +60,7 @@ class NovelCoverFetcherTest {
                 options = options,
                 sourceSiteUrlLazy = lazy { null },
                 coverFileLazy = lazy { null },
+                customCoverFileLazy = lazy { tempDir.resolve("custom_cover_plugin.jpg").toFile() },
                 diskCacheKeyLazy = lazy { "novel-plugin-image-test" },
                 pluginHeadersProvider = { emptyMap() },
                 callFactoryLazy = lazy {
@@ -119,6 +120,7 @@ class NovelCoverFetcherTest {
                 options = options,
                 sourceSiteUrlLazy = lazy { "https://example.org" },
                 coverFileLazy = lazy { coverCache.getCoverFile(data.url) },
+                customCoverFileLazy = lazy { tempDir.resolve("custom_cover_library.jpg").toFile() },
                 diskCacheKeyLazy = lazy { "novel-cover-test" },
                 pluginHeadersProvider = { emptyMap() },
                 callFactoryLazy = lazy {

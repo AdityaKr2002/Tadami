@@ -555,7 +555,12 @@ private fun AuroraRewardSection(
         val unlockableId = achievement.unlockableId
         if (unlockableId != null) {
             val isUnlockableUnlocked = unlockableManager.isUnlockableUnlocked(unlockableId)
-            val unlockableName = unlockableManager.getUnlockableName(unlockableId)
+            val unlockableNameRes = unlockableManager.getUnlockableNameRes(unlockableId)
+            val unlockableName = if (unlockableNameRes != null) {
+                stringResource(unlockableNameRes)
+            } else {
+                unlockableManager.getUnlockableName(unlockableId)
+            }
 
             AuroraRewardItem(
                 icon = {

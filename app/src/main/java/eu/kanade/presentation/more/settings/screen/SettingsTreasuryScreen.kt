@@ -120,7 +120,11 @@ object SettingsTreasuryScreen : SearchableSettings {
         val profileEffectPresets = listOf(
             TreasuryPreset(
                 unlockableId = "profile_nickname_effect_aurora_crown",
-                title = unlockableManager.getUnlockableName("profile_nickname_effect_aurora_crown"),
+                title =
+                unlockableManager.getUnlockableNameRes("profile_nickname_effect_aurora_crown")?.let {
+                    stringResource(it)
+                }
+                    ?: unlockableManager.getUnlockableName("profile_nickname_effect_aurora_crown"),
                 description = stringResource(AYMR.strings.treasury_reward_aurora_crown_description),
                 accentColor = Color(0xFFFFD54F),
                 isActive = { nicknameEffectKey == "aurora_crown" },
@@ -133,7 +137,11 @@ object SettingsTreasuryScreen : SearchableSettings {
             ),
             TreasuryPreset(
                 unlockableId = "profile_nickname_effect_glitch_rune",
-                title = unlockableManager.getUnlockableName("profile_nickname_effect_glitch_rune"),
+                title =
+                unlockableManager.getUnlockableNameRes("profile_nickname_effect_glitch_rune")?.let {
+                    stringResource(it)
+                }
+                    ?: unlockableManager.getUnlockableName("profile_nickname_effect_glitch_rune"),
                 description = stringResource(AYMR.strings.treasury_reward_glitch_rune_description),
                 accentColor = Color(0xFF40C4FF),
                 isActive = { nicknameEffectKey == "glitch_rune" },
@@ -146,7 +154,9 @@ object SettingsTreasuryScreen : SearchableSettings {
             ),
             TreasuryPreset(
                 unlockableId = "profile_nickname_effect_cipher",
-                title = unlockableManager.getUnlockableName("profile_nickname_effect_cipher"),
+                title =
+                unlockableManager.getUnlockableNameRes("profile_nickname_effect_cipher")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("profile_nickname_effect_cipher"),
                 description = stringResource(AYMR.strings.treasury_reward_cipher_description),
                 accentColor = Color(0xFF69F0AE),
                 isActive = { nicknameEffectKey == "cipher" },
@@ -162,7 +172,8 @@ object SettingsTreasuryScreen : SearchableSettings {
         val avatarFramePresets = listOf(
             TreasuryPreset(
                 unlockableId = "avatar_frame_neon",
-                title = unlockableManager.getUnlockableName("avatar_frame_neon"),
+                title = unlockableManager.getUnlockableNameRes("avatar_frame_neon")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("avatar_frame_neon"),
                 description = stringResource(AYMR.strings.treasury_reward_neon_frame_description),
                 accentColor = Color(0xFF00E5FF),
                 isActive = { avatarFrameStyleKey == "neon" },
@@ -175,7 +186,8 @@ object SettingsTreasuryScreen : SearchableSettings {
             ),
             TreasuryPreset(
                 unlockableId = "avatar_frame_hologram",
-                title = unlockableManager.getUnlockableName("avatar_frame_hologram"),
+                title = unlockableManager.getUnlockableNameRes("avatar_frame_hologram")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("avatar_frame_hologram"),
                 description = stringResource(AYMR.strings.treasury_reward_hologram_frame_description),
                 accentColor = Color(0xFFB388FF),
                 isActive = { avatarFrameStyleKey == "hologram" },
@@ -188,7 +200,8 @@ object SettingsTreasuryScreen : SearchableSettings {
             ),
             TreasuryPreset(
                 unlockableId = "avatar_frame_prismatic",
-                title = unlockableManager.getUnlockableName("avatar_frame_prismatic"),
+                title = unlockableManager.getUnlockableNameRes("avatar_frame_prismatic")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("avatar_frame_prismatic"),
                 description = stringResource(AYMR.strings.treasury_reward_prismatic_frame_description),
                 accentColor = Color(0xFFFF8A65),
                 isActive = { avatarFrameStyleKey == "prismatic" },
@@ -204,7 +217,8 @@ object SettingsTreasuryScreen : SearchableSettings {
         val homePresets = listOf(
             TreasuryPreset(
                 unlockableId = "home_badge_orbit",
-                title = unlockableManager.getUnlockableName("home_badge_orbit"),
+                title = unlockableManager.getUnlockableNameRes("home_badge_orbit")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("home_badge_orbit"),
                 description = stringResource(AYMR.strings.treasury_reward_orbit_badge_description),
                 accentColor = Color(0xFF64B5F6),
                 isActive = { homeBadgeStyleKey == "orbit" },
@@ -217,7 +231,8 @@ object SettingsTreasuryScreen : SearchableSettings {
             ),
             TreasuryPreset(
                 unlockableId = "home_badge_crown",
-                title = unlockableManager.getUnlockableName("home_badge_crown"),
+                title = unlockableManager.getUnlockableNameRes("home_badge_crown")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("home_badge_crown"),
                 description = stringResource(AYMR.strings.treasury_reward_crown_badge_description),
                 accentColor = Color(0xFFFFC107),
                 isActive = { homeBadgeStyleKey == "crown" },
@@ -230,7 +245,8 @@ object SettingsTreasuryScreen : SearchableSettings {
             ),
             TreasuryPreset(
                 unlockableId = "home_badge_shuriken",
-                title = unlockableManager.getUnlockableName("home_badge_shuriken"),
+                title = unlockableManager.getUnlockableNameRes("home_badge_shuriken")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("home_badge_shuriken"),
                 description = stringResource(AYMR.strings.treasury_reward_shuriken_badge_description),
                 accentColor = Color(0xFFEF5350),
                 isActive = { homeBadgeStyleKey == "shuriken" },
@@ -246,7 +262,9 @@ object SettingsTreasuryScreen : SearchableSettings {
         val specialBackgroundPresets = listOf(
             TreasuryPreset(
                 unlockableId = "special_background_petal_storm",
-                title = unlockableManager.getUnlockableName("special_background_petal_storm"),
+                title =
+                unlockableManager.getUnlockableNameRes("special_background_petal_storm")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("special_background_petal_storm"),
                 description = stringResource(AYMR.strings.treasury_reward_petal_storm_background_description),
                 accentColor = Color(0xFFFF8FB1),
                 isActive = { specialBackgroundStyleKey == "petal_storm" },
@@ -259,7 +277,9 @@ object SettingsTreasuryScreen : SearchableSettings {
             ),
             TreasuryPreset(
                 unlockableId = "special_background_neon_orbit",
-                title = unlockableManager.getUnlockableName("special_background_neon_orbit"),
+                title =
+                unlockableManager.getUnlockableNameRes("special_background_neon_orbit")?.let { stringResource(it) }
+                    ?: unlockableManager.getUnlockableName("special_background_neon_orbit"),
                 description = stringResource(AYMR.strings.treasury_reward_neon_orbit_background_description),
                 accentColor = Color(0xFF6EF6FF),
                 isActive = { specialBackgroundStyleKey == "neon_orbit" },
@@ -746,7 +766,8 @@ private fun TreasuryAuraSelector(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = unlockableManager.getUnlockableName(aura.id),
+                            text = unlockableManager.getUnlockableNameRes(aura.id)?.let { stringResource(it) }
+                                ?: unlockableManager.getUnlockableName(aura.id),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = settingsTitleColor(),

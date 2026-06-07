@@ -31,7 +31,7 @@ class NovelCoverCache private constructor(
     }
 
     fun getCustomCoverFile(novelId: Long?): File {
-        return File(File(cacheDir, CUSTOM_COVERS_DIR), "${novelId}.jpg")
+        return File(File(cacheDir, CUSTOM_COVERS_DIR), "$novelId.jpg")
     }
 
     fun setCustomCoverToCache(novel: Novel, inputStream: InputStream) {

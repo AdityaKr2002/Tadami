@@ -269,12 +269,20 @@ class BrowseAnimeSourceScreenModel(
     fun setFilters(filters: AnimeFilterList) {
         if (source !is AnimeCatalogueSource) return
 
+        val changed = try {
+            SavedSearchFilterSerializer.serialize(filters) != SavedSearchFilterSerializer.serialize(state.value.filters)
+        } catch (e: Exception) {
+            true
+        }
+
         mutableState.update {
             it.copy(
                 filters = filters,
             )
         }
-        achievementHandler.trackFeatureUsed(AchievementEvent.Feature.FILTER)
+        if (changed) {
+            achievementHandler.trackFeatureUsed(AchievementEvent.Feature.FILTER)
+        }
     }
 
     fun search(query: String? = null, filters: AnimeFilterList? = null) {
@@ -282,6 +290,22 @@ class BrowseAnimeSourceScreenModel(
 
         val input = state.value.listing as? Listing.Search
             ?: Listing.Search(query = null, filters = source.getFilterList())
+
+        val q = query ?: input.query
+        if (!q.isNullOrBlank()) {
+            val f = filters ?: input.filters
+            val hasActiveFilters = try {
+                SavedSearchFilterSerializer.serialize(f) !=
+                    SavedSearchFilterSerializer.serialize(source.getFilterList())
+            } catch (e: Exception) {
+                f.isNotEmpty()
+            }
+            if (hasActiveFilters) {
+                achievementHandler.trackFeatureUsed(AchievementEvent.Feature.ADVANCED_SEARCH)
+            } else {
+                achievementHandler.trackFeatureUsed(AchievementEvent.Feature.SEARCH)
+            }
+        }
 
         mutableState.update {
             it.copy(

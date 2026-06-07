@@ -273,12 +273,21 @@ class BrowseMangaSourceScreenModel(
     fun setFilters(filters: FilterList) {
         if (source !is CatalogueSource) return
 
+        val changed = try {
+            kotlinx.serialization.json.Json.encodeToString(filterSerializer.serialize(filters)) !=
+                kotlinx.serialization.json.Json.encodeToString(filterSerializer.serialize(state.value.filters))
+        } catch (e: Exception) {
+            true
+        }
+
         mutableState.update {
             it.copy(
                 filters = filters,
             )
         }
-        achievementHandler.trackFeatureUsed(AchievementEvent.Feature.FILTER)
+        if (changed) {
+            achievementHandler.trackFeatureUsed(AchievementEvent.Feature.FILTER)
+        }
     }
 
     fun search(query: String? = null, filters: FilterList? = null) {
@@ -286,6 +295,22 @@ class BrowseMangaSourceScreenModel(
 
         val input = state.value.listing as? Listing.Search
             ?: Listing.Search(query = null, filters = source.getFilterList())
+
+        val q = query ?: input.query
+        if (!q.isNullOrBlank()) {
+            val f = filters ?: input.filters
+            val hasActiveFilters = try {
+                kotlinx.serialization.json.Json.encodeToString(filterSerializer.serialize(f)) !=
+                    kotlinx.serialization.json.Json.encodeToString(filterSerializer.serialize(source.getFilterList()))
+            } catch (e: Exception) {
+                f.isNotEmpty()
+            }
+            if (hasActiveFilters) {
+                achievementHandler.trackFeatureUsed(AchievementEvent.Feature.ADVANCED_SEARCH)
+            } else {
+                achievementHandler.trackFeatureUsed(AchievementEvent.Feature.SEARCH)
+            }
+        }
 
         mutableState.update {
             it.copy(
