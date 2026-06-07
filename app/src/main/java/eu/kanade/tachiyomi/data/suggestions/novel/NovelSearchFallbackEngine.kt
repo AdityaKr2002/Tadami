@@ -35,12 +35,13 @@ class NovelSearchFallbackEngine {
         maxResults: Int = 40,
         onProgress: ((List<SuggestionItem>) -> Unit)? = null,
     ): NovelFallbackOutcome {
+        val boundedMaxResults = maxResults.coerceIn(1, 100)
         if (maxResults <= 0) {
             return NovelFallbackOutcome.Empty(NovelFallbackReason.SEARCH_EMPTY)
         }
 
         val cacheKey = SuggestionCache.makeKey(
-            "search:${source.id}:limit:$maxResults",
+            "search:${source.id}:limit:$boundedMaxResults",
             novel.url,
             "NOVEL",
             seed.candidateTitles,
@@ -183,9 +184,9 @@ class NovelSearchFallbackEngine {
         }
 
         for ((tierName, tierQueries) in queryTiers) {
-            if (synchronized(uniqueResults) { uniqueResults.size >= maxResults }) {
+            if (synchronized(uniqueResults) { uniqueResults.size >= boundedMaxResults }) {
                 logcat {
-                    "[NovelSearchFallbackEngine] Reached target results limit ($maxResults) before processing all tiers. Stopping early."
+                    "[NovelSearchFallbackEngine] Reached target results limit ($boundedMaxResults) before processing all tiers. Stopping early."
                 }
                 break
             }
@@ -201,7 +202,7 @@ class NovelSearchFallbackEngine {
                 tierQueries.forEachIndexed { index, query ->
                     launch {
                         delay(staggerMs * index)
-                        if (synchronized(uniqueResults) { uniqueResults.size >= maxResults }) return@launch
+                        if (synchronized(uniqueResults) { uniqueResults.size >= boundedMaxResults }) return@launch
                         try {
                             logcat { "[NovelSearchFallbackEngine] Searching for query: '$query'" }
                             val page = source.getSearchNovels(1, query, filterList)
@@ -284,7 +285,7 @@ class NovelSearchFallbackEngine {
                                 if (isAuthorQuery && authorAdded >= maxAuthor) return@launch
                                 scoredItems.sortedByDescending { it.second }.forEach { (item, _) ->
                                     if (!uniqueResults.containsKey(item.providerUrl) &&
-                                        uniqueResults.size < maxResults
+                                        uniqueResults.size < boundedMaxResults
                                     ) {
                                         if ((isGenreQuery && genreAdded >= maxGenre) ||
                                             (isAuthorQuery && authorAdded >= maxAuthor)
@@ -306,6 +307,8 @@ class NovelSearchFallbackEngine {
                             if (currentProgress != null) {
                                 onProgress?.invoke(currentProgress)
                             }
+                        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             logcat { "[NovelSearchFallbackEngine] Search failed for query '$query': ${e.message}" }
                         }
@@ -315,24 +318,24 @@ class NovelSearchFallbackEngine {
         }
 
         if (fallbackPolicy.genreFillEnabled &&
-            synchronized(uniqueResults) { uniqueResults.size < maxResults } &&
+            synchronized(uniqueResults) { uniqueResults.size < boundedMaxResults } &&
             genreParts.isNotEmpty()
         ) {
             backfillFromGenreQueries(
                 source = source,
                 novel = novel,
                 selectedGenres = genreParts,
-                maxResults = maxResults,
+                maxResults = boundedMaxResults,
                 uniqueResults = uniqueResults,
                 onProgress = onProgress,
             )
         }
 
-        if (synchronized(uniqueResults) { uniqueResults.size < maxResults }) {
+        if (synchronized(uniqueResults) { uniqueResults.size < boundedMaxResults }) {
             backfillFromPopularNovels(
                 source = source,
                 novel = novel,
-                maxResults = maxResults,
+                maxResults = boundedMaxResults,
                 uniqueResults = uniqueResults,
                 popularBackfillCap = fallbackPolicy.popularBackfillCap,
                 onProgress = onProgress,
@@ -343,7 +346,7 @@ class NovelSearchFallbackEngine {
         // search-fallback output (some plugins return the same novel under
         // a slightly different title or URL).
         val items = uniqueResults.values.toList()
-            .dedupeByCleanTitle()
+            .dedupeByCleanTitle(seed)
             .sortedByDescending { SuggestionSourceWeight.finalScore(it.reason, it.bestMatchScoreFor(seed)) }
         if (items.isEmpty()) {
             logcat {

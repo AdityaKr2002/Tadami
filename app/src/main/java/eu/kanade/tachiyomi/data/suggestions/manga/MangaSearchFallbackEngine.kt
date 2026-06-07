@@ -22,6 +22,7 @@ class MangaSearchFallbackEngine {
         maxResults: Int = 40,
         onProgress: ((List<SuggestionItem>) -> Unit)? = null,
     ): MangaFallbackOutcome {
+        val boundedMaxResults = maxResults.coerceIn(1, 100)
         val cacheKey = SuggestionCache.makeKey("search:${source.id}", manga.url, "MANGA", seed.candidateTitles)
         val cached = SuggestionCache.get(cacheKey)
         if (cached != null) {
@@ -157,9 +158,9 @@ class MangaSearchFallbackEngine {
         }
 
         for ((tierName, tierQueries) in queryTiers) {
-            if (synchronized(uniqueResults) { uniqueResults.size >= maxResults }) {
+            if (synchronized(uniqueResults) { uniqueResults.size >= boundedMaxResults }) {
                 logcat {
-                    "[MangaSearchFallbackEngine] Reached target results limit ($maxResults) before processing all tiers. Stopping early."
+                    "[MangaSearchFallbackEngine] Reached target results limit ($boundedMaxResults) before processing all tiers. Stopping early."
                 }
                 break
             }
@@ -175,7 +176,7 @@ class MangaSearchFallbackEngine {
                 tierQueries.forEachIndexed { index, query ->
                     launch {
                         delay(staggerMs * index)
-                        if (synchronized(uniqueResults) { uniqueResults.size >= maxResults }) return@launch
+                        if (synchronized(uniqueResults) { uniqueResults.size >= boundedMaxResults }) return@launch
                         try {
                             logcat { "[MangaSearchFallbackEngine] Searching for query: '$query'" }
                             val page = source.getSearchManga(1, query, filterList)
@@ -258,7 +259,7 @@ class MangaSearchFallbackEngine {
                                 if (isAuthorQuery && authorAdded >= maxAuthor) return@launch
                                 scoredItems.sortedByDescending { it.second }.forEach { (item, _) ->
                                     if (!uniqueResults.containsKey(item.providerUrl) &&
-                                        uniqueResults.size < maxResults
+                                        uniqueResults.size < boundedMaxResults
                                     ) {
                                         if ((isGenreQuery && genreAdded >= maxGenre) ||
                                             (isAuthorQuery && authorAdded >= maxAuthor)
@@ -280,6 +281,8 @@ class MangaSearchFallbackEngine {
                             if (currentProgress != null) {
                                 onProgress?.invoke(currentProgress)
                             }
+                        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             logcat { "[MangaSearchFallbackEngine] Search failed for query '$query': ${e.message}" }
                         }

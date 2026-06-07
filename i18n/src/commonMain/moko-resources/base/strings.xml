@@ -1314,6 +1314,10 @@
     <string name="status_unknown">Unknown</string>
     <string name="metadata_saved_successfully">Metadata saved successfully</string>
     <string name="suggestions_similar_titles">Similar Titles</string>
+    <string name="suggestions_group_top_picks">Top picks</string>
+    <string name="suggestions_group_recommendation_databases">Recommendation databases</string>
+    <string name="suggestions_group_from_this_source">From this source</string>
+    <string name="suggestions_group_more_discoveries">More discoveries</string>
     <string name="action_open_suggestions">Open suggestions</string>
     <string name="pref_entry_suggestions">Suggestions</string>
     <string name="pref_entry_suggestions_summary">Show similar or recommended titles based on what you\'re reading or watching. Powered by AniList, MyAnimeList and MangaUpdates.</string>

@@ -71,6 +71,8 @@ class NovelRelatedSuggestionCoordinator {
                 SuggestionCache.put(cacheKey, items)
                 NovelFallbackOutcome.Success(items)
             }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             logcat { "[NovelRelatedSuggestionCoordinator] Failed to fetch related novels: ${e.message}" }
             NovelFallbackOutcome.Empty(NovelFallbackReason.RELATED_EMPTY)

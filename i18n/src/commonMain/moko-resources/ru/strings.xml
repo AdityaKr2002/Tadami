@@ -1181,6 +1181,10 @@
     <string name="status_unknown">Неизвестно</string>
     <string name="metadata_saved_successfully">Метаданные успешно сохранены</string>
     <string name="suggestions_similar_titles">Похожие произведения</string>
+    <string name="suggestions_group_top_picks">Лучшие варианты</string>
+    <string name="suggestions_group_recommendation_databases">Базы рекомендаций</string>
+    <string name="suggestions_group_from_this_source">Из этого источника</string>
+    <string name="suggestions_group_more_discoveries">Ещё рекомендации</string>
     <string name="action_open_suggestions">Открыть рекомендации</string>
     <string name="pref_entry_suggestions">Рекомендации</string>
     <string name="pref_entry_suggestions_summary">Показывать похожие или рекомендованные тайтлы на экране информации</string>

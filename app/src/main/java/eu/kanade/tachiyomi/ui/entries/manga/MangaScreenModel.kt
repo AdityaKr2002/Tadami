@@ -235,9 +235,10 @@ class MangaScreenModel(
 
     fun retrySuggestions() {
         val success = successState ?: return
-        eu.kanade.tachiyomi.data.suggestions.SuggestionCache.invalidateAll()
+        val seed = buildSuggestionSeed(success.manga, success.mangaMetadata)
+        eu.kanade.tachiyomi.data.suggestions.SuggestionCache.invalidateForSeed(seed, success.manga.url)
         loadSuggestions(
-            buildSuggestionSeed(success.manga, success.mangaMetadata),
+            seed,
             manga = success.manga,
             source = success.manga.toCatalogueSource(),
             force = true,
@@ -247,10 +248,9 @@ class MangaScreenModel(
     private fun emitProgressiveSuggestions(list: List<SuggestionItem>, currentManga: Manga?) {
         val seed = suggestionSeedUsed ?: return
         val sorted = synchronized(list) {
-            list.dedupeByCleanTitle()
+            list.dedupeByCleanTitle(seed)
                 .filter { item ->
-                    val isSelf = (currentManga != null && item.providerUrl == currentManga.url) ||
-                        (item.providerId?.endsWith(":${currentManga?.url}") == true)
+                    val isSelf = SuggestionTitleResolver.isSameProviderEntry(item, currentManga?.url)
                     val isFranchise = SuggestionTitleResolver.isFranchiseDuplicate(item.title, seed.primaryTitle)
                     !isSelf && !isFranchise
                 }
@@ -299,8 +299,7 @@ class MangaScreenModel(
                             val externalResult = suggestionCoordinator.fetchSuggestions(seed, limit = 40)
                             if (externalResult.items.isNotEmpty()) {
                                 val externalFiltered = externalResult.items.filter { item ->
-                                    val isSelf = (currentManga != null && item.providerUrl == currentManga.url) ||
-                                        (item.providerId?.endsWith(":${currentManga?.url}") == true)
+                                    val isSelf = SuggestionTitleResolver.isSameProviderEntry(item, currentManga?.url)
                                     val isFranchise = eu.kanade.tachiyomi.data.suggestions
                                         .SuggestionTitleResolver.isFranchiseDuplicate(
                                             item.title,
@@ -315,6 +314,8 @@ class MangaScreenModel(
                                     emitProgressiveSuggestions(suggestionsList, currentManga)
                                 }
                             }
+                        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             logcat { "[MangaScreenModel] External suggestions failed: ${e.message}" }
                         }
@@ -346,6 +347,8 @@ class MangaScreenModel(
                                     }
                                     emitProgressiveSuggestions(suggestionsList, currentManga)
                                 }
+                            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 logcat { "[MangaScreenModel] Native search fallback failed: ${e.message}" }
                             }
@@ -354,10 +357,9 @@ class MangaScreenModel(
                 }
 
                 val finalCombined = synchronized(suggestionsList) {
-                    suggestionsList.dedupeByCleanTitle()
+                    suggestionsList.dedupeByCleanTitle(seed)
                         .filter { item ->
-                            val isSelf = (currentManga != null && item.providerUrl == currentManga.url) ||
-                                (item.providerId?.endsWith(":${currentManga?.url}") == true)
+                            val isSelf = SuggestionTitleResolver.isSameProviderEntry(item, currentManga?.url)
                             val isFranchise = eu.kanade.tachiyomi.data.suggestions
                                 .SuggestionTitleResolver.isFranchiseDuplicate(
                                     item.title,

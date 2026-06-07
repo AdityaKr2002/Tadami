@@ -702,10 +702,11 @@ class NovelScreenModel(
 
     fun retrySuggestions() {
         val success = successState ?: return
-        eu.kanade.tachiyomi.data.suggestions.SuggestionCache.invalidateAll()
+        val seed = buildSuggestionSeed(success.novel)
+        eu.kanade.tachiyomi.data.suggestions.SuggestionCache.invalidateForSeed(seed, success.novel.url)
         screenModelScope.launchIO {
             loadSuggestions(
-                buildSuggestionSeed(success.novel),
+                seed,
                 novel = success.novel,
                 source = success.novel.toCatalogueSource(),
                 force = true,
@@ -715,10 +716,9 @@ class NovelScreenModel(
     private fun emitProgressiveSuggestions(list: List<SuggestionItem>, currentNovel: Novel?) {
         val seed = suggestionSeedUsed ?: return
         val sorted = synchronized(list) {
-            list.dedupeByCleanTitle()
+            list.dedupeByCleanTitle(seed)
                 .filter { item ->
-                    val isSelf = (currentNovel != null && item.providerUrl == currentNovel.url) ||
-                        (item.providerId?.endsWith(":${currentNovel?.url}") == true)
+                    val isSelf = SuggestionTitleResolver.isSameProviderEntry(item, currentNovel?.url)
                     val isFranchise = SuggestionTitleResolver.isFranchiseDuplicate(item.title, seed.primaryTitle)
                     !isSelf && !isFranchise
                 }
@@ -766,8 +766,7 @@ class NovelScreenModel(
                             val externalResult = suggestionCoordinator.fetchSuggestions(seed, limit = 40)
                             if (externalResult.items.isNotEmpty()) {
                                 val externalFiltered = externalResult.items.filter { item ->
-                                    val isSelf = (currentNovel != null && item.providerUrl == currentNovel.url) ||
-                                        (item.providerId?.endsWith(":${currentNovel?.url}") == true)
+                                    val isSelf = SuggestionTitleResolver.isSameProviderEntry(item, currentNovel?.url)
                                     val isFranchise = eu.kanade.tachiyomi.data.suggestions
                                         .SuggestionTitleResolver.isFranchiseDuplicate(
                                             item.title,
@@ -783,6 +782,8 @@ class NovelScreenModel(
                                     emitProgressiveSuggestions(suggestionsList, currentNovel)
                                 }
                             }
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             logcat { "[NovelScreenModel] External suggestions failed: ${e.message}" }
                         }
@@ -806,6 +807,8 @@ class NovelScreenModel(
                                     }
                                     emitProgressiveSuggestions(suggestionsList, currentNovel)
                                 }
+                            } catch (e: CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 logcat { "[NovelScreenModel] Native related suggestions failed: ${e.message}" }
                             }
@@ -840,6 +843,8 @@ class NovelScreenModel(
                                     }
                                     emitProgressiveSuggestions(suggestionsList, currentNovel)
                                 }
+                            } catch (e: CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 logcat { "[NovelScreenModel] Native search suggestions failed: ${e.message}" }
                             }
@@ -848,10 +853,9 @@ class NovelScreenModel(
                 }
 
                 val finalCombined = synchronized(suggestionsList) {
-                    suggestionsList.dedupeByCleanTitle()
+                    suggestionsList.dedupeByCleanTitle(seed)
                         .filter { item ->
-                            val isSelf = (currentNovel != null && item.providerUrl == currentNovel.url) ||
-                                (item.providerId?.endsWith(":${currentNovel?.url}") == true)
+                            val isSelf = SuggestionTitleResolver.isSameProviderEntry(item, currentNovel?.url)
                             val isFranchise = eu.kanade.tachiyomi.data.suggestions
                                 .SuggestionTitleResolver.isFranchiseDuplicate(
                                     item.title,
