@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.data.download.novel.NovelDownloadQueueManager
 import eu.kanade.tachiyomi.data.download.novel.NovelDownloadQueueState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ import tachiyomi.domain.storage.service.StorageManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
+import java.io.Closeable
 
 /**
  * Combines anime, manga, and novel backend queue states into one aggregated
@@ -30,14 +32,22 @@ class DownloadEngineFacade(
     private val mangaManager: MangaDownloadManager,
     private val speedTracker: DownloadSpeedTracker = DownloadSpeedTracker(),
     private val completionTracker: DownloadCompletionTracker = DownloadCompletionTracker(),
-) {
+) : Closeable {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val facadeJob = SupervisorJob()
+    private val scope = CoroutineScope(facadeJob + Dispatchers.IO)
     private val telemetryCollector = DownloadTelemetryCollector(speedTracker)
     private val storageManager: StorageManager = Injekt.get()
+    private val storageStatsRefreshMs = 5_000L
+    private var lastStorageStatsAtMs = 0L
+    private var cachedAnimeStorageBytes = 0L
+    private var cachedMangaStorageBytes = 0L
+    private var cachedNovelStorageBytes = 0L
+    private var cachedFreeSpaceBytes: Long? = null
 
     private val _state = MutableStateFlow(DownloadEngineSnapshot())
     val state: StateFlow<DownloadEngineSnapshot> = _state.asStateFlow()
+    private var collectJob: Job? = null
 
     init {
         animeManager.telemetryEmitter = telemetryCollector
@@ -63,7 +73,7 @@ class DownloadEngineFacade(
             }
         }
 
-        scope.launch {
+        collectJob = scope.launch {
             combine(
                 animeQueueFlow,
                 mangaQueueFlow,
@@ -95,9 +105,16 @@ class DownloadEngineFacade(
         val mangaActive = mangaQueue.count { it.status == MangaDownload.State.DOWNLOADING }
         val mangaQueued = mangaQueue.count { it.status == MangaDownload.State.QUEUE }
         val mangaFailed = mangaQueue.count { it.status == MangaDownload.State.ERROR }
-        val speedSnapshot = speedTracker.snapshot()
-        val downloadsDir = storageManager.getDownloadsDirectory()?.filePath
-        val freeSpaceBytes = downloadsDir?.let { File(it).freeSpace } ?: 0L
+        refreshStorageStatsIfNeeded()
+        val hasWork = animeQueue.isNotEmpty() || mangaQueue.isNotEmpty() || novelState.queueCount > 0
+        if (!hasWork) {
+            speedTracker.reset()
+            completionTracker.reset()
+        }
+
+        // ETA stays hidden until every backend exposes reliable total bytes.
+        // This is intentionally honest: no fake estimate is better than a polished lie.
+        val speedSnapshot = speedTracker.snapshot(remainingBytes = null)
 
         return DownloadEngineSnapshot(
             animeItems = animeQueue.size,
@@ -119,11 +136,25 @@ class DownloadEngineFacade(
             averageSpeedBps = speedSnapshot.averageSpeedBps,
             etaMillis = speedSnapshot.etaMillis,
             speedHistoryBps = speedSnapshot.speedHistoryBps,
-            animeStorageBytes = animeManager.getDownloadSize(),
-            mangaStorageBytes = mangaManager.getDownloadSize(),
-            novelStorageBytes = NovelDownloadQueueManager.getDownloadSize(),
-            freeSpaceBytes = freeSpaceBytes,
+            animeStorageBytes = cachedAnimeStorageBytes,
+            mangaStorageBytes = cachedMangaStorageBytes,
+            novelStorageBytes = cachedNovelStorageBytes,
+            freeSpaceBytes = cachedFreeSpaceBytes,
         )
+    }
+
+    private fun refreshStorageStatsIfNeeded(nowMs: Long = System.currentTimeMillis()) {
+        if (nowMs - lastStorageStatsAtMs < storageStatsRefreshMs) return
+
+        cachedAnimeStorageBytes = runCatching { animeManager.getDownloadSize() }.getOrDefault(0L)
+        cachedMangaStorageBytes = runCatching { mangaManager.getDownloadSize() }.getOrDefault(0L)
+        cachedNovelStorageBytes = runCatching { NovelDownloadQueueManager.getDownloadSize() }.getOrDefault(0L)
+        cachedFreeSpaceBytes = runCatching {
+            storageManager.getDownloadsDirectory()?.filePath?.let { path ->
+                File(path).takeIf { it.exists() }?.freeSpace
+            }
+        }.getOrNull()
+        lastStorageStatsAtMs = nowMs
     }
 
     fun pauseAll() {
@@ -142,5 +173,10 @@ class DownloadEngineFacade(
         animeManager.clearQueue()
         mangaManager.clearQueue()
         NovelDownloadQueueManager.clearQueue()
+    }
+
+    override fun close() {
+        collectJob?.cancel()
+        facadeJob.cancel()
     }
 }

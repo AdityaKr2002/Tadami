@@ -492,6 +492,13 @@ object SettingsAppearanceScreen : SearchableSettings {
                     )
                 }
                 add(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = uiPreferences.disableHomeHeaderScrollHide(),
+                        title = stringResource(AYMR.strings.pref_disable_home_header_scroll_hide),
+                        subtitle = stringResource(AYMR.strings.pref_disable_home_header_scroll_hide_summary),
+                    ),
+                )
+                add(
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(AYMR.strings.pref_customize_home_header_layout),
                         subtitle = stringResource(AYMR.strings.pref_customize_home_header_layout_summary),

@@ -56,6 +56,8 @@
     <string name="pref_library_update_show_tab_badge">Show unseen/unread count on Updates icon</string>
     <string name="pref_aurora_library_immersive_mode">Immersive mode</string>
     <string name="pref_aurora_library_immersive_mode_summary">Hide the top chrome and bottom navigation while scrolling, but keep categories visible.</string>
+    <string name="pref_disable_home_header_scroll_hide">Pin home header</string>
+    <string name="pref_disable_home_header_scroll_hide_summary">Keep the home screen greeting header always visible and prevent it from hiding when scrolling.</string>
     <string name="pref_aurora_library_swipe_switches_categories">Swipe switches categories</string>
     <string name="pref_aurora_library_swipe_switches_categories_summary">Use horizontal swipes on the library to switch between categories instead of sections (anime/manga/novels).</string>
     <string name="pref_category_delete_chapters">Delete chapters/episodes</string>
@@ -2148,4 +2150,23 @@
     <string name="pref_category_debug">Debug</string>
     <string name="pref_debug_bypass_treasury_locks">Bypass locks for testing</string>
     <string name="pref_debug_bypass_treasury_locks_summary">Temporarily unlocks all Treasury rewards for visual validation</string>
+
+    <!-- High-end download engine reliability / OEM policy -->
+    <string name="download_power_policy_title">Stable background downloads</string>
+    <string name="download_power_policy_android_summary">Android may limit long background downloads. Allow the app to work without battery optimization so the queue doesn't stop.</string>
+    <string name="download_power_policy_xiaomi_summary">On Xiaomi/Redmi/POCO enable Auto-start, battery mode "No restrictions" and pin the app in recent apps — this way MIUI/HyperOS interrupts downloads less often.</string>
+    <string name="download_power_policy_battery_action">Battery</string>
+    <string name="download_power_policy_autostart_action">Auto-start</string>
+
+    <!-- Novel download anti-rate-limit controls -->
+    <string name="novel_download_throttle_menu">Request settings</string>
+    <string name="novel_download_throttle_title">Anti-blocking protection</string>
+    <string name="novel_download_throttle_summary">Configure pause between chapters, random jitter and timeout. This reduces the risk of temporary blocking by the source due to too frequent requests.</string>
+    <string name="novel_download_throttle_delay_ms">Pause, ms</string>
+    <string name="novel_download_throttle_jitter_ms">Jitter, ms</string>
+    <string name="novel_download_throttle_timeout_ms">Timeout, ms</string>
+    <string name="novel_download_throttle_cooldown_ms">Pause after error, ms</string>
+    <string name="novel_download_throttle_limits">Pause: %1$d–%2$d ms. Timeout: %3$d–%4$d ms. Recommended: 1200–3000 ms pause, 300–1000 ms jitter.</string>
+    <string name="novel_download_throttle_save">Save</string>
+    <string name="novel_download_throttle_cancel">Cancel</string>
 </resources>

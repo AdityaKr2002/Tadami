@@ -1558,4 +1558,52 @@
     <string name="unlockable_home_badge_shuriken">Shuriken Home Hub Effect</string>
     <string name="unlockable_special_background_petal_storm">Petal Storm Background</string>
     <string name="unlockable_special_background_neon_orbit">Neon Orbit Background</string>
+
+    <!-- Download engine -->
+    <string name="download_engine_title">Download Engine</string>
+    <string name="download_engine_active">Active</string>
+    <string name="download_engine_queued">Queued</string>
+    <string name="download_engine_done">Done</string>
+    <string name="download_engine_failed_label">Failed</string>
+    <string name="download_engine_idle">Idle</string>
+    <string name="download_engine_active_state">Active</string>
+    <string name="download_engine_waiting">Waiting</string>
+    <string name="download_engine_stopped">Stopped</string>
+    <string name="download_engine_active_count">%d active</string>
+    <string name="download_engine_eta">ETA %s</string>
+    <string name="download_engine_average_speed">Avg %s</string>
+    <string name="download_engine_storage_label">Storage %s</string>
+    <string name="download_engine_free_label">Free %s</string>
+    <string name="download_engine_session_completed">%d completed this session</string>
+    <string name="download_engine_pause_all">Pause all</string>
+    <string name="download_engine_resume_all">Resume all</string>
+    <string name="download_engine_cancel_all">Cancel all</string>
+    <string name="download_engine_clear">Clear</string>
+    <string name="download_queue_actions">Queue actions</string>
+    <string name="download_queue_status_queued">Queued</string>
+    <string name="download_queue_status_downloading">Downloading</string>
+    <string name="download_queue_status_downloaded">Downloaded</string>
+    <string name="download_queue_status_failed">Failed</string>
+    <string name="action_open_download_folder">Open folder</string>
+    <string name="download_folder_not_set">Download folder not set</string>
+    <string name="no_file_manager_found">No file manager found</string>
+
+    <!-- High-end download engine reliability / OEM policy -->
+    <string name="download_power_policy_title">Stable background downloads</string>
+    <string name="download_power_policy_android_summary">Android may limit long background downloads. Allow the app to work without battery optimization so the queue doesn\'t stop.</string>
+    <string name="download_power_policy_xiaomi_summary">On Xiaomi/Redmi/POCO enable Auto-start, battery mode "No restrictions" and pin the app in recent apps — this way MIUI/HyperOS interrupts downloads less often.</string>
+    <string name="download_power_policy_battery_action">Battery</string>
+    <string name="download_power_policy_autostart_action">Auto-start</string>
+
+    <!-- Novel download anti-rate-limit controls -->
+    <string name="novel_download_throttle_menu">Request settings</string>
+    <string name="novel_download_throttle_title">Anti-blocking protection</string>
+    <string name="novel_download_throttle_summary">Configure pause between chapters, random jitter and timeout. This reduces the risk of temporary blocking by the source due to too frequent requests.</string>
+    <string name="novel_download_throttle_delay_ms">Pause, ms</string>
+    <string name="novel_download_throttle_jitter_ms">Jitter, ms</string>
+    <string name="novel_download_throttle_timeout_ms">Timeout, ms</string>
+    <string name="novel_download_throttle_cooldown_ms">Pause after error, ms</string>
+    <string name="novel_download_throttle_limits">Pause: %1$d–%2$d ms. Timeout: %3$d–%4$d ms. Recommended: 1200–3000 ms pause, 300–1000 ms jitter.</string>
+    <string name="novel_download_throttle_save">Save</string>
+    <string name="novel_download_throttle_cancel">Cancel</string>
 </resources>

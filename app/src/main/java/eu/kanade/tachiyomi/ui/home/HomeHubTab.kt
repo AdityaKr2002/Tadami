@@ -884,13 +884,16 @@ object HomeHubTab : Tab {
             )
         }
 
+        val disableHomeHeaderScrollHide by uiPreferences.disableHomeHeaderScrollHide()
+            .collectAsStateWithLifecycle()
+
         // Do not persist collapsed header position across app relaunches.
         var headerOffsetPx by remember { mutableStateOf(0f) }
         var headerHeightPx by remember { mutableIntStateOf(0) }
         var scrollResetToken by rememberSaveable { mutableIntStateOf(0) }
 
         val onScrollSignal: (HomeHubSection, Float, Boolean) -> Unit = { section, deltaY, atTop ->
-            if (section == selectedSection) {
+            if (!disableHomeHeaderScrollHide && section == selectedSection) {
                 headerOffsetPx = resolveHomeHubHeaderOffset(
                     currentOffsetPx = headerOffsetPx,
                     deltaY = deltaY,

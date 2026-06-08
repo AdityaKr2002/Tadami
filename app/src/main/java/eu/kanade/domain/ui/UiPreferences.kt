@@ -129,6 +129,11 @@ class UiPreferences(
 
     fun auroraDarkRimLightEnabled() = preferenceStore.getBoolean("aurora_dark_rim_light_enabled", true)
 
+    fun disableHomeHeaderScrollHide() = preferenceStore.getBoolean(
+        "disable_home_header_scroll_hide",
+        false,
+    )
+
     fun specialBackgroundStyle() = preferenceStore.getString("special_background_style", "none")
 
     fun eInkProfile() = preferenceStore.getEnum("e_ink_profile", EInkProfile.OFF)
