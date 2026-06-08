@@ -2,13 +2,13 @@ package eu.kanade.tachiyomi.data.suggestions
 
 import eu.kanade.tachiyomi.data.suggestions.sources.SuggestionMediaType
 import eu.kanade.tachiyomi.ui.entries.suggestions.EntrySuggestionsScreen
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 class EntrySuggestionsScreenSerializationTest {
 
@@ -31,7 +31,8 @@ class EntrySuggestionsScreenSerializationTest {
         ObjectOutputStream(bytes).use { it.writeObject(screen) }
 
         val restored = ObjectInputStream(ByteArrayInputStream(bytes.toByteArray())).use { it.readObject() }
-        val restoredScreen = assertIs<EntrySuggestionsScreen>(restored)
+        assertTrue(restored is EntrySuggestionsScreen)
+        val restoredScreen = restored as EntrySuggestionsScreen
         assertEquals("Test Manga", restoredScreen.seed.primaryTitle)
         assertEquals(SuggestionMediaType.MANGA, restoredScreen.seed.mediaType)
     }

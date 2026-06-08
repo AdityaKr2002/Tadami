@@ -67,7 +67,6 @@ import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.ui.browse.anime.source.globalsearch.GlobalAnimeSearchScreen
 import eu.kanade.tachiyomi.ui.browse.manga.source.globalsearch.GlobalMangaSearchScreen
 import eu.kanade.tachiyomi.ui.browse.novel.source.globalsearch.GlobalNovelSearchScreen
-import java.io.Serializable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -80,6 +79,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.Serializable
 
 class EntrySuggestionsScreen(
     val seed: SuggestionSeed,
@@ -489,7 +489,6 @@ fun EntrySuggestionsContent(
     }
 }
 
-
 private data class SuggestionUiGroup(
     val title: String,
     val items: List<SuggestionItem>,
@@ -518,7 +517,8 @@ private fun List<SuggestionItem>.groupForFullScreen(
 
     val currentSource = filter {
         val id = it.providerId ?: it.providerUrl
-        id !in topIds && id !in databaseIds &&
+        id !in topIds &&
+            id !in databaseIds &&
             it.reason in setOf(
                 eu.kanade.tachiyomi.data.suggestions.SuggestionReason.RELATED,
                 eu.kanade.tachiyomi.data.suggestions.SuggestionReason.SEARCH_TITLE,

@@ -48,9 +48,9 @@ class VideoOrientationMigration : Migration {
         }
 
         preferenceStore.getEnum(
-                playerPreferences.defaultPlayerOrientationType().key(),
-                PlayerOrientation.SensorLandscape,
-            ).set(newPref)
+            playerPreferences.defaultPlayerOrientationType().key(),
+            PlayerOrientation.SensorLandscape,
+        ).set(newPref)
 
         return true
     }

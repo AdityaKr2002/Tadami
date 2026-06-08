@@ -92,7 +92,6 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.ImageUtil
-import tachiyomi.core.common.util.system.logcat as systemLogcat
 import tachiyomi.data.achievement.loader.AchievementLoader
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
@@ -103,6 +102,7 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.security.Security
 import java.util.concurrent.atomic.AtomicLong
+import tachiyomi.core.common.util.system.logcat as systemLogcat
 
 class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
 

@@ -575,11 +575,7 @@ internal fun resolvePageReaderCurrentPage(
         NovelPageReaderRendererRoute.NONE ->
             pagerCurrentPage.coerceAtLeast(0)
         NovelPageReaderRendererRoute.PAGE_TURN_RENDERER ->
-            resolvePageTurnRendererProgressPageIndex(
-                currentPage = pageTurnCurrentPage,
-                contentPageCount = pageTurnContentPageCount,
-                hasPreviousChapter = pageTurnHasPreviousChapter,
-            )
+            pageTurnCurrentPage.coerceAtLeast(0)
         NovelPageReaderRendererRoute.COMPOSE_PAGER ->
             resolveComposePagerActualPageIndex(
                 currentPage = pagerCurrentPage,

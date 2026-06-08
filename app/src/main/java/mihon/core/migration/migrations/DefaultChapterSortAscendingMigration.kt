@@ -12,7 +12,8 @@ class DefaultChapterSortAscendingMigration : Migration {
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
         val libraryPreferences = migrationContext.get<LibraryPreferences>() ?: return@withIOContext false
-        val setMangaDefaultChapterFlags = migrationContext.get<SetMangaDefaultChapterFlags>() ?: return@withIOContext false
+        val setMangaDefaultChapterFlags =
+            migrationContext.get<SetMangaDefaultChapterFlags>() ?: return@withIOContext false
 
         libraryPreferences.sortChapterByAscendingOrDescending().set(Manga.CHAPTER_SORT_ASC)
         setMangaDefaultChapterFlags.awaitAll()

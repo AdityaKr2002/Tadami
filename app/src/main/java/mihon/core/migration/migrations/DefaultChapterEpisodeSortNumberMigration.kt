@@ -2,8 +2,8 @@ package mihon.core.migration.migrations
 
 import mihon.core.migration.Migration
 import mihon.core.migration.MigrationContext
-import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.preference.Preference
+import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.entries.manga.model.Manga
 import tachiyomi.domain.items.chapter.interactor.SetMangaDefaultChapterFlags
@@ -27,8 +27,10 @@ class DefaultChapterEpisodeSortNumberMigration : Migration {
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
         val libraryPreferences = migrationContext.get<LibraryPreferences>() ?: return@withIOContext false
-        val setAnimeDefaultEpisodeFlags = migrationContext.get<SetAnimeDefaultEpisodeFlags>() ?: return@withIOContext false
-        val setMangaDefaultChapterFlags = migrationContext.get<SetMangaDefaultChapterFlags>() ?: return@withIOContext false
+        val setAnimeDefaultEpisodeFlags =
+            migrationContext.get<SetAnimeDefaultEpisodeFlags>() ?: return@withIOContext false
+        val setMangaDefaultChapterFlags =
+            migrationContext.get<SetMangaDefaultChapterFlags>() ?: return@withIOContext false
 
         applyDefaultChapterEpisodeSortToNumber(
             episodeSortPreference = libraryPreferences.sortEpisodeBySourceOrNumber(),

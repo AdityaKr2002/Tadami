@@ -141,7 +141,23 @@ import eu.kanade.tachiyomi.ui.reader.novel.NovelSelectedTextSelection
 import eu.kanade.tachiyomi.ui.reader.novel.encodeNativeScrollProgress
 import eu.kanade.tachiyomi.ui.reader.novel.encodePageReaderProgress
 import eu.kanade.tachiyomi.ui.reader.novel.encodeWebScrollProgressPercent
-import eu.kanade.tachiyomi.ui.reader.novel.setting.*
+import eu.kanade.tachiyomi.ui.reader.novel.setting.GeminiPromptMode
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelBookFlipAnimationSpeed
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelPageTransitionStyle
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelPageTurnActivationZone
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelPageTurnIntensity
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelPageTurnShadowIntensity
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelPageTurnSpeed
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderAppearanceMode
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderBackgroundSource
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderBackgroundTexture
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderSettings
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderTheme
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTranslationProvider
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTranslationStylePreset
+import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelTtsHighlightMode
+import eu.kanade.tachiyomi.ui.reader.novel.setting.TextAlign
 import eu.kanade.tachiyomi.ui.reader.novel.tts.NativeScrollTtsNavigationAdapter
 import eu.kanade.tachiyomi.ui.reader.novel.tts.NativeScrollTtsNavigator
 import eu.kanade.tachiyomi.ui.reader.novel.tts.NovelTtsNavigationAnchor
@@ -327,14 +343,29 @@ fun NovelReaderScreen(
             backgroundTexture = safeEnum(rawState.readerSettings.backgroundTexture, NovelReaderBackgroundTexture.NONE),
             textAlign = safeEnum(rawState.readerSettings.textAlign, TextAlign.SOURCE),
             pageTransitionStyle = safeEnum(rawState.readerSettings.pageTransitionStyle, NovelPageTransitionStyle.SLIDE),
-            bookFlipAnimationSpeed = safeEnum(rawState.readerSettings.bookFlipAnimationSpeed, NovelBookFlipAnimationSpeed.SLOW),
+            bookFlipAnimationSpeed = safeEnum(
+                rawState.readerSettings.bookFlipAnimationSpeed,
+                NovelBookFlipAnimationSpeed.SLOW,
+            ),
             pageTurnSpeed = safeEnum(rawState.readerSettings.pageTurnSpeed, NovelPageTurnSpeed.NORMAL),
             pageTurnIntensity = safeEnum(rawState.readerSettings.pageTurnIntensity, NovelPageTurnIntensity.MEDIUM),
-            pageTurnShadowIntensity = safeEnum(rawState.readerSettings.pageTurnShadowIntensity, NovelPageTurnShadowIntensity.MEDIUM),
-            pageTurnActivationZone = safeEnum(rawState.readerSettings.pageTurnActivationZone, NovelPageTurnActivationZone.WIDE),
-            translationProvider = safeEnum(rawState.readerSettings.translationProvider, NovelTranslationProvider.GEMINI),
+            pageTurnShadowIntensity = safeEnum(
+                rawState.readerSettings.pageTurnShadowIntensity,
+                NovelPageTurnShadowIntensity.MEDIUM,
+            ),
+            pageTurnActivationZone = safeEnum(
+                rawState.readerSettings.pageTurnActivationZone,
+                NovelPageTurnActivationZone.WIDE,
+            ),
+            translationProvider = safeEnum(
+                rawState.readerSettings.translationProvider,
+                NovelTranslationProvider.GEMINI,
+            ),
             geminiPromptMode = safeEnum(rawState.readerSettings.geminiPromptMode, GeminiPromptMode.ADULT_18),
-            geminiStylePreset = safeEnum(rawState.readerSettings.geminiStylePreset, NovelTranslationStylePreset.PROFESSIONAL),
+            geminiStylePreset = safeEnum(
+                rawState.readerSettings.geminiStylePreset,
+                NovelTranslationStylePreset.PROFESSIONAL,
+            ),
             ttsHighlightMode = safeEnum(rawState.readerSettings.ttsHighlightMode, NovelTtsHighlightMode.AUTO),
         )
     }
