@@ -483,6 +483,13 @@ object SettingsAppearanceScreen : SearchableSettings {
                             subtitle = stringResource(AYMR.strings.pref_animated_aurora_background_summary),
                         ),
                     )
+                    add(
+                        Preference.PreferenceItem.SwitchPreference(
+                            preference = uiPreferences.auroraDarkRimLightEnabled(),
+                            title = stringResource(AYMR.strings.pref_aurora_dark_rim_light),
+                            subtitle = stringResource(AYMR.strings.pref_aurora_dark_rim_light_summary),
+                        ),
+                    )
                 }
                 add(
                     Preference.PreferenceItem.TextPreference(

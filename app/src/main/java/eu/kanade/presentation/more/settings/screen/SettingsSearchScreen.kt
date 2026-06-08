@@ -80,6 +80,10 @@ import eu.kanade.presentation.more.settings.settingsSubtitleColor
 import eu.kanade.presentation.more.settings.settingsTitleColor
 import eu.kanade.presentation.theme.AuroraTheme
 import eu.kanade.presentation.util.Screen
+import eu.kanade.domain.ui.UiPreferences
+import tachiyomi.presentation.core.util.collectAsState
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.ui.player.layout.PlayerLayoutOrientation
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
@@ -102,6 +106,8 @@ class SettingsSearchScreen(
         val focusManager = LocalFocusManager.current
         val focusRequester = remember { FocusRequester() }
         val listState = rememberLazyListState()
+        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val darkRimLightEnabled by uiPreferences.auroraDarkRimLightEnabled().collectAsState()
         val topBarState = rememberTopAppBarState()
         val topBarScrollBehavior = if (isAurora) {
             TopAppBarDefaults.enterAlwaysScrollBehavior(
@@ -167,6 +173,7 @@ class SettingsSearchScreen(
                                                     colors = auroraColors,
                                                     shape = AURORA_SETTINGS_CARD_SHAPE,
                                                     applyModifierBackgroundInDark = true,
+                                                    applyDarkRimLight = darkRimLightEnabled,
                                                 )
                                                 .clip(AURORA_SETTINGS_CARD_SHAPE)
                                                 .padding(horizontal = 16.dp, vertical = 10.dp)
@@ -284,6 +291,7 @@ class SettingsSearchScreen(
                         isPlayer = isPlayer,
                         listState = listState,
                         contentPadding = contentPadding,
+                        darkRimLightEnabled = darkRimLightEnabled,
                     ) { result ->
                         SearchableSettings.highlightKey = result.highlightKey
                         navigator.replace(result.route)
@@ -308,6 +316,7 @@ private fun SearchResult(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(),
+    darkRimLightEnabled: Boolean = true,
     onItemClick: (SearchResultItem) -> Unit,
 ) {
     if (searchKey.isEmpty()) return
@@ -403,6 +412,7 @@ private fun SearchResult(
                                                 colors = AuroraTheme.colors,
                                                 shape = AURORA_SETTINGS_CARD_SHAPE,
                                                 applyModifierBackgroundInDark = true,
+                                                applyDarkRimLight = darkRimLightEnabled,
                                             )
                                             .clip(AURORA_SETTINGS_CARD_SHAPE)
                                     } else {
