@@ -657,10 +657,6 @@ private fun HomeHubProfileHeaderCanvas(
                                 .clickable(onClick = onAvatarClick),
                             contentAlignment = Alignment.Center,
                         ) {
-                            AvatarFrameDecorations(
-                                styleKey = avatarFrameStyleKey,
-                                accentColor = colors.accent,
-                            )
                             val avatarModifier = Modifier
                                 .fillMaxSize()
                                 .then(
@@ -704,6 +700,11 @@ private fun HomeHubProfileHeaderCanvas(
                                     )
                                 }
                             }
+
+                            AvatarFrameDecorations(
+                                styleKey = avatarFrameStyleKey,
+                                accentColor = colors.accent,
+                            )
                         }
                     }
                 }

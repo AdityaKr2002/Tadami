@@ -377,10 +377,6 @@ object SettingsTreasuryScreen : SearchableSettings {
                                         .size(64.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    AvatarFrameDecorations(
-                                        styleKey = avatarFrameStyleKey,
-                                        accentColor = colors.accent,
-                                    )
                                     val avatarModifier = Modifier
                                         .fillMaxSize()
                                         .then(
@@ -407,6 +403,11 @@ object SettingsTreasuryScreen : SearchableSettings {
                                             tint = colors.accent,
                                         )
                                     }
+
+                                    AvatarFrameDecorations(
+                                        styleKey = avatarFrameStyleKey,
+                                        accentColor = colors.accent,
+                                    )
                                 }
 
                                 Box(
