@@ -1265,15 +1265,29 @@ class NovelReaderScreenModel(
         settings: NovelReaderSettings,
     ): eu.kanade.tachiyomi.ui.reader.novel.tts.NovelTtsChapterModel? {
         if (!shouldPreferTranslatedTts(settings)) return null
-        if (chapterId != currentChapter?.id) return null
-        val translatedBlocks = when {
-            settings.geminiEnabled && !translationHolder.isEmpty("gemini") -> {
-                applyGeminiTranslationToContentBlocks(originalContentBlocks, forceTranslation = true)
+        val translatedBlocks = if (chapterId == currentChapter?.id) {
+            // Current chapter: use in-memory translation holder (fast path)
+            when {
+                settings.geminiEnabled && !translationHolder.isEmpty("gemini") -> {
+                    applyGeminiTranslationToContentBlocks(originalContentBlocks, forceTranslation = true)
+                }
+                settings.googleTranslationEnabled && !translationHolder.isEmpty("google") -> {
+                    applyGoogleTranslationToContentBlocks(originalContentBlocks)
+                }
+                else -> return null
             }
-            settings.googleTranslationEnabled && !translationHolder.isEmpty("google") -> {
-                applyGoogleTranslationToContentBlocks(originalContentBlocks)
-            }
-            else -> return null
+        } else {
+            // Non-current chapter (e.g. next chapter during TTS auto-advance):
+            // The in-memory holder belongs to the current chapter only.
+            // Check the disk cache — the prefetch job may have already written a translation here.
+            if (!settings.geminiEnabled) return null
+            val cached = NovelReaderTranslationDiskCacheStore.get(chapterId) ?: return null
+            val settingsMatch = NovelReaderTranslationCacheResolver.matches(
+                cached = cached,
+                requirements = settings.toTranslationCacheRequirements(),
+            )
+            if (!settingsMatch) return null
+            applyTranslationMapToContentBlocks(originalContentBlocks, cached.translatedByIndex)
         }
         return ttsChapterModelBuilder.build(
             chapterId = chapterId,
@@ -1284,6 +1298,31 @@ class NovelReaderScreenModel(
                 includeChapterTitle = settings.ttsReadChapterTitle,
             ),
         )
+    }
+
+    /**
+     * Applies a pre-built translation map (block index -> translated text) directly to a list of
+     * content blocks without going through the in-memory [translationHolder].
+     *
+     * Used when resolving translated TTS content for a chapter that is not the one currently
+     * displayed (e.g. the next chapter during TTS auto-advance), where the translation lives only
+     * in the disk cache rather than in the in-memory holder.
+     */
+    private fun applyTranslationMapToContentBlocks(
+        blocks: List<ContentBlock>,
+        translationMap: Map<Int, String>,
+    ): List<ContentBlock> {
+        var textIndex = 0
+        return blocks.map { block ->
+            when (block) {
+                is ContentBlock.Image -> block
+                is ContentBlock.Text -> {
+                    val translated = translationMap[textIndex]
+                    textIndex += 1
+                    if (translated.isNullOrBlank()) block else ContentBlock.Text(translated)
+                }
+            }
+        }
     }
 
     private suspend fun onTtsSessionStateChanged(sessionState: NovelTtsSessionUiState) {
@@ -1601,6 +1640,15 @@ class NovelReaderScreenModel(
         startRequest: eu.kanade.tachiyomi.ui.reader.novel.tts.NovelTtsPlaybackStartRequest,
         settings: NovelReaderSettings,
     ) {
+        // Fix: if translation of the current chapter is still in progress and TTS prefers
+        // translated text, wait briefly for it to finish before building the utterance list.
+        // Without this wait the in-memory translation holder may be empty at snapshot time,
+        // causing TTS to fall back to the original untranslated text.
+        if (shouldPreferTranslatedTts(settings) && isGeminiTranslating) {
+            withTimeoutOrNull(5_000) {
+                geminiTranslationJob?.join()
+            }
+        }
         val resolvedChapter = resolveTtsChapter(targetChapterId = currentChapter?.id ?: return) ?: return
         val useTranslatedText = shouldPreferTranslatedTts(settings) &&
             resolvedChapter.translatedModel != null
