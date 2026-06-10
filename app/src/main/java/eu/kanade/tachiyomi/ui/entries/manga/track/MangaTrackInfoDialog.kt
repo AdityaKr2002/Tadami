@@ -773,7 +773,9 @@ data class TrackServiceSearchScreen(
                 try {
                     tracker.mangaService.register(item, mangaId)
                 } catch (e: Throwable) {
-                    logcat(LogPriority.ERROR, e) { "Failed to register manga tracking entry mangaId=$mangaId serviceId=${tracker.id}" }
+                    logcat(LogPriority.ERROR, e) {
+                        "Failed to register manga tracking entry mangaId=$mangaId serviceId=${tracker.id}"
+                    }
                 }
             }
         }

@@ -2183,12 +2183,18 @@
     <string name="label_treasury">Сокровищница</string>
     <string name="pref_treasury_summary">Эксклюзивные награды, разблокированные вашими достижениями</string>
     <string name="treasury_themes">Темы</string>
+    <string name="treasury_themes_subtitle">Эксклюзивные темы. Нажимайте на обложку для применения её атмосферы.</string>
+    <string name="treasury_auras_subtitle">Каждая аура — это уникальный эффект со своей орбитой и пульсацией.</string>
+    <string name="treasury_artifacts_subtitle">Никаких плоских экранов и скучного ритма, каждый фон - уникальное явление.</string>
     <string name="treasury_unlocked_themes">Эксклюзивные темы</string>
     <string name="treasury_auras">Визуальные эффекты и ауры</string>
     <string name="treasury_profile_and_avatar">Профиль и аватар</string>
     <string name="treasury_profile_effects">Эффекты профиля</string>
+    <string name="treasury_profile_effects_subtitle">Уникальные светящиеся и анимированные стили для выделения вашего никнейма.</string>
     <string name="treasury_avatar_frames">Рамки аватара</string>
+    <string name="treasury_avatar_frames_subtitle">Декоративные орбитальные рамки и границы, окружающие ваше изображение аватара.</string>
     <string name="treasury_home_hub_rewards">Награды Home Hub</string>
+    <string name="treasury_home_hub_rewards_subtitle">Специальные орбитальные кольца, короны и значки, окружающие ваш аватар на главном экране.</string>
     <string name="treasury_aura_subtitle">Включить специальные эффекты для обложек и интерфейса</string>
     <string name="treasury_toggle_active">Активно</string>
     <string name="treasury_toggle_inactive">Неактивно</string>
@@ -2206,6 +2212,7 @@
     <string name="treasury_reward_neon_orbit_background_description">Неоновые орбитальные кольца и частицы, заменяющие стандартное свечение фона.</string>
     <string name="treasury_visual_effects">Визуальные эффекты</string>
     <string name="treasury_background_effects">Фоновые эффекты</string>
+    <string name="treasury_background_effects_subtitle">Анимированные обои и наложения для динамического оформления фона интерфейса.</string>
     <string name="treasury_empty_title">Сокровищница пуста</string>
     <string name="treasury_empty_description">Выполняйте редкие или секретные достижения, чтобы разблокировать уникальные награды!</string>
     <string name="treasury_requires_achievement">Требуется достижение: %1$s</string>
@@ -2240,6 +2247,7 @@
     <string name="treasury_nickname_rank_sigils_desc">Престижные сигилы для пути восхождения</string>
     <!-- Treasury profile titles -->
     <string name="treasury_profile_titles">Титулы профиля</string>
+    <string name="treasury_profile_titles_subtitle">Особые почетные звания, отображаемые прямо под вашим никнеймом на карте профиля.</string>
     <string name="treasury_title_trinity_initiate_title">Посвящённый Тринити</string>
     <string name="treasury_title_trinity_initiate_desc">Показывать титул пути трёх миров под никнеймом</string>
     <string name="treasury_title_finisher_title">Финишер</string>

@@ -1843,12 +1843,18 @@
     <string name="pref_achievements_summary">Track your progress and rewards</string>
     <string name="pref_treasury_summary">Exclusive rewards unlocked by your deeds</string>
     <string name="treasury_themes">Themes</string>
+    <string name="treasury_themes_subtitle">Exclusive themes. Tap the cover to apply its atmosphere.</string>
+    <string name="treasury_auras_subtitle">Each aura is a unique effect with its own orbit and pulse.</string>
+    <string name="treasury_artifacts_subtitle">No flat screens or dull rhythm — each background is a unique phenomenon.</string>
     <string name="treasury_unlocked_themes">Unlocked Themes</string>
     <string name="treasury_auras">Visual Effects &amp; Auras</string>
     <string name="treasury_profile_and_avatar">Profile and Avatar</string>
     <string name="treasury_profile_effects">Profile Effects</string>
+    <string name="treasury_profile_effects_subtitle">Unique glowing and animated styles to highlight your nickname.</string>
     <string name="treasury_avatar_frames">Avatar Frames</string>
+    <string name="treasury_avatar_frames_subtitle">Decorative orbital frames and borders surrounding your avatar picture.</string>
     <string name="treasury_home_hub_rewards">Home Hub Rewards</string>
+    <string name="treasury_home_hub_rewards_subtitle">Special orbit rings, crowns, and badges surrounding your avatar on the Home Hub.</string>
     <string name="treasury_aura_subtitle">Enable special effects for covers and UI</string>
     <string name="treasury_toggle_active">Active</string>
     <string name="treasury_toggle_inactive">Inactive</string>
@@ -1866,6 +1872,7 @@
     <string name="treasury_reward_neon_orbit_background_description">Neon orbital rings and particles that replace the default ambient bloom.</string>
     <string name="treasury_visual_effects">Visual effects</string>
     <string name="treasury_background_effects">Background effects</string>
+    <string name="treasury_background_effects_subtitle">Animated wallpapers and overlays to dynamic up-style your interface background.</string>
     <string name="treasury_empty_title">The Treasury is Empty</string>
     <string name="treasury_empty_description">Complete rare or secret achievements to unlock exclusive rewards!</string>
     <string name="treasury_exclusive_rarity_mythic">Mythic</string>
@@ -1892,6 +1899,7 @@
     <string name="treasury_path_ascension_subtitle">Rank I → Rank X</string>
     <!-- Treasury profile titles -->
     <string name="treasury_profile_titles">Profile titles</string>
+    <string name="treasury_profile_titles_subtitle">Special honor titles displayed directly under your nickname on the profile card.</string>
     <string name="treasury_title_trinity_initiate_title">Trinity Initiate</string>
     <string name="treasury_title_trinity_initiate_desc">Display the three-path initiate title under your nickname</string>
     <string name="treasury_title_finisher_title">The Finisher</string>

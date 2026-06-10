@@ -1,21 +1,27 @@
 package eu.kanade.presentation.more.settings.screen
 
 import android.app.Activity
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,18 +36,25 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -68,7 +81,6 @@ import eu.kanade.presentation.theme.AuroraTheme
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.presentation.theme.resolveAuroraElevation
 import eu.kanade.tachiyomi.ui.home.components.AvatarFrameDecorations
-import kotlinx.collections.immutable.toImmutableList
 import tachiyomi.data.achievement.UnlockableManager
 import tachiyomi.domain.achievement.model.Achievement
 import tachiyomi.i18n.aniyomi.AYMR
@@ -509,113 +521,222 @@ object SettingsTreasuryScreen : SearchableSettings {
         }
 
         preferences.add(
-            Preference.PreferenceGroup(
-                title = stringResource(AYMR.strings.aurora_nickname_preview),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.CustomPreference(
-                        title = stringResource(AYMR.strings.treasury_nickname_preview),
-                    ) {
-                        val colors = AuroraTheme.colors
-                        val defaultUserName = stringResource(AYMR.strings.treasury_default_user_name)
-                        val decoratedName = remember(name, defaultUserName) {
-                            name.trim().ifEmpty { defaultUserName }
+            Preference.PreferenceItem.CustomPreference(
+                title = stringResource(AYMR.strings.treasury_nickname_preview),
+            ) {
+                val colors = AuroraTheme.colors
+                val defaultUserName = stringResource(AYMR.strings.treasury_default_user_name)
+                val decoratedName = remember(name, defaultUserName) {
+                    name.trim().ifEmpty { defaultUserName }
+                }
+
+                val cardBgColor = if (colors.isDark) {
+                    colors.glass.copy(alpha = 0.08f)
+                } else {
+                    Color.White
+                }
+                val cardElevation = if (colors.isDark || colors.isEInk) {
+                    0.dp
+                } else {
+                    resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
+                }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    shape = AURORA_SETTINGS_CARD_SHAPE,
+                    colors = CardDefaults.cardColors(
+                        containerColor = cardBgColor,
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
+                    border = null,
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "crazy-preview-transition")
+                        val wavePhase by infiniteTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = (2 * kotlin.math.PI).toFloat(),
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(
+                                    durationMillis = 6000,
+                                    easing = androidx.compose.animation.core.LinearEasing,
+                                ),
+                                repeatMode = RepeatMode.Restart,
+                            ),
+                            label = "wave-phase",
+                        )
+
+                        Canvas(modifier = Modifier.matchParentSize()) {
+                            val width = size.width
+                            val height = size.height
+
+                            val baseBg = if (colors.isDark) Color(0xFF0B0A12) else Color(0xFFFAF8FF)
+                            drawRect(color = baseBg)
+
+                            val cosPhase = kotlin.math.cos(wavePhase.toDouble()).toFloat()
+                            val sinPhase = kotlin.math.sin(wavePhase.toDouble()).toFloat()
+
+                            val blob1X = width * 0.25f + (width * 0.12f) * cosPhase
+                            val blob1Y = height * 0.5f + (height * 0.25f) * sinPhase
+                            val blob1Radius = size.minDimension * 0.65f
+
+                            val blob2X = width * 0.75f - (width * 0.15f) * cosPhase
+                            val blob2Y = height * 0.5f - (height * 0.20f) * sinPhase
+                            val blob2Radius = size.minDimension * 0.70f
+
+                            val blob3X = width * 0.5f + (width * 0.10f) * sinPhase
+                            val blob3Y = height * 0.4f + (height * 0.15f) * cosPhase
+                            val blob3Radius = size.minDimension * 0.50f
+
+                            val alphaMultiplier = if (colors.isDark) 0.14f else 0.08f
+
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        TreasuryViolet.copy(alpha = 0.85f * alphaMultiplier),
+                                        Color.Transparent,
+                                    ),
+                                    center = Offset(blob1X, blob1Y),
+                                    radius = blob1Radius,
+                                ),
+                            )
+
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        TreasuryCyan.copy(alpha = 0.65f * alphaMultiplier),
+                                        Color.Transparent,
+                                    ),
+                                    center = Offset(blob2X, blob2Y),
+                                    radius = blob2Radius,
+                                ),
+                            )
+
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        TreasuryGold.copy(alpha = 0.55f * alphaMultiplier),
+                                        Color.Transparent,
+                                    ),
+                                    center = Offset(blob3X, blob3Y),
+                                    radius = blob3Radius,
+                                ),
+                            )
                         }
 
-                        val cardBgColor = if (colors.isDark) {
-                            colors.glass.copy(alpha = 0.08f)
-                        } else {
-                            Color.White
-                        }
-                        val cardElevation = if (colors.isDark || colors.isEInk) {
-                            0.dp
-                        } else {
-                            resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
-                        }
-                        Card(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            shape = AURORA_SETTINGS_CARD_SHAPE,
-                            colors = CardDefaults.cardColors(
-                                containerColor = cardBgColor,
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
-                            border = if (colors.isDark) {
-                                BorderStroke(1.dp, colors.divider)
-                            } else {
-                                null
-                            },
+                                .padding(horizontal = 20.dp, vertical = 18.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            Row(
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    .size(76.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(64.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    val avatarModifier = Modifier
-                                        .fillMaxSize()
-                                        .then(
-                                            if (avatarFrameStyleKey != "none") {
-                                                Modifier.padding(2.dp)
-                                            } else {
-                                                Modifier
-                                            },
-                                        )
-                                        .clip(CircleShape)
+                                val auraTransition = rememberInfiniteTransition(label = "avatar-aura")
+                                val auraRotation by auraTransition.animateFloat(
+                                    initialValue = 0f,
+                                    targetValue = 360f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(
+                                            durationMillis = 4000,
+                                            easing = androidx.compose.animation.core.LinearEasing,
+                                        ),
+                                        repeatMode = RepeatMode.Restart,
+                                    ),
+                                    label = "aura-rotation",
+                                )
 
-                                    if (avatarUrl.isNotEmpty()) {
-                                        AsyncImage(
-                                            model = avatarUrl,
-                                            contentDescription = null,
-                                            modifier = avatarModifier,
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                if (avatarFrameStyleKey != "none") {
+                                    Canvas(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                scaleX = 1f
+                                                scaleY = 1f
+                                                rotationZ = auraRotation
+                                            },
+                                    ) {
+                                        val radius = size.minDimension / 2f - 2.dp.toPx()
+                                        drawCircle(
+                                            brush = Brush.sweepGradient(
+                                                colors = listOf(
+                                                    TreasuryViolet,
+                                                    TreasuryCyan,
+                                                    TreasuryGold,
+                                                    TreasuryViolet,
+                                                ),
+                                                center = center,
+                                            ),
+                                            radius = radius,
+                                            style = Stroke(width = 3.dp.toPx()),
                                         )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.AccountCircle,
-                                            contentDescription = null,
-                                            modifier = avatarModifier,
-                                            tint = colors.accent,
+                                        drawCircle(
+                                            brush = Brush.radialGradient(
+                                                colors = listOf(
+                                                    colors.accent.copy(alpha = 0.25f),
+                                                    Color.Transparent,
+                                                ),
+                                                center = center,
+                                                radius = radius + 8.dp.toPx(),
+                                            ),
                                         )
                                     }
+                                }
 
-                                    AvatarFrameDecorations(
-                                        styleKey = avatarFrameStyleKey,
-                                        accentColor = colors.accent,
+                                val avatarModifier = Modifier
+                                    .size(if (avatarFrameStyleKey != "none") 62.dp else 70.dp)
+                                    .clip(CircleShape)
+
+                                if (avatarUrl.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = avatarUrl,
+                                        contentDescription = null,
+                                        modifier = avatarModifier,
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountCircle,
+                                        contentDescription = null,
+                                        modifier = avatarModifier,
+                                        tint = colors.accent,
                                     )
                                 }
 
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    eu.kanade.tachiyomi.ui.home.StyledNicknameText(
-                                        text = decoratedName,
-                                        nicknameStyle = activeNicknameStyle,
-                                        badgeStyleKey = homeBadgeStyleKey,
+                                AvatarFrameDecorations(
+                                    styleKey = avatarFrameStyleKey,
+                                    accentColor = colors.accent,
+                                )
+                            }
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                eu.kanade.tachiyomi.ui.home.StyledNicknameText(
+                                    text = decoratedName,
+                                    nicknameStyle = activeNicknameStyle,
+                                    badgeStyleKey = homeBadgeStyleKey,
+                                )
+                                if (profileTitleKey != "none") {
+                                    Text(
+                                        text = profileTitleDisplayName(profileTitleKey),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = colors.accent,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
-                                    if (profileTitleKey != "none") {
-                                        Text(
-                                            text = profileTitleDisplayName(profileTitleKey),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Black,
-                                            color = colors.accent,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
                                 }
                             }
                         }
-                    },
-                ).toImmutableList(),
-            ),
+                    }
+                }
+            },
         )
 
         val totalTreasuryRewards = remember(
@@ -631,139 +752,120 @@ object SettingsTreasuryScreen : SearchableSettings {
         val unlockedTreasuryRewards = unlockedUnlockables.size.coerceAtMost(totalTreasuryRewards)
 
         preferences.add(
-            Preference.PreferenceGroup(
+            Preference.PreferenceItem.CustomPreference(
                 title = stringResource(AYMR.strings.treasury_vault_group_title),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.CustomPreference(
-                        title = stringResource(AYMR.strings.treasury_vault_group_title),
-                    ) {
-                        TreasuryVaultHero(
-                            unlocked = unlockedTreasuryRewards,
-                            total = totalTreasuryRewards,
-                            activeTheme = uiPreferences.appTheme().get().name.replace("_", " "),
-                            activeAura = uiPreferences.enabledAuras().get().firstOrNull()
-                                ?.removePrefix("aura_")
-                                ?.replace("_", " ")
-                                ?: "none",
-                        )
-                    },
-                ).toImmutableList(),
-            ),
+            ) {
+                TreasuryVaultHero(
+                    unlocked = unlockedTreasuryRewards,
+                    total = totalTreasuryRewards,
+                    activeTheme = uiPreferences.appTheme().get().name.replace("_", " "),
+                    activeAura = uiPreferences.enabledAuras().get().firstOrNull()
+                        ?.removePrefix("aura_")
+                        ?.replace("_", " ")
+                        ?: "none",
+                )
+            },
         )
 
         if (BuildConfig.DEBUG) {
             preferences.add(
-                Preference.PreferenceGroup(
-                    title = stringResource(AYMR.strings.pref_category_debug),
-                    preferenceItems = listOf(
-                        Preference.PreferenceItem.SwitchPreference(
-                            preference = debugBypassLocksPref,
-                            title = stringResource(AYMR.strings.pref_debug_bypass_treasury_locks),
-                            subtitle = stringResource(AYMR.strings.pref_debug_bypass_treasury_locks_summary),
-                        ),
-                    ).toImmutableList(),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = debugBypassLocksPref,
+                    title = stringResource(AYMR.strings.pref_debug_bypass_treasury_locks),
+                    subtitle = stringResource(AYMR.strings.pref_debug_bypass_treasury_locks_summary),
                 ),
             )
         }
 
         preferences.add(
-            Preference.PreferenceGroup(
-                title = stringResource(AYMR.strings.treasury_unlocked_themes),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.CustomPreference(title = stringResource(AYMR.strings.treasury_themes)) {
-                        TreasuryThemeSelector(
-                            uiPreferences = uiPreferences,
-                            unlockedUnlockables = unlockedUnlockables,
-                            rewardToAchievementMap = rewardToAchievementMap,
-                        )
-                    },
-                ).toImmutableList(),
-            ),
+            Preference.PreferenceItem.CustomPreference(title = stringResource(AYMR.strings.treasury_themes)) {
+                TreasuryThemeSelector(
+                    uiPreferences = uiPreferences,
+                    unlockedUnlockables = unlockedUnlockables,
+                    rewardToAchievementMap = rewardToAchievementMap,
+                )
+            },
         )
 
         preferences.add(
-            Preference.PreferenceGroup(
-                title = stringResource(AYMR.strings.treasury_auras),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.CustomPreference(title = stringResource(AYMR.strings.treasury_auras)) {
-                        TreasuryAuraSelector(
-                            uiPreferences = uiPreferences,
-                            unlockableManager = unlockableManager,
-                            unlockedUnlockables = unlockedUnlockables,
-                            rewardToAchievementMap = rewardToAchievementMap,
-                        )
-                    },
-                ).toImmutableList(),
-            ),
+            Preference.PreferenceItem.CustomPreference(title = stringResource(AYMR.strings.treasury_auras)) {
+                TreasuryAuraSelector(
+                    uiPreferences = uiPreferences,
+                    unlockableManager = unlockableManager,
+                    unlockedUnlockables = unlockedUnlockables,
+                    rewardToAchievementMap = rewardToAchievementMap,
+                )
+            },
         )
 
         preferences.add(
-            Preference.PreferenceGroup(
-                title = stringResource(AYMR.strings.treasury_visual_effects),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.CustomPreference(
-                        title = stringResource(AYMR.strings.treasury_background_effects),
-                    ) {
-                        TreasuryToggleSelector(
-                            presets = specialBackgroundPresets,
-                            unlockedUnlockables = unlockedUnlockables,
-                            rewardToAchievementMap = rewardToAchievementMap,
-                        )
-                    },
-                ).toImmutableList(),
-            ),
+            Preference.PreferenceItem.CustomPreference(
+                title = stringResource(AYMR.strings.treasury_background_effects),
+            ) {
+                TreasuryToggleSelector(
+                    title = stringResource(AYMR.strings.treasury_background_effects),
+                    subtitle = stringResource(AYMR.strings.treasury_background_effects_subtitle),
+                    presets = specialBackgroundPresets,
+                    unlockedUnlockables = unlockedUnlockables,
+                    rewardToAchievementMap = rewardToAchievementMap,
+                )
+            },
         )
 
         preferences.add(
-            Preference.PreferenceGroup(
-                title = stringResource(AYMR.strings.treasury_profile_and_avatar),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.CustomPreference(
-                        title = stringResource(AYMR.strings.treasury_profile_titles),
-                    ) {
-                        TreasuryToggleSelector(
-                            presets = titlePresets,
-                            unlockedUnlockables = unlockedUnlockables,
-                            rewardToAchievementMap = rewardToAchievementMap,
-                        )
-                    },
-                    Preference.PreferenceItem.CustomPreference(
-                        title = stringResource(AYMR.strings.treasury_profile_effects),
-                    ) {
-                        TreasuryToggleSelector(
-                            presets = profileEffectPresets,
-                            unlockedUnlockables = unlockedUnlockables,
-                            rewardToAchievementMap = rewardToAchievementMap,
-                        )
-                    },
-                    Preference.PreferenceItem.CustomPreference(
-                        title = stringResource(AYMR.strings.treasury_avatar_frames),
-                    ) {
-                        TreasuryToggleSelector(
-                            presets = avatarFramePresets,
-                            unlockedUnlockables = unlockedUnlockables,
-                            rewardToAchievementMap = rewardToAchievementMap,
-                        )
-                    },
-                ).toImmutableList(),
-            ),
+            Preference.PreferenceItem.CustomPreference(
+                title = stringResource(AYMR.strings.treasury_profile_titles),
+            ) {
+                TreasuryToggleSelector(
+                    title = stringResource(AYMR.strings.treasury_profile_titles),
+                    subtitle = stringResource(AYMR.strings.treasury_profile_titles_subtitle),
+                    presets = titlePresets,
+                    unlockedUnlockables = unlockedUnlockables,
+                    rewardToAchievementMap = rewardToAchievementMap,
+                )
+            },
         )
 
         preferences.add(
-            Preference.PreferenceGroup(
+            Preference.PreferenceItem.CustomPreference(
+                title = stringResource(AYMR.strings.treasury_profile_effects),
+            ) {
+                TreasuryToggleSelector(
+                    title = stringResource(AYMR.strings.treasury_profile_effects),
+                    subtitle = stringResource(AYMR.strings.treasury_profile_effects_subtitle),
+                    presets = profileEffectPresets,
+                    unlockedUnlockables = unlockedUnlockables,
+                    rewardToAchievementMap = rewardToAchievementMap,
+                )
+            },
+        )
+
+        preferences.add(
+            Preference.PreferenceItem.CustomPreference(
+                title = stringResource(AYMR.strings.treasury_avatar_frames),
+            ) {
+                TreasuryToggleSelector(
+                    title = stringResource(AYMR.strings.treasury_avatar_frames),
+                    subtitle = stringResource(AYMR.strings.treasury_avatar_frames_subtitle),
+                    presets = avatarFramePresets,
+                    unlockedUnlockables = unlockedUnlockables,
+                    rewardToAchievementMap = rewardToAchievementMap,
+                )
+            },
+        )
+
+        preferences.add(
+            Preference.PreferenceItem.CustomPreference(
                 title = stringResource(AYMR.strings.treasury_home_hub_rewards),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.CustomPreference(
-                        title = stringResource(AYMR.strings.treasury_home_hub_rewards),
-                    ) {
-                        TreasuryToggleSelector(
-                            presets = homePresets,
-                            unlockedUnlockables = unlockedUnlockables,
-                            rewardToAchievementMap = rewardToAchievementMap,
-                        )
-                    },
-                ).toImmutableList(),
-            ),
+            ) {
+                TreasuryToggleSelector(
+                    title = stringResource(AYMR.strings.treasury_home_hub_rewards),
+                    subtitle = stringResource(AYMR.strings.treasury_home_hub_rewards_subtitle),
+                    presets = homePresets,
+                    unlockedUnlockables = unlockedUnlockables,
+                    rewardToAchievementMap = rewardToAchievementMap,
+                )
+            },
         )
 
         return preferences
@@ -793,56 +895,300 @@ private fun TreasuryVaultHero(
 ) {
     val colors = AuroraTheme.colors
     val percent = if (total == 0) 0 else (unlocked * 100 / total)
-    Card(
+    val progress = if (total == 0) 0f else unlocked.toFloat() / total.toFloat()
+    val nightStart = if (colors.isDark) Color(0xFF080912) else Color(0xFFF8F2FF)
+    val nightEnd = if (colors.isDark) Color(0xFF151022) else Color(0xFFFFFBF0)
+    val titleColor = if (colors.isDark) Color.White else Color(0xFF221A32)
+    val bodyColor = if (colors.isDark) Color.White.copy(alpha = 0.72f) else Color(0xFF51485F)
+
+    val shape = RoundedCornerShape(28.dp)
+    val borderColor = if (colors.isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (colors.isDark) Color.White.copy(alpha = 0.06f) else Color.White,
-        ),
-        border = BorderStroke(1.dp, Color(0xFF9C7CFF).copy(alpha = 0.42f)),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            Color(0xFF101326).copy(alpha = if (colors.isDark) 0.72f else 0.10f),
-                            Color(0xFF3B245F).copy(alpha = if (colors.isDark) 0.38f else 0.08f),
-                            Color(0xFFFFD36E).copy(alpha = if (colors.isDark) 0.16f else 0.08f),
-                        ),
+            .padding(vertical = 8.dp)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        nightStart,
+                        nightEnd,
+                        TreasuryGold.copy(alpha = if (colors.isDark) 0.12f else 0.20f),
                     ),
-                )
-                .padding(20.dp),
+                ),
+                shape = shape,
+            )
+            .border(1.dp, borderColor, shape)
+            .padding(22.dp),
+    ) {
+        TreasuryConstellationBackdrop(
+            modifier = Modifier.matchParentSize(),
+            isDark = colors.isDark,
+        )
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Text(
-                text = stringResource(AYMR.strings.treasury_vault_header),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp,
-                color = Color(0xFFFFD36E),
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(AYMR.strings.treasury_vault_headline),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Black,
-                color = settingsTitleColor(),
-            )
-            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(AYMR.strings.treasury_vault_header),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.2.sp,
+                        color = TreasuryGold,
+                    )
+                    Text(
+                        text = stringResource(AYMR.strings.treasury_vault_headline),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black,
+                        color = titleColor,
+                        lineHeight = 31.sp,
+                    )
+                }
+
+                TreasuryCoreOrb(
+                    percent = percent,
+                    modifier = Modifier.size(92.dp),
+                )
+            }
+
             Text(
                 text = stringResource(AYMR.strings.treasury_vault_progress, unlocked, total, percent),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = bodyColor,
+                lineHeight = 21.sp,
             )
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TreasuryVaultPill(stringResource(AYMR.strings.treasury_vault_pill_theme), activeTheme)
-                TreasuryVaultPill(stringResource(AYMR.strings.treasury_vault_pill_aura), activeAura)
+
+            TreasuryProgressRail(progress = progress)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TreasuryVaultPill(
+                    label = stringResource(AYMR.strings.treasury_vault_pill_theme),
+                    value = activeTheme,
+                    accent = TreasuryGold,
+                    modifier = Modifier.weight(1f),
+                )
+                TreasuryVaultPill(
+                    label = stringResource(AYMR.strings.treasury_vault_pill_aura),
+                    value = activeAura,
+                    accent = TreasuryCyan,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun TreasuryConstellationBackdrop(
+    modifier: Modifier = Modifier,
+    isDark: Boolean,
+) {
+    Canvas(modifier = modifier) {
+        val alpha = if (isDark) 1f else 0.72f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(TreasuryViolet.copy(alpha = 0.32f * alpha), Color.Transparent),
+                center = Offset(size.width * 0.18f, size.height * 0.10f),
+                radius = size.minDimension * 0.72f,
+            ),
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(TreasuryGold.copy(alpha = 0.24f * alpha), Color.Transparent),
+                center = Offset(size.width * 0.88f, size.height * 0.26f),
+                radius = size.minDimension * 0.62f,
+            ),
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(TreasuryCyan.copy(alpha = 0.18f * alpha), Color.Transparent),
+                center = Offset(size.width * 0.62f, size.height * 0.92f),
+                radius = size.minDimension * 0.64f,
+            ),
+        )
+
+        val stars = listOf(
+            Offset(size.width * 0.10f, size.height * 0.18f),
+            Offset(size.width * 0.28f, size.height * 0.30f),
+            Offset(size.width * 0.48f, size.height * 0.18f),
+            Offset(size.width * 0.72f, size.height * 0.34f),
+            Offset(size.width * 0.86f, size.height * 0.12f),
+            Offset(size.width * 0.18f, size.height * 0.76f),
+            Offset(size.width * 0.42f, size.height * 0.86f),
+            Offset(size.width * 0.78f, size.height * 0.78f),
+        )
+        stars.zipWithNext().forEach { (start, end) ->
+            drawLine(
+                color = Color.White.copy(alpha = 0.08f * alpha),
+                start = start,
+                end = end,
+                strokeWidth = 1.dp.toPx(),
+            )
+        }
+        stars.forEachIndexed { index, star ->
+            drawCircle(
+                color = if (index % 3 ==
+                    0
+                ) {
+                    TreasuryGold.copy(alpha = 0.70f * alpha)
+                } else {
+                    Color.White.copy(alpha = 0.46f * alpha)
+                },
+                radius = if (index % 3 == 0) 2.2.dp.toPx() else 1.35.dp.toPx(),
+                center = star,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TreasuryCoreOrb(
+    percent: Int,
+    modifier: Modifier = Modifier,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "orb-pulse")
+    val ringPulse by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "ring-pulse",
+    )
+    val ringAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "ring-alpha",
+    )
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val centerOffset = Offset(size.width / 2, size.height / 2)
+            val baseRadius = size.minDimension * 0.40f
+
+            // Pulsing outer orbit ring
+            drawCircle(
+                color = TreasuryGold.copy(alpha = ringAlpha),
+                radius = baseRadius * ringPulse,
+                style = Stroke(width = 1.2.dp.toPx()),
+            )
+
+            // Inner glass shadow / backing
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        TreasuryGold.copy(alpha = 0.35f),
+                        TreasuryViolet.copy(alpha = 0.15f),
+                        Color.Transparent,
+                    ),
+                    center = centerOffset,
+                    radius = baseRadius * 1.2f,
+                ),
+            )
+
+            // 3D Glass Sphere Body (radial gradient shifted slightly up-left for lighting)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color.White,
+                        TreasuryGold.copy(alpha = 0.9f),
+                        TreasuryViolet.copy(alpha = 0.7f),
+                        Color(0xFF1B1328),
+                    ),
+                    center = Offset(size.width * 0.4f, size.height * 0.4f),
+                    radius = baseRadius,
+                ),
+            )
+
+            // Lens highlight reflection (specular gloss)
+            drawCircle(
+                color = Color.White.copy(alpha = 0.65f),
+                radius = baseRadius * 0.22f,
+                center = Offset(size.width * 0.38f, size.height * 0.38f),
+            )
+
+            // Visual Progress Arc & Orbiting Comet around the Sphere (No numbers)
+            val sweepAngle = (percent.toFloat() / 100f) * 360f
+
+            // Track ring
+            drawCircle(
+                color = Color.White.copy(alpha = if (ringAlpha > 0.5f) 0.08f else 0.05f),
+                radius = baseRadius * 1.28f,
+                center = centerOffset,
+                style = Stroke(width = 1.5.dp.toPx()),
+            )
+
+            // Active progress arc
+            drawArc(
+                color = TreasuryGold,
+                startAngle = -90f,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                topLeft = Offset(centerOffset.x - baseRadius * 1.28f, centerOffset.y - baseRadius * 1.28f),
+                size = androidx.compose.ui.geometry.Size(baseRadius * 2.56f, baseRadius * 2.56f),
+                style = Stroke(width = 2.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
+            )
+
+            // Orbiting moon showing the progress
+            val radAngle = Math.toRadians((sweepAngle - 90).toDouble())
+            val moonX = centerOffset.x + kotlin.math.cos(radAngle).toFloat() * (baseRadius * 1.28f)
+            val moonY = centerOffset.y + kotlin.math.sin(radAngle).toFloat() * (baseRadius * 1.28f)
+
+            drawCircle(
+                color = Color.White,
+                radius = 2.5.dp.toPx(),
+                center = Offset(moonX, moonY),
+            )
+            drawCircle(
+                color = TreasuryGold.copy(alpha = 0.45f),
+                radius = 5.dp.toPx(),
+                center = Offset(moonX, moonY),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TreasuryProgressRail(progress: Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(9.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White.copy(alpha = 0.12f)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .height(9.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(TreasuryViolet, TreasuryCyan, TreasuryGold),
+                    ),
+                ),
+        )
     }
 }
 
@@ -850,27 +1196,71 @@ private fun TreasuryVaultHero(
 private fun TreasuryVaultPill(
     label: String,
     value: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = Modifier
-            .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        accent.copy(alpha = if (AuroraTheme.colors.isDark) 0.08f else 0.05f),
+                        Color.White.copy(alpha = if (AuroraTheme.colors.isDark) 0.05f else 0.45f),
+                    ),
+                ),
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        accent.copy(alpha = 0.24f),
+                        Color.White.copy(alpha = 0.08f),
+                    ),
+                ),
+                shape = RoundedCornerShape(16.dp),
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Black,
-            color = Color(0xFF9C7CFF),
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(accent, CircleShape),
         )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = settingsTitleColor(),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.5.sp,
+                ),
+                color = if (AuroraTheme.colors.isDark) {
+                    Color.White.copy(
+                        alpha = 0.45f,
+                    )
+                } else {
+                    Color.Black.copy(alpha = 0.45f)
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.2.sp,
+                ),
+                color = if (AuroraTheme.colors.isDark) Color.White else Color(0xFF1F1B2C),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -880,22 +1270,33 @@ private fun TreasuryRewardPaths() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TreasuryPathCard(
-            stringResource(AYMR.strings.treasury_path_trinity_title),
-            stringResource(AYMR.strings.treasury_path_trinity_subtitle),
-            Color(0xFF9C7CFF),
+        Text(
+            text = stringResource(AYMR.strings.treasury_vault_group_title).uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 1.8.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+            modifier = Modifier.padding(horizontal = 4.dp),
         )
         TreasuryPathCard(
-            stringResource(AYMR.strings.treasury_path_immersion_title),
-            stringResource(AYMR.strings.treasury_path_immersion_subtitle),
-            Color(0xFF5DE7D8),
+            title = stringResource(AYMR.strings.treasury_path_trinity_title),
+            subtitle = stringResource(AYMR.strings.treasury_path_trinity_subtitle),
+            accent = TreasuryViolet,
+            index = "I",
         )
         TreasuryPathCard(
-            stringResource(AYMR.strings.treasury_path_ascension_title),
-            stringResource(AYMR.strings.treasury_path_ascension_subtitle),
-            Color(0xFFFFE08A),
+            title = stringResource(AYMR.strings.treasury_path_immersion_title),
+            subtitle = stringResource(AYMR.strings.treasury_path_immersion_subtitle),
+            accent = TreasuryCyan,
+            index = "II",
+        )
+        TreasuryPathCard(
+            title = stringResource(AYMR.strings.treasury_path_ascension_title),
+            subtitle = stringResource(AYMR.strings.treasury_path_ascension_subtitle),
+            accent = TreasuryGold,
+            index = "III",
         )
     }
 }
@@ -905,43 +1306,72 @@ private fun TreasuryPathCard(
     title: String,
     subtitle: String,
     accent: Color,
+    index: String,
 ) {
+    val isDark = AuroraTheme.colors.isDark
+    val container = if (isDark) Color.White.copy(alpha = 0.055f) else Color.White.copy(alpha = 0.86f)
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (AuroraTheme.colors.isDark) Color.White.copy(alpha = 0.045f) else Color.White,
-        ),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.34f)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = container),
+        border = BorderStroke(1.dp, accent.copy(alpha = if (isDark) 0.36f else 0.48f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(accent.copy(alpha = 0.12f), Color.Transparent),
+                    ),
+                )
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(accent, CircleShape),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    color = settingsTitleColor(),
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.18f))
+                        .border(1.dp, accent.copy(alpha = 0.55f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = index,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Black,
+                        color = accent,
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        color = settingsTitleColor(),
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        lineHeight = 17.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    )
+                }
             }
         }
     }
 }
+
+private val TreasuryGold = Color(0xFFFFD36E)
+private val TreasuryViolet = Color(0xFF9C7CFF)
+private val TreasuryCyan = Color(0xFF5DE7D8)
 
 private data class TreasuryPreset(
     val unlockableId: String,
@@ -975,7 +1405,7 @@ private fun TreasuryThemeSelector(
             theme = AppTheme.ONYX_GOLD,
             rarity = AYMR.strings.treasury_exclusive_rarity_mythic,
             tagline = AYMR.strings.treasury_tagline_onyx_gold,
-            accentColor = Color(0xFFFFD36E),
+            accentColor = TreasuryGold,
         ),
         TreasuryExclusiveThemeSpec(
             theme = AppTheme.SAKURA_NOIR,
@@ -987,150 +1417,273 @@ private fun TreasuryThemeSelector(
             theme = AppTheme.NEBULA_TIDE,
             rarity = AYMR.strings.treasury_exclusive_rarity_transcendent,
             tagline = AYMR.strings.treasury_tagline_nebula_tide,
-            accentColor = Color(0xFF46F4FF),
+            accentColor = TreasuryCyan,
         ),
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+    TreasurySectionStage(
+        title = stringResource(AYMR.strings.treasury_themes),
+        subtitle = stringResource(AYMR.strings.treasury_themes_subtitle),
+        accent = TreasuryGold,
     ) {
-        treasuryThemes.forEach { spec ->
-            val theme = spec.theme
-            val rewardId = "theme_${theme.name}"
-            val isUnlocked = isThemePreviewUnlocked(theme, unlockedUnlockables)
-            val achievementTitle =
-                rewardToAchievementMap[rewardId]?.title ?: stringResource(AYMR.strings.treasury_fallback_achievement)
-            val isSelected = appTheme == theme
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(top = 6.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            treasuryThemes.forEachIndexed { index, spec ->
+                val theme = spec.theme
+                val rewardId = "theme_${theme.name}"
+                val isUnlocked = isThemePreviewUnlocked(theme, unlockedUnlockables)
+                val achievementTitle = rewardToAchievementMap[rewardId]?.title
+                    ?: stringResource(AYMR.strings.treasury_fallback_achievement)
+                val isSelected = appTheme == theme
 
-            Card(
-                modifier = Modifier
-                    .width(180.dp)
-                    .alpha(if (isUnlocked) 1f else 0.62f)
-                    .heightIn(min = 460.dp),
-                shape = AURORA_SETTINGS_CARD_SHAPE,
-                colors = CardDefaults.cardColors(
-                    containerColor = if (AuroraTheme.colors.isDark) {
-                        Color.White.copy(alpha = 0.045f)
-                    } else {
-                        Color.White
+                TreasuryThemePoster(
+                    spec = spec,
+                    index = index,
+                    isUnlocked = isUnlocked,
+                    isSelected = isSelected,
+                    achievementTitle = achievementTitle,
+                    amoled = amoled,
+                    onClick = {
+                        if (isUnlocked) {
+                            uiPreferences.appTheme().set(theme)
+                            (context as? Activity)?.let { ActivityCompat.recreate(it) }
+                        }
                     },
-                ),
-                border = BorderStroke(
-                    width = if (isSelected && isUnlocked) 2.dp else 1.dp,
-                    color = spec.accentColor.copy(alpha = if (isUnlocked) 0.72f else 0.32f),
-                ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TreasuryThemePoster(
+    spec: TreasuryExclusiveThemeSpec,
+    index: Int,
+    isUnlocked: Boolean,
+    isSelected: Boolean,
+    achievementTitle: String,
+    amoled: Boolean,
+    onClick: () -> Unit,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "theme-poster-${spec.theme.name}")
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600 + index * 420),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "poster-pulse-${spec.theme.name}",
+    )
+    val tilt = if (index == 0) {
+        1.2f
+    } else {
+        val hash = spec.theme.name.hashCode()
+        val calculated = ((hash % 70).toFloat() / 10f) - 3.5f
+        if (calculated in -0.5f..0.5f) {
+            if (calculated >= 0f) 1.2f else -1.2f
+        } else {
+            calculated
+        }
+    }
+    val title = spec.theme.titleRes?.let { stringResource(it) } ?: spec.theme.name
+
+    val shape = RoundedCornerShape(26.dp)
+    val colors = AuroraTheme.colors
+    val borderColor = if (isSelected && isUnlocked) {
+        spec.accentColor.copy(alpha = 0.82f)
+    } else {
+        if (colors.isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f)
+    }
+    val borderWidth = if (isSelected && isUnlocked) 1.5.dp else 1.dp
+
+    Box(
+        modifier = Modifier
+            .width(238.dp)
+            .height(472.dp)
+            .graphicsLayer {
+                rotationZ = tilt
+                alpha = if (isUnlocked) 1f else 0.58f
+            }
+            .springPress(enabled = isUnlocked, onClick = onClick)
+            .border(borderWidth, borderColor, shape)
+            .clip(shape)
+            .clickable(enabled = isUnlocked, onClick = onClick),
+    ) {
+        TreasuryPosterBackdrop(
+            accent = spec.accentColor,
+            pulse = pulse,
+            modifier = Modifier.matchParentSize(),
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(9f / 16f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        TachiyomiTheme(appTheme = theme, amoled = amoled) {
-                            AppThemePreviewItem(
-                                selected = isSelected && isUnlocked,
-                                onClick = {
-                                    if (isUnlocked) {
-                                        uiPreferences.appTheme().set(theme)
-                                        (context as? Activity)?.let { ActivityCompat.recreate(it) }
-                                    }
-                                },
-                            )
-                        }
+                Text(
+                    text = stringResource(spec.rarity).uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.2.sp,
+                    color = spec.accentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(8.dp)
-                                .background(
-                                    color = spec.accentColor.copy(alpha = if (isUnlocked) 0.92f else 0.62f),
-                                    shape = RoundedCornerShape(999.dp),
-                                )
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                        ) {
-                            Text(
-                                text = stringResource(spec.rarity).uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF08080C),
-                                maxLines = 1,
-                            )
-                        }
-
-                        if (!isUnlocked) {
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .background(Color.Black.copy(alpha = 0.48f), shape = RoundedCornerShape(17.dp))
-                                    .clip(RoundedCornerShape(17.dp))
-                                    .clickable(enabled = false) {},
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = stringResource(AYMR.strings.treasury_cd_locked),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(36.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = theme.titleRes?.let { stringResource(it) } ?: theme.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Black,
-                        color = settingsTitleColor(),
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = stringResource(spec.tagline),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
-                        textAlign = TextAlign.Center,
-                        minLines = 3,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = if (isUnlocked) {
-                            if (isSelected) {
-                                stringResource(
-                                    AYMR.strings.treasury_exclusive_active,
-                                )
-                            } else {
-                                stringResource(AYMR.strings.treasury_exclusive_unlocked)
-                            }
-                        } else {
-                            stringResource(AYMR.strings.treasury_requires_achievement, achievementTitle)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isUnlocked) spec.accentColor else MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(254.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color.Black.copy(alpha = 0.28f))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(26.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                TachiyomiTheme(appTheme = spec.theme, amoled = amoled) {
+                    AppThemePreviewItem(
+                        selected = isSelected && isUnlocked,
+                        onClick = onClick,
                     )
                 }
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.36f),
+                                ),
+                            ),
+                        ),
+                )
+                if (!isUnlocked) {
+                    TreasuryLockVeil(achievementTitle = achievementTitle)
+                }
             }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = title.uppercase(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    lineHeight = 27.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(spec.tagline),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.68f),
+                    lineHeight = 17.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (isUnlocked) {
+                        if (isSelected) {
+                            stringResource(AYMR.strings.treasury_exclusive_active)
+                        } else {
+                            stringResource(AYMR.strings.treasury_exclusive_unlocked)
+                        }
+                    } else {
+                        stringResource(AYMR.strings.treasury_requires_achievement, achievementTitle)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Black,
+                    color = if (isUnlocked) spec.accentColor else Color(0xFFFF8A8A),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TreasuryPosterBackdrop(
+    accent: Color,
+    pulse: Float,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier) {
+        drawRect(
+            brush = Brush.verticalGradient(
+                listOf(
+                    Color(0xFF080810),
+                    Color(0xFF171225),
+                    accent.copy(alpha = 0.20f),
+                ),
+            ),
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                listOf(accent.copy(alpha = 0.44f), Color.Transparent),
+                center = Offset(size.width * 0.80f, size.height * 0.18f),
+                radius = size.minDimension * 0.64f * pulse,
+            ),
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = 0.08f),
+            radius = size.minDimension * 0.56f,
+            center = Offset(size.width * 0.18f, size.height * 0.70f),
+            style = Stroke(width = 1.1.dp.toPx()),
+        )
+        drawLine(
+            color = accent.copy(alpha = 0.36f),
+            start = Offset(size.width * 0.08f, size.height * 0.18f),
+            end = Offset(size.width * 0.92f, size.height * 0.82f),
+            strokeWidth = 1.4.dp.toPx(),
+        )
+    }
+}
+
+@Composable
+private fun TreasuryLockVeil(
+    achievementTitle: String,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.64f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(18.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = stringResource(AYMR.strings.treasury_cd_locked),
+                tint = Color.White,
+                modifier = Modifier.size(34.dp),
+            )
+            Text(
+                text = achievementTitle,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Black,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -1146,43 +1699,36 @@ private fun TreasuryAuraSelector(
     val auraPalettes = remember { allAuraPalettes() }
     val context = LocalContext.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    TreasurySectionStage(
+        title = stringResource(AYMR.strings.treasury_auras),
+        subtitle = stringResource(AYMR.strings.treasury_auras_subtitle),
+        accent = TreasuryCyan,
     ) {
-        auraPalettes.forEach { aura ->
-            val isUnlocked = unlockedUnlockables.contains(aura.id)
-            val isEnabled = enabledAuras.contains(aura.id)
-            val achievementTitle =
-                rewardToAchievementMap[aura.id]?.title ?: stringResource(AYMR.strings.treasury_fallback_achievement)
-            val rewardIconResId = remember(aura.id) {
-                getRewardIconResourceId(aura.id, context)
-            }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            auraPalettes.forEachIndexed { index, aura ->
+                val isUnlocked = unlockedUnlockables.contains(aura.id)
+                val isEnabled = enabledAuras.contains(aura.id)
+                val achievementTitle = rewardToAchievementMap[aura.id]?.title
+                    ?: stringResource(AYMR.strings.treasury_fallback_achievement)
+                val rewardIconResId = remember(aura.id) { getRewardIconResourceId(aura.id, context) }
 
-            val colors = AuroraTheme.colors
-            val cardBgColor = if (colors.isDark) {
-                colors.glass.copy(alpha = 0.08f)
-            } else {
-                Color.White
-            }
-            val cardElevation = if (colors.isDark || colors.isEInk) {
-                0.dp
-            } else {
-                resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
-            }
-            val cardBorder = if (isEnabled && isUnlocked) {
-                BorderStroke(2.dp, aura.accentColor)
-            } else {
-                null
-            }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .alpha(if (isUnlocked) 1f else 0.5f)
-                    .clickable(enabled = isUnlocked) {
+                TreasuryAuraChannel(
+                    index = index,
+                    title = unlockableManager.getUnlockableNameRes(aura.id)?.let { stringResource(it) }
+                        ?: unlockableManager.getUnlockableName(aura.id),
+                    description = if (isUnlocked) {
+                        resolveAuraPalette(aura.id)?.description ?: aura.description
+                    } else {
+                        stringResource(AYMR.strings.treasury_requires_achievement, achievementTitle)
+                    },
+                    iconResId = rewardIconResId,
+                    accent = aura.accentColor,
+                    isUnlocked = isUnlocked,
+                    isEnabled = isEnabled,
+                    onToggle = {
                         uiPreferences.enabledAuras().set(
                             if (isEnabled) {
                                 emptySet()
@@ -1191,270 +1737,468 @@ private fun TreasuryAuraSelector(
                             },
                         )
                     },
-                shape = AURORA_SETTINGS_CARD_SHAPE,
-                colors = CardDefaults.cardColors(containerColor = cardBgColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
-                border = cardBorder,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier.size(56.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (isUnlocked) {
-                            Icon(
-                                painter = painterResource(id = rewardIconResId),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize().padding(2.dp),
-                                tint = Color.Unspecified,
-                            )
-                            if (isEnabled) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.TopEnd,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = stringResource(AYMR.strings.treasury_cd_active),
-                                        tint = aura.accentColor,
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .background(
-                                                color = MaterialTheme.colorScheme.surface,
-                                                shape = RoundedCornerShape(8.dp),
-                                            ),
-                                    )
-                                }
-                            }
-                        } else {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    painter = painterResource(id = rewardIconResId),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize().padding(2.dp).alpha(0.35f),
-                                    tint = Color.Gray,
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = stringResource(AYMR.strings.treasury_cd_locked),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = unlockableManager.getUnlockableNameRes(aura.id)?.let { stringResource(it) }
-                                ?: unlockableManager.getUnlockableName(aura.id),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = settingsTitleColor(),
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = if (isUnlocked) {
-                                resolveAuraPalette(aura.id)?.description ?: aura.description
-                            } else {
-                                stringResource(AYMR.strings.treasury_requires_achievement, achievementTitle)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            lineHeight = 16.sp,
-                            letterSpacing = 0.2.sp,
-                            color = if (isUnlocked) {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                            } else {
-                                MaterialTheme.colorScheme.error
-                            },
-                        )
-                    }
-
-                    if (isUnlocked) {
-                        androidx.compose.material3.Switch(
-                            checked = isEnabled,
-                            onCheckedChange = { checked ->
-                                uiPreferences.enabledAuras().set(if (checked) setOf(aura.id) else emptySet())
-                            },
-                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                checkedThumbColor = aura.accentColor,
-                                checkedTrackColor = aura.accentColor.copy(alpha = 0.3f),
-                            ),
-                        )
-                    }
-                }
+                )
             }
         }
     }
 }
 
 @Composable
+private fun TreasuryAuraChannel(
+    index: Int,
+    title: String,
+    description: String,
+    iconResId: Int,
+    accent: Color,
+    isUnlocked: Boolean,
+    isEnabled: Boolean,
+    onToggle: () -> Unit,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "aura-channel-$title")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(durationMillis = 9000 + index * 700)),
+        label = "aura-rotation-$title",
+    )
+    val breathe by infiniteTransition.animateFloat(
+        initialValue = 0.72f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200 + index * 220),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "aura-breathe-$title",
+    )
+
+    val shape = RoundedCornerShape(topStart = 30.dp, topEnd = 12.dp, bottomEnd = 30.dp, bottomStart = 12.dp)
+    val colors = AuroraTheme.colors
+    val bgBrush = if (isEnabled) {
+        Brush.horizontalGradient(
+            listOf(
+                accent.copy(alpha = if (colors.isDark) 0.08f else 0.04f),
+                if (colors.isDark) Color(0xFF0D0D16) else Color.White,
+            ),
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                if (colors.isDark) Color(0xFF0D0D16) else Color.White,
+                if (colors.isDark) Color(0xFF08080E) else Color(0xFFF9F9FB),
+            ),
+        )
+    }
+    val borderBrush = if (isEnabled) {
+        Brush.linearGradient(
+            listOf(
+                accent.copy(alpha = 0.40f),
+                accent.copy(alpha = 0.08f),
+            ),
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                if (colors.isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f),
+                if (colors.isDark) Color.White.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.02f),
+            ),
+        )
+    }
+    val borderWidth = if (isEnabled) 1.5.dp else 1.dp
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = if (index % 2 == 0) 0.dp else 22.dp)
+            .graphicsLayer {
+                alpha = if (isUnlocked) 1f else 0.50f
+            }
+            .springPress(enabled = isUnlocked, onClick = onToggle)
+            .background(bgBrush, shape)
+            .border(borderWidth, borderBrush, shape)
+            .clickable(enabled = isUnlocked, onClick = onToggle)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Box(
+            modifier = Modifier.size(72.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .matchParentSize()
+                    .rotate(rotation),
+            ) {
+                drawCircle(
+                    color = accent.copy(alpha = 0.24f * breathe),
+                    radius = size.minDimension * 0.46f,
+                    style = Stroke(width = 1.6.dp.toPx()),
+                )
+                drawLine(
+                    color = accent.copy(alpha = 0.60f * breathe),
+                    start = Offset(size.width * 0.50f, 0f),
+                    end = Offset(size.width * 0.50f, size.height * 0.20f),
+                    strokeWidth = 2.dp.toPx(),
+                )
+            }
+            Icon(
+                painter = painterResource(id = iconResId),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(50.dp)
+                    .scale(if (isEnabled) 1.08f else 1f),
+                tint = if (isUnlocked) Color.Unspecified else Color.Gray,
+            )
+            if (!isUnlocked) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = stringResource(AYMR.strings.treasury_cd_locked),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Black,
+                    color = settingsTitleColor(),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (isEnabled) {
+                    val checkScale by infiniteTransition.animateFloat(
+                        initialValue = 0.85f,
+                        targetValue = 1.05f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1200),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "check-scale",
+                    )
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = stringResource(AYMR.strings.treasury_cd_active),
+                        tint = accent,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .graphicsLayer {
+                                scaleX = checkScale
+                                scaleY = checkScale
+                            },
+                    )
+                }
+            }
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                lineHeight = 17.sp,
+                color = if (isUnlocked) {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accent.copy(alpha = if (isEnabled) 0.72f else 0.18f)),
+            )
+        }
+    }
+}
+
+@Composable
 private fun TreasuryToggleSelector(
+    title: String,
+    subtitle: String,
     presets: List<TreasuryPreset>,
     unlockedUnlockables: Set<String>,
     rewardToAchievementMap: Map<String, Achievement>,
 ) {
     val context = LocalContext.current
+    val stageAccent = presets.firstOrNull()?.accentColor ?: TreasuryViolet
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    TreasurySectionStage(
+        title = title,
+        subtitle = subtitle,
+        accent = stageAccent,
     ) {
-        presets.forEach { preset ->
-            val isUnlocked = unlockedUnlockables.contains(preset.unlockableId)
-            val isActive = isUnlocked && preset.isActive()
-            val achievementTitle =
-                rewardToAchievementMap[preset.unlockableId]?.title
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            presets.forEachIndexed { index, preset ->
+                val isUnlocked = unlockedUnlockables.contains(preset.unlockableId)
+                val isActive = isUnlocked && preset.isActive()
+                val achievementTitle = rewardToAchievementMap[preset.unlockableId]?.title
                     ?: stringResource(AYMR.strings.treasury_fallback_achievement)
-            val rewardIconResId = remember(preset.unlockableId) {
-                getRewardIconResourceId(preset.unlockableId, context)
-            }
+                val rewardIconResId = remember(preset.unlockableId) {
+                    getRewardIconResourceId(preset.unlockableId, context)
+                }
 
-            val colors = AuroraTheme.colors
-            val cardBgColor = if (colors.isDark) {
-                colors.glass.copy(alpha = 0.08f)
-            } else {
-                Color.White
-            }
-            val cardElevation = if (colors.isDark || colors.isEInk) {
-                0.dp
-            } else {
-                resolveAuroraElevation(colors, AuroraSurfaceLevel.Glass)
-            }
-            val cardBorder = if (isActive && isUnlocked) {
-                BorderStroke(2.dp, preset.accentColor)
-            } else {
-                null
-            }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .alpha(if (isUnlocked) 1f else 0.5f)
-                    .clickable(enabled = isUnlocked) {
+                TreasuryArtifactShard(
+                    index = index,
+                    preset = preset,
+                    iconResId = rewardIconResId,
+                    isUnlocked = isUnlocked,
+                    isActive = isActive,
+                    description = if (isUnlocked) {
+                        preset.description
+                    } else {
+                        stringResource(AYMR.strings.treasury_requires_achievement, achievementTitle)
+                    },
+                    onToggle = {
                         if (isActive) {
                             preset.onDeactivate()
                         } else {
                             preset.onApply()
                         }
                     },
-                shape = AURORA_SETTINGS_CARD_SHAPE,
-                colors = CardDefaults.cardColors(containerColor = cardBgColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
-                border = cardBorder,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TreasuryArtifactShard(
+    index: Int,
+    preset: TreasuryPreset,
+    iconResId: Int,
+    isUnlocked: Boolean,
+    isActive: Boolean,
+    description: String,
+    onToggle: () -> Unit,
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "artifact-${preset.unlockableId}")
+    val glow by infiniteTransition.animateFloat(
+        initialValue = 0.42f,
+        targetValue = 0.90f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2400 + index * 180),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "artifact-glow-${preset.unlockableId}",
+    )
+    val shape = when (index % 3) {
+        0 -> RoundedCornerShape(topStart = 28.dp, topEnd = 6.dp, bottomEnd = 22.dp, bottomStart = 14.dp)
+        1 -> RoundedCornerShape(topStart = 10.dp, topEnd = 28.dp, bottomEnd = 12.dp, bottomStart = 28.dp)
+        else -> RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 4.dp, bottomStart = 28.dp)
+    }
+
+    val colors = AuroraTheme.colors
+    val bgBrush = if (isActive) {
+        Brush.horizontalGradient(
+            listOf(
+                preset.accentColor.copy(alpha = if (colors.isDark) 0.08f else 0.04f),
+                if (colors.isDark) Color(0xFF0D0D16) else Color.White,
+            ),
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                if (colors.isDark) Color(0xFF0D0D16) else Color.White,
+                if (colors.isDark) Color(0xFF08080E) else Color(0xFFF9F9FB),
+            ),
+        )
+    }
+    val borderBrush = if (isActive) {
+        Brush.linearGradient(
+            listOf(
+                preset.accentColor.copy(alpha = 0.40f),
+                preset.accentColor.copy(alpha = 0.08f),
+            ),
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(
+                if (colors.isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f),
+                if (colors.isDark) Color.White.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.02f),
+            ),
+        )
+    }
+    val borderWidth = if (isActive) 1.5.dp else 1.dp
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = if (index % 2 == 0) 0.dp else 18.dp, end = if (index % 2 == 0) 18.dp else 0.dp)
+            .graphicsLayer {
+                alpha = if (isUnlocked) 1f else 0.48f
+            }
+            .springPress(enabled = isUnlocked, onClick = onToggle)
+            .background(bgBrush, shape)
+            .border(borderWidth, borderBrush, shape)
+            .clickable(enabled = isUnlocked, onClick = onToggle)
+            .padding(16.dp),
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(preset.accentColor.copy(alpha = 0.24f * glow), Color.Transparent),
+                    center = Offset(size.width * 0.08f, size.height * 0.18f),
+                    radius = size.minDimension * 0.72f,
+                ),
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(58.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    drawCircle(
+                        color = preset.accentColor.copy(alpha = 0.18f * glow),
+                        radius = size.minDimension * 0.48f,
+                    )
+                    drawCircle(
+                        color = preset.accentColor.copy(alpha = 0.44f),
+                        radius = size.minDimension * 0.44f,
+                        style = Stroke(width = 1.2.dp.toPx()),
+                    )
+                }
+                Icon(
+                    painter = painterResource(id = iconResId),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().padding(4.dp),
+                    tint = if (isUnlocked) Color.Unspecified else Color.Gray,
+                )
+                if (!isUnlocked) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = stringResource(AYMR.strings.treasury_cd_locked),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Box(
-                        modifier = Modifier.size(52.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (isUnlocked) {
-                            Icon(
-                                painter = painterResource(id = rewardIconResId),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize().padding(2.dp),
-                                tint = Color.Unspecified,
-                            )
-                            if (isActive) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.TopEnd,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = stringResource(AYMR.strings.treasury_cd_active),
-                                        tint = preset.accentColor,
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .background(
-                                                color = MaterialTheme.colorScheme.surface,
-                                                shape = RoundedCornerShape(8.dp),
-                                            ),
-                                    )
-                                }
-                            }
-                        } else {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    painter = painterResource(id = rewardIconResId),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize().padding(2.dp).alpha(0.35f),
-                                    tint = Color.Gray,
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = stringResource(AYMR.strings.treasury_cd_locked),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = preset.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = settingsTitleColor(),
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = if (isUnlocked) {
-                                preset.description
-                            } else {
-                                stringResource(AYMR.strings.treasury_requires_achievement, achievementTitle)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            lineHeight = 16.sp,
-                            letterSpacing = 0.2.sp,
-                            color = if (isUnlocked) {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                            } else {
-                                MaterialTheme.colorScheme.error
-                            },
-                        )
-                    }
-
-                    if (isUnlocked) {
-                        Switch(
-                            checked = isActive,
-                            onCheckedChange = { checked ->
-                                if (checked) {
-                                    preset.onApply()
-                                } else {
-                                    preset.onDeactivate()
-                                }
-                            },
-                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                checkedThumbColor = preset.accentColor,
-                                checkedTrackColor = preset.accentColor.copy(alpha = 0.28f),
+                    Text(
+                        text = preset.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Black,
+                        color = settingsTitleColor(),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (isActive) {
+                        val checkScale by infiniteTransition.animateFloat(
+                            initialValue = 0.85f,
+                            targetValue = 1.05f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 1200),
+                                repeatMode = RepeatMode.Reverse,
                             ),
+                            label = "check-scale",
+                        )
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = stringResource(AYMR.strings.treasury_cd_active),
+                            tint = preset.accentColor,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer {
+                                    scaleX = checkScale
+                                    scaleY = checkScale
+                                },
                         )
                     }
                 }
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    lineHeight = 17.sp,
+                    color = if (isUnlocked) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun TreasurySectionStage(
+    title: String,
+    subtitle: String,
+    accent: Color,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(accent, accent.copy(alpha = 0.12f)),
+                        ),
+                    ),
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                Text(
+                    text = title.uppercase(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                    color = settingsTitleColor(),
+                    lineHeight = 28.sp,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
+                )
+            }
+        }
+        content()
     }
 }
 
@@ -1507,4 +2251,36 @@ private fun getRewardIconResourceId(rewardId: String, context: android.content.C
     } catch (e: Exception) {
         com.tadami.aurora.R.drawable.ic_badge_default
     }
+}
+
+@Composable
+private fun Modifier.springPress(
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+): Modifier {
+    if (!enabled) return this
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
+        label = "spring-press-scale",
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    isPressed = true
+                    try {
+                        awaitRelease()
+                    } finally {
+                        isPressed = false
+                    }
+                },
+                onTap = { onClick() },
+            )
+        }
 }
