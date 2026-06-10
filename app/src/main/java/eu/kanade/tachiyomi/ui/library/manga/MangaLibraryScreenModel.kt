@@ -160,9 +160,9 @@ class MangaLibraryScreenModel(
                         }
                     }
                     .let { map ->
-                        if (groupType == LibraryGroup.BY_DEFAULT && searchQuery == null) {
-                            // Keep all user-created categories visible even when empty,
-                            // so category tabs don't disappear after creation.
+                        if (groupType == LibraryGroup.BY_DEFAULT || searchQuery != null) {
+                            // Keep categories visible when searching so empty-result pages can
+                            // still show the global search action.
                             map
                         } else {
                             map.filterValues { it.isNotEmpty() }

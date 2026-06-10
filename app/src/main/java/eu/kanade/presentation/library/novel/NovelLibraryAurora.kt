@@ -66,6 +66,7 @@ import eu.kanade.presentation.entries.components.AuroraEntryDropdownMenu
 import eu.kanade.presentation.entries.components.AuroraEntryDropdownMenuItem
 import eu.kanade.presentation.entries.components.aurora.rememberAuroraPosterColorFilter
 import eu.kanade.presentation.library.components.EntryCompactGridItem
+import eu.kanade.presentation.library.components.GlobalSearchItem
 import eu.kanade.presentation.library.components.GlowContourLibraryGridItem
 import eu.kanade.presentation.library.components.LanguageBadge
 import eu.kanade.presentation.library.components.LazyLibraryGrid
@@ -94,6 +95,7 @@ import tachiyomi.presentation.core.components.Badge
 import tachiyomi.presentation.core.components.BadgeGroup
 import tachiyomi.presentation.core.components.FastScrollLazyColumn
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.util.LocalAppHaptics
 import tachiyomi.presentation.core.util.collectAsStateWithLifecycle
 import tachiyomi.presentation.core.util.plus
@@ -117,6 +119,7 @@ fun NovelLibraryAuroraContent(
     onRefresh: () -> Unit,
     onGlobalUpdate: () -> Unit,
     onOpenRandomEntry: () -> Unit,
+    onGlobalSearchClicked: () -> Unit,
     onImportEpub: () -> Unit = {},
     onLongClickNovel: ((NovelLibraryItem) -> Unit)? = null,
     onContinueReadingClicked: ((NovelLibraryItem) -> Unit)? = null,
@@ -194,6 +197,55 @@ fun NovelLibraryAuroraContent(
         else -> null
     }
 
+    if (items.isEmpty()) {
+        val message = when {
+            !searchQuery.isNullOrEmpty() -> MR.strings.no_results_found
+            hasActiveFilters -> MR.strings.error_no_match
+            else -> MR.strings.information_no_manga_category
+        }
+
+        Column(
+            modifier = Modifier
+                .padding(contentPadding + PaddingValues(8.dp))
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (showInlineHeader) {
+                InlineNovelLibraryHeader(
+                    isSearchActive = isSearchActive,
+                    searchQuery = searchQuery.orEmpty(),
+                    onSearchQueryChange = onSearchQueryChange,
+                    onSearchClick = { onSearchQueryChange(searchQuery ?: "") },
+                    onSearchClose = { onSearchQueryChange(null) },
+                    hasActiveFilters = hasActiveFilters,
+                    onFilterClicked = onFilterClicked,
+                    onRefresh = onRefresh,
+                    onGlobalUpdate = onGlobalUpdate,
+                    onOpenRandomEntry = onOpenRandomEntry,
+                    onImportEpub = onImportEpub,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .auroraCenteredMaxWidth(auroraAdaptiveSpec.listMaxWidthDp),
+                )
+            }
+            if (!searchQuery.isNullOrEmpty()) {
+                GlobalSearchItem(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.CenterHorizontally)
+                        .auroraCenteredMaxWidth(auroraAdaptiveSpec.listMaxWidthDp),
+                    searchQuery = searchQuery,
+                    onClick = onGlobalSearchClicked,
+                )
+            }
+            EmptyScreen(
+                stringRes = message,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        return
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize(),
@@ -224,6 +276,18 @@ fun NovelLibraryAuroraContent(
                             onOpenRandomEntry = onOpenRandomEntry,
                             onImportEpub = onImportEpub,
                             modifier = Modifier.auroraCenteredMaxWidth(auroraAdaptiveSpec.listMaxWidthDp),
+                        )
+                    }
+                }
+
+                if (!searchQuery.isNullOrEmpty()) {
+                    item {
+                        GlobalSearchItem(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .auroraCenteredMaxWidth(auroraAdaptiveSpec.listMaxWidthDp),
+                            searchQuery = searchQuery,
+                            onClick = onGlobalSearchClicked,
                         )
                     }
                 }
@@ -294,6 +358,18 @@ fun NovelLibraryAuroraContent(
                             onOpenRandomEntry = onOpenRandomEntry,
                             onImportEpub = onImportEpub,
                             modifier = Modifier.auroraCenteredMaxWidth(auroraAdaptiveSpec.listMaxWidthDp),
+                        )
+                    }
+                }
+
+                if (!searchQuery.isNullOrEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        GlobalSearchItem(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .auroraCenteredMaxWidth(auroraAdaptiveSpec.listMaxWidthDp),
+                            searchQuery = searchQuery,
+                            onClick = onGlobalSearchClicked,
                         )
                     }
                 }
