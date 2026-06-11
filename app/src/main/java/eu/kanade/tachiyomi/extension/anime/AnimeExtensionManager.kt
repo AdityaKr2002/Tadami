@@ -67,7 +67,8 @@ class AnimeExtensionManager(
      */
     private val installer by lazy { AnimeExtensionInstaller(context) }
 
-    private val iconMap = mutableMapOf<String, Drawable>()
+    private val iconMap = mutableMapOf<String, Drawable?>()
+    private var sourceIdToPackageName = emptyMap<Long, String>()
 
     private val installedExtensionsMapFlow = MutableStateFlow(emptyMap<String, AnimeExtension.Installed>())
     val installedExtensionsFlow = installedExtensionsMapFlow.mapExtensions(scope)
@@ -88,10 +89,7 @@ class AnimeExtensionManager(
     private var subLanguagesEnabledOnFirstRun = preferences.enabledLanguages().isSet()
 
     fun getExtensionPackage(sourceId: Long): String? {
-        return installedExtensionsFlow.value.find { extension ->
-            extension.sources.any { it.id == sourceId }
-        }
-            ?.pkgName
+        return sourceIdToPackageName[sourceId]
     }
 
     fun getExtensionPackageAsFlow(sourceId: Long): Flow<String?> {
@@ -104,12 +102,7 @@ class AnimeExtensionManager(
     }
 
     fun getAppIconForSource(sourceId: Long): Drawable? {
-        val pkgName = installedExtensionsMapFlow.value.values
-            .find { ext ->
-                ext.sources.any { it.id == sourceId }
-            }
-            ?.pkgName
-            ?: return null
+        val pkgName = sourceIdToPackageName[sourceId] ?: return null
 
         return iconMap[pkgName] ?: iconMap.getOrPut(pkgName) {
             AnimeExtensionLoader.getAnimeExtensionPackageInfoFromPkgName(context, pkgName)!!.applicationInfo!!
@@ -139,6 +132,8 @@ class AnimeExtensionManager(
         installedExtensionsMapFlow.value = animeextensions
             .filterIsInstance<AnimeLoadResult.Success>()
             .associate { it.extension.pkgName to it.extension }
+        cacheInstalledExtensionIcons()
+        rebuildSourcePackageIndex()
 
         untrustedExtensionsMapFlow.value = animeextensions
             .filterIsInstance<AnimeLoadResult.Untrusted>()
@@ -317,6 +312,8 @@ class AnimeExtensionManager(
      */
     private fun registerNewExtension(extension: AnimeExtension.Installed) {
         installedExtensionsMapFlow.value += extension
+        iconMap[extension.pkgName] = extension.icon
+        rebuildSourcePackageIndex()
     }
 
     /**
@@ -327,6 +324,8 @@ class AnimeExtensionManager(
      */
     private fun registerUpdatedExtension(extension: AnimeExtension.Installed) {
         installedExtensionsMapFlow.value += extension
+        iconMap[extension.pkgName] = extension.icon
+        rebuildSourcePackageIndex()
     }
 
     /**
@@ -345,6 +344,7 @@ class AnimeExtensionManager(
                 is AnimeLoadResult.Untrusted -> {
                     installedExtensionsMapFlow.value -= result.extension.pkgName
                     untrustedExtensionsMapFlow.value += result.extension
+                    rebuildSourcePackageIndex()
                 }
                 else -> return@launch
             }
@@ -361,6 +361,20 @@ class AnimeExtensionManager(
     private fun unregisterAnimeExtension(pkgName: String) {
         installedExtensionsMapFlow.value -= pkgName
         untrustedExtensionsMapFlow.value -= pkgName
+        iconMap -= pkgName
+        rebuildSourcePackageIndex()
+    }
+
+    private fun cacheInstalledExtensionIcons() {
+        installedExtensionsMapFlow.value.values.forEach { extension ->
+            iconMap[extension.pkgName] = extension.icon
+        }
+    }
+
+    private fun rebuildSourcePackageIndex() {
+        sourceIdToPackageName = installedExtensionsMapFlow.value.values
+            .flatMap { extension -> extension.sources.map { source -> source.id to extension.pkgName } }
+            .toMap()
     }
 
     /**
@@ -381,6 +395,7 @@ class AnimeExtensionManager(
         override fun onExtensionUntrusted(extension: AnimeExtension.Untrusted) {
             installedExtensionsMapFlow.value -= extension.pkgName
             untrustedExtensionsMapFlow.value += extension
+            rebuildSourcePackageIndex()
             updatePendingUpdatesCount()
         }
 

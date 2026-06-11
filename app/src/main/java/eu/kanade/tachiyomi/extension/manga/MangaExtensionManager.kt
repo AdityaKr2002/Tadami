@@ -64,7 +64,8 @@ class MangaExtensionManager(
      */
     private val installer by lazy { MangaExtensionInstaller(context) }
 
-    private val iconMap = mutableMapOf<String, Drawable>()
+    private val iconMap = mutableMapOf<String, Drawable?>()
+    private var sourceIdToPackageName = emptyMap<Long, String>()
 
     private val installedExtensionsMapFlow = MutableStateFlow(emptyMap<String, MangaExtension.Installed>())
     val installedExtensionsFlow = installedExtensionsMapFlow.mapExtensions(scope)
@@ -85,10 +86,7 @@ class MangaExtensionManager(
     private var subLanguagesEnabledOnFirstRun = preferences.enabledLanguages().isSet()
 
     fun getExtensionPackage(sourceId: Long): String? {
-        return installedExtensionsFlow.value.find { extension ->
-            extension.sources.any { it.id == sourceId }
-        }
-            ?.pkgName
+        return sourceIdToPackageName[sourceId]
     }
 
     fun getExtensionPackageAsFlow(sourceId: Long): Flow<String?> {
@@ -101,12 +99,7 @@ class MangaExtensionManager(
     }
 
     fun getAppIconForSource(sourceId: Long): Drawable? {
-        val pkgName = installedExtensionsMapFlow.value.values
-            .find { ext ->
-                ext.sources.any { it.id == sourceId }
-            }
-            ?.pkgName
-            ?: return null
+        val pkgName = sourceIdToPackageName[sourceId] ?: return null
 
         return iconMap[pkgName] ?: iconMap.getOrPut(pkgName) {
             MangaExtensionLoader.getMangaExtensionPackageInfoFromPkgName(context, pkgName)!!.applicationInfo!!
@@ -134,6 +127,8 @@ class MangaExtensionManager(
         installedExtensionsMapFlow.value = extensions
             .filterIsInstance<MangaLoadResult.Success>()
             .associate { it.extension.pkgName to it.extension }
+        cacheInstalledExtensionIcons()
+        rebuildSourcePackageIndex()
 
         untrustedExtensionsMapFlow.value = extensions
             .filterIsInstance<MangaLoadResult.Untrusted>()
@@ -312,6 +307,8 @@ class MangaExtensionManager(
      */
     private fun registerNewExtension(extension: MangaExtension.Installed) {
         installedExtensionsMapFlow.value += extension
+        iconMap[extension.pkgName] = extension.icon
+        rebuildSourcePackageIndex()
     }
 
     /**
@@ -322,6 +319,8 @@ class MangaExtensionManager(
      */
     private fun registerUpdatedExtension(extension: MangaExtension.Installed) {
         installedExtensionsMapFlow.value += extension
+        iconMap[extension.pkgName] = extension.icon
+        rebuildSourcePackageIndex()
     }
 
     /**
@@ -340,6 +339,7 @@ class MangaExtensionManager(
                 is MangaLoadResult.Untrusted -> {
                     installedExtensionsMapFlow.value -= result.extension.pkgName
                     untrustedExtensionsMapFlow.value += result.extension
+                    rebuildSourcePackageIndex()
                 }
                 else -> return@launch
             }
@@ -356,6 +356,20 @@ class MangaExtensionManager(
     private fun unregisterExtension(pkgName: String) {
         installedExtensionsMapFlow.value -= pkgName
         untrustedExtensionsMapFlow.value -= pkgName
+        iconMap -= pkgName
+        rebuildSourcePackageIndex()
+    }
+
+    private fun cacheInstalledExtensionIcons() {
+        installedExtensionsMapFlow.value.values.forEach { extension ->
+            iconMap[extension.pkgName] = extension.icon
+        }
+    }
+
+    private fun rebuildSourcePackageIndex() {
+        sourceIdToPackageName = installedExtensionsMapFlow.value.values
+            .flatMap { extension -> extension.sources.map { source -> source.id to extension.pkgName } }
+            .toMap()
     }
 
     /**
@@ -376,6 +390,7 @@ class MangaExtensionManager(
         override fun onExtensionUntrusted(extension: MangaExtension.Untrusted) {
             installedExtensionsMapFlow.value -= extension.pkgName
             untrustedExtensionsMapFlow.value += extension
+            rebuildSourcePackageIndex()
             updatePendingUpdatesCount()
         }
 
