@@ -174,6 +174,19 @@ class ReaderViewModel @JvmOverloads constructor(
     private var seriesInterstitialShownForChapterId: Long? = null
 
     private var chapterToDownload: MangaDownload? = null
+
+    /**
+     * Full chapter list for gap detection. This intentionally ignores reader skip filters, so
+     * chapters hidden by skip-read or skip-filtered are not treated as missing chapters.
+     */
+    private val fullChapterList by lazy {
+        val manga = manga!!
+        runBlocking { getChaptersByMangaId.await(manga.id, applyScanlatorFilter = true) }
+            .sortedWith(getChapterSort(manga, sortDescending = false))
+            .map { it.toDbChapter() }
+            .map(::ReaderChapter)
+    }
+
     private val isAuroraTheme by lazy { uiPreferences.appTheme().get().isAuroraStyle }
 
     /**
@@ -437,6 +450,7 @@ class ReaderViewModel @JvmOverloads constructor(
             chapter,
             chapterList.getOrNull(chapterPos - 1),
             chapterList.getOrNull(chapterPos + 1),
+            fullChapterList,
         )
 
         withUIContext {
