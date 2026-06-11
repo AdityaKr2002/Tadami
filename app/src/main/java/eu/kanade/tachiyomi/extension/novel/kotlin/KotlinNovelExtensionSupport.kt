@@ -123,6 +123,7 @@ class KotlinNovelExtensionInstaller(
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun installApk(apkFile: File) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
             Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
@@ -513,14 +514,20 @@ private class KotlinCatalogueNovelSourceAdapter(
 
     override fun getFilterList(): NovelFilterList = catalogueSource.getFilterList().toNovelFilterList()
 
+    @Deprecated("Use the non-RxJava API instead.")
+    @Suppress("DEPRECATION")
     override fun fetchPopularNovels(page: Int): Observable<NovelsPage> {
         return catalogueSource.fetchPopularManga(page).map { it.toNovelsPage() }
     }
 
+    @Deprecated("Use the non-RxJava API instead.")
+    @Suppress("DEPRECATION")
     override fun fetchSearchNovels(page: Int, query: String, filters: NovelFilterList): Observable<NovelsPage> {
         return catalogueSource.fetchSearchManga(page, query, filters.toMangaFilterList()).map { it.toNovelsPage() }
     }
 
+    @Deprecated("Use the non-RxJava API instead.")
+    @Suppress("DEPRECATION")
     override fun fetchLatestUpdates(page: Int): Observable<NovelsPage> {
         return catalogueSource.fetchLatestUpdates(page).map { it.toNovelsPage() }
     }
@@ -534,6 +541,7 @@ private fun NovelFilterList.toMangaFilterList(): FilterList {
     return FilterList(map { it.toMangaFilter() })
 }
 
+@Suppress("UNCHECKED_CAST")
 private fun Filter<*>.toNovelFilter(): NovelFilter<*> {
     return when (this) {
         is Filter.Header -> NovelFilter.Header(name)
@@ -554,6 +562,7 @@ private fun Filter<*>.toNovelFilter(): NovelFilter<*> {
     }
 }
 
+@Suppress("UNCHECKED_CAST")
 private fun NovelFilter<*>.toMangaFilter(): Filter<*> {
     return when (this) {
         is NovelFilter.Header -> Filter.Header(name)
