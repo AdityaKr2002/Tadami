@@ -25,6 +25,9 @@ class NovelPluginIndexParser(
 
 private fun JsonElement.toPlugin(repoUrl: String): NovelPlugin.Available? {
     val obj = jsonObject
+
+    obj.toKotlinExtensionPlugin(repoUrl)?.let { return it }
+
     val id = obj["id"]?.stringValue() ?: return null
     val name = obj["name"]?.stringValue() ?: return null
     val site = obj["site"]?.stringValue() ?: return null
@@ -54,6 +57,62 @@ private fun JsonElement.toPlugin(repoUrl: String): NovelPlugin.Available? {
         sha256 = sha256,
         repoUrl = repoUrl,
     )
+}
+
+private fun JsonObject.toKotlinExtensionPlugin(repoUrl: String): NovelPlugin.Available? {
+    if (this["isNovel"]?.jsonPrimitive?.booleanOrNull != true) return null
+    val pkgName = this["pkg"]?.stringValue() ?: return null
+    val apkUrl = this["apk"]?.stringValue()?.resolveApkAgainstRepo(repoUrl) ?: return null
+    val rawName = this["name"]?.stringValue() ?: pkgName
+    val name = rawName
+        .substringAfter("Tsundoku: ")
+        .substringAfter("NovelApp: ")
+        .ifBlank { rawName }
+    val lang = normalizeNovelLang(this["lang"]?.stringValue())
+    val versionCode = parseVersion(this["code"] ?: this["version"])
+    val versionName = this["version"]?.stringValue()?.takeIf { it.isNotBlank() } ?: versionCode.toString()
+    val site = this["sources"]
+        ?.jsonArray
+        ?.firstOrNull()
+        ?.jsonObject
+        ?.get("baseUrl")
+        ?.stringValue()
+        .orEmpty()
+
+    return NovelPlugin.Available(
+        id = pkgName,
+        name = name,
+        site = site,
+        lang = lang,
+        versionCode = versionCode,
+        versionName = versionName,
+        url = apkUrl,
+        iconUrl = null,
+        customJs = null,
+        customCss = null,
+        hasSettings = false,
+        sha256 = this["sha256"]?.stringValue().orEmpty(),
+        repoUrl = repoUrl,
+        pkgName = pkgName,
+        apkUrl = apkUrl,
+        isKotlinExtension = true,
+    )
+}
+
+private fun String.resolveApkAgainstRepo(repoUrl: String): String? {
+    val raw = trim()
+    if (raw.isBlank()) return null
+    raw.toHttpUrlOrNull()?.let { return it.toString() }
+
+    val normalizedRepoUrl = repoUrl.trim()
+    val repoRoot = if (normalizedRepoUrl.endsWith(".json", ignoreCase = true)) {
+        normalizedRepoUrl.substringBeforeLast('/')
+    } else {
+        normalizedRepoUrl.trimEnd('/')
+    }
+    val base = "$repoRoot/".toHttpUrlOrNull() ?: return raw
+    val apkPath = if (raw.startsWith("apk/")) raw else "apk/$raw"
+    return base.resolve(apkPath)?.toString() ?: raw
 }
 
 private fun parseVersion(element: JsonElement?): Int {

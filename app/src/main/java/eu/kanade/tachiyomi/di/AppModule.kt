@@ -15,6 +15,7 @@ import dataanime.Animehistory
 import dataanime.Animes
 import datanovel.Novel_history
 import datanovel.Novels
+import eu.kanade.domain.extension.novel.interactor.TrustNovelExtension
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.track.anime.store.DelayedAnimeTrackingStore
 import eu.kanade.domain.track.manga.store.DelayedMangaTrackingStore
@@ -44,6 +45,7 @@ import eu.kanade.tachiyomi.extension.novel.NovelExtensionManager
 import eu.kanade.tachiyomi.extension.novel.NovelExtensionUpdateChecker
 import eu.kanade.tachiyomi.extension.novel.NovelPluginSourceFactory
 import eu.kanade.tachiyomi.extension.novel.api.NetworkNovelPluginIndexFetcher
+import eu.kanade.tachiyomi.extension.novel.kotlin.KotlinNovelExtensionInstaller
 import eu.kanade.tachiyomi.extension.novel.api.NovelPluginApi
 import eu.kanade.tachiyomi.extension.novel.api.NovelPluginApiFacade
 import eu.kanade.tachiyomi.extension.novel.api.NovelPluginIndexFetcher
@@ -587,8 +589,10 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { NovelPluginAssetBindings(get()) }
         addSingletonFactory { NovelPluginWebViewCoordinator(get()) }
         addSingletonFactory<NovelPluginSourceFactory> { NovelJsSourceFactory(get(), get(), get(), get(), get(), get()) }
+        addSingletonFactory { TrustNovelExtension(get(), get()) }
+        addSingletonFactory { KotlinNovelExtensionInstaller(app, get<NetworkHelper>().client) }
 
-        addSingletonFactory<NovelExtensionManager> { DefaultNovelExtensionManager(get(), get(), get(), get()) }
+        addSingletonFactory<NovelExtensionManager> { DefaultNovelExtensionManager(app, get(), get(), get(), get(), get()) }
         addSingletonFactory { NovelExtensionUpdateChecker() }
         addSingletonFactory { NovelPluginRepoParser(get()) }
         addSingletonFactory<NovelRepoPluginStorage> { InMemoryNovelPluginStorage() }

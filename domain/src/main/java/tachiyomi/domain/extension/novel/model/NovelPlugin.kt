@@ -30,6 +30,9 @@ sealed class NovelPlugin {
         override val sha256: String,
         override val repoUrl: String,
         val repoName: String = "",
+        val pkgName: String? = null,
+        val apkUrl: String? = null,
+        val isKotlinExtension: Boolean = false,
     ) : NovelPlugin()
 
     data class Installed(
@@ -47,5 +50,8 @@ sealed class NovelPlugin {
         override val sha256: String,
         override val repoUrl: String,
         val repoName: String? = null,
+        val pkgName: String? = null,
+        val apkUrl: String? = null,
+        val isKotlinExtension: Boolean = false,
     ) : NovelPlugin()
 }

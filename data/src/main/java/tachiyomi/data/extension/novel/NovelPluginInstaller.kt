@@ -81,5 +81,8 @@ fun NovelPlugin.Available.toInstalled(): NovelPlugin.Installed {
         sha256 = sha256,
         repoUrl = repoUrl,
         repoName = repoName.takeIf { it.isNotBlank() },
+        pkgName = pkgName,
+        apkUrl = apkUrl,
+        isKotlinExtension = isKotlinExtension,
     )
 }
