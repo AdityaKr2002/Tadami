@@ -15,11 +15,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -53,8 +56,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -1079,6 +1085,28 @@ private fun TreasuryCoreOrb(
         label = "ring-alpha",
     )
 
+    val isComplete = percent >= 100
+
+    val completeRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "complete-rotation",
+    )
+
+    val completeGlowRadius by infiniteTransition.animateFloat(
+        initialValue = 1.2f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "complete-glow-radius",
+    )
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center,
@@ -1089,33 +1117,55 @@ private fun TreasuryCoreOrb(
 
             // Pulsing outer orbit ring
             drawCircle(
-                color = TreasuryGold.copy(alpha = ringAlpha),
+                color = if (isComplete) TreasuryCyan.copy(alpha = ringAlpha) else TreasuryGold.copy(alpha = ringAlpha),
                 radius = baseRadius * ringPulse,
                 style = Stroke(width = 1.2.dp.toPx()),
             )
 
             // Inner glass shadow / backing
+            val innerBackingRadius = if (isComplete) baseRadius * completeGlowRadius else baseRadius * 1.2f
+            val innerBackingColors = if (isComplete) {
+                listOf(
+                    TreasuryCyan.copy(alpha = 0.45f),
+                    TreasuryViolet.copy(alpha = 0.30f),
+                    TreasuryGold.copy(alpha = 0.15f),
+                    Color.Transparent,
+                )
+            } else {
+                listOf(
+                    TreasuryGold.copy(alpha = 0.35f),
+                    TreasuryViolet.copy(alpha = 0.15f),
+                    Color.Transparent,
+                )
+            }
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(
-                        TreasuryGold.copy(alpha = 0.35f),
-                        TreasuryViolet.copy(alpha = 0.15f),
-                        Color.Transparent,
-                    ),
+                    colors = innerBackingColors,
                     center = centerOffset,
-                    radius = baseRadius * 1.2f,
+                    radius = innerBackingRadius,
                 ),
             )
 
             // 3D Glass Sphere Body (radial gradient shifted slightly up-left for lighting)
+            val sphereColors = if (isComplete) {
+                listOf(
+                    Color.White,
+                    TreasuryGold.copy(alpha = 0.95f),
+                    TreasuryViolet.copy(alpha = 0.85f),
+                    TreasuryCyan.copy(alpha = 0.75f),
+                    Color(0xFF0F0A1C),
+                )
+            } else {
+                listOf(
+                    Color.White,
+                    TreasuryGold.copy(alpha = 0.9f),
+                    TreasuryViolet.copy(alpha = 0.7f),
+                    Color(0xFF1B1328),
+                )
+            }
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color.White,
-                        TreasuryGold.copy(alpha = 0.9f),
-                        TreasuryViolet.copy(alpha = 0.7f),
-                        Color(0xFF1B1328),
-                    ),
+                    colors = sphereColors,
                     center = Offset(size.width * 0.4f, size.height * 0.4f),
                     radius = baseRadius,
                 ),
@@ -1131,40 +1181,86 @@ private fun TreasuryCoreOrb(
             // Visual Progress Arc & Orbiting Comet around the Sphere (No numbers)
             val sweepAngle = (percent.toFloat() / 100f) * 360f
 
-            // Track ring
-            drawCircle(
-                color = Color.White.copy(alpha = if (ringAlpha > 0.5f) 0.08f else 0.05f),
-                radius = baseRadius * 1.28f,
-                center = centerOffset,
-                style = Stroke(width = 1.5.dp.toPx()),
-            )
+            if (isComplete) {
+                val sweepGradient = Brush.sweepGradient(
+                    colors = listOf(
+                        TreasuryViolet,
+                        TreasuryCyan,
+                        TreasuryGold,
+                        TreasuryViolet,
+                    ),
+                    center = centerOffset,
+                )
 
-            // Active progress arc
-            drawArc(
-                color = TreasuryGold,
-                startAngle = -90f,
-                sweepAngle = sweepAngle,
-                useCenter = false,
-                topLeft = Offset(centerOffset.x - baseRadius * 1.28f, centerOffset.y - baseRadius * 1.28f),
-                size = androidx.compose.ui.geometry.Size(baseRadius * 2.56f, baseRadius * 2.56f),
-                style = Stroke(width = 2.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
-            )
+                rotate(degrees = completeRotation, pivot = centerOffset) {
+                    // Active progress arc rotating at 100%
+                    drawArc(
+                        brush = sweepGradient,
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        topLeft = Offset(centerOffset.x - baseRadius * 1.28f, centerOffset.y - baseRadius * 1.28f),
+                        size = androidx.compose.ui.geometry.Size(baseRadius * 2.56f, baseRadius * 2.56f),
+                        style = Stroke(width = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                    )
 
-            // Orbiting moon showing the progress
-            val radAngle = Math.toRadians((sweepAngle - 90).toDouble())
-            val moonX = centerOffset.x + kotlin.math.cos(radAngle).toFloat() * (baseRadius * 1.28f)
-            val moonY = centerOffset.y + kotlin.math.sin(radAngle).toFloat() * (baseRadius * 1.28f)
+                    // Orbiting moon showing the progress with particles trail
+                    for (i in 0..4) {
+                        val angle = -90f - i * 12f
+                        val radAngle = Math.toRadians(angle.toDouble())
+                        val moonX = centerOffset.x + kotlin.math.cos(radAngle).toFloat() * (baseRadius * 1.28f)
+                        val moonY = centerOffset.y + kotlin.math.sin(radAngle).toFloat() * (baseRadius * 1.28f)
+                        val opacity = (1.0f - (i * 0.18f)).coerceIn(0f, 1f)
+                        val sizeMultiplier = (1.0f - (i * 0.12f)).coerceIn(0.2f, 1f)
 
-            drawCircle(
-                color = Color.White,
-                radius = 2.5.dp.toPx(),
-                center = Offset(moonX, moonY),
-            )
-            drawCircle(
-                color = TreasuryGold.copy(alpha = 0.45f),
-                radius = 5.dp.toPx(),
-                center = Offset(moonX, moonY),
-            )
+                        drawCircle(
+                            color = TreasuryGold.copy(alpha = 0.45f * opacity),
+                            radius = 5.dp.toPx() * sizeMultiplier,
+                            center = Offset(moonX, moonY),
+                        )
+                        drawCircle(
+                            color = Color.White.copy(alpha = opacity),
+                            radius = 2.5.dp.toPx() * sizeMultiplier,
+                            center = Offset(moonX, moonY),
+                        )
+                    }
+                }
+            } else {
+                // Track ring
+                drawCircle(
+                    color = Color.White.copy(alpha = if (ringAlpha > 0.5f) 0.08f else 0.05f),
+                    radius = baseRadius * 1.28f,
+                    center = centerOffset,
+                    style = Stroke(width = 1.5.dp.toPx()),
+                )
+
+                // Active progress arc
+                drawArc(
+                    color = TreasuryGold,
+                    startAngle = -90f,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    topLeft = Offset(centerOffset.x - baseRadius * 1.28f, centerOffset.y - baseRadius * 1.28f),
+                    size = androidx.compose.ui.geometry.Size(baseRadius * 2.56f, baseRadius * 2.56f),
+                    style = Stroke(width = 2.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                )
+
+                // Orbiting moon showing the progress
+                val radAngle = Math.toRadians((sweepAngle - 90).toDouble())
+                val moonX = centerOffset.x + kotlin.math.cos(radAngle).toFloat() * (baseRadius * 1.28f)
+                val moonY = centerOffset.y + kotlin.math.sin(radAngle).toFloat() * (baseRadius * 1.28f)
+
+                drawCircle(
+                    color = Color.White,
+                    radius = 2.5.dp.toPx(),
+                    center = Offset(moonX, moonY),
+                )
+                drawCircle(
+                    color = TreasuryGold.copy(alpha = 0.45f),
+                    radius = 5.dp.toPx(),
+                    center = Offset(moonX, moonY),
+                )
+            }
         }
     }
 }
@@ -1421,20 +1517,25 @@ private fun TreasuryThemeSelector(
         ),
     )
 
+    var parentLayoutCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+
     TreasurySectionStage(
         title = stringResource(AYMR.strings.treasury_themes),
         subtitle = stringResource(AYMR.strings.treasury_themes_subtitle),
         accent = TreasuryGold,
     ) {
-        Row(
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(top = 6.dp, bottom = 14.dp),
+                .onGloballyPositioned { coordinates ->
+                    parentLayoutCoordinates = coordinates
+                },
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            treasuryThemes.forEachIndexed { index, spec ->
+            items(treasuryThemes.size) { index ->
+                val spec = treasuryThemes[index]
                 val theme = spec.theme
                 val rewardId = "theme_${theme.name}"
                 val isUnlocked = isThemePreviewUnlocked(theme, unlockedUnlockables)
@@ -1449,6 +1550,7 @@ private fun TreasuryThemeSelector(
                     isSelected = isSelected,
                     achievementTitle = achievementTitle,
                     amoled = amoled,
+                    parentLayoutCoordinates = parentLayoutCoordinates,
                     onClick = {
                         if (isUnlocked) {
                             uiPreferences.appTheme().set(theme)
@@ -1469,6 +1571,7 @@ private fun TreasuryThemePoster(
     isSelected: Boolean,
     achievementTitle: String,
     amoled: Boolean,
+    parentLayoutCoordinates: androidx.compose.ui.layout.LayoutCoordinates?,
     onClick: () -> Unit,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "theme-poster-${spec.theme.name}")
@@ -1481,18 +1584,10 @@ private fun TreasuryThemePoster(
         ),
         label = "poster-pulse-${spec.theme.name}",
     )
-    val tilt = if (index == 0) {
-        1.2f
-    } else {
-        val hash = spec.theme.name.hashCode()
-        val calculated = ((hash % 70).toFloat() / 10f) - 3.5f
-        if (calculated in -0.5f..0.5f) {
-            if (calculated >= 0f) 1.2f else -1.2f
-        } else {
-            calculated
-        }
-    }
     val title = spec.theme.titleRes?.let { stringResource(it) } ?: spec.theme.name
+
+    var itemCenterOffsetX by remember { mutableStateOf(0f) }
+    val parentWidth = parentLayoutCoordinates?.size?.width?.toFloat() ?: 0f
 
     val shape = RoundedCornerShape(26.dp)
     val colors = AuroraTheme.colors
@@ -1507,9 +1602,35 @@ private fun TreasuryThemePoster(
         modifier = Modifier
             .width(238.dp)
             .height(472.dp)
+            .onGloballyPositioned { coordinates ->
+                parentLayoutCoordinates?.let { parent ->
+                    val itemLeft = parent.localPositionOf(coordinates, Offset.Zero).x
+                    itemCenterOffsetX = itemLeft + coordinates.size.width / 2f
+                }
+            }
             .graphicsLayer {
-                rotationZ = tilt
-                alpha = if (isUnlocked) 1f else 0.58f
+                if (parentWidth > 0f) {
+                    val parentCenter = parentWidth / 2f
+                    val distance = itemCenterOffsetX - parentCenter
+                    val maxDistance = parentWidth / 1.5f
+                    var pct = distance / maxDistance
+                    pct = pct.coerceIn(-1f, 1f)
+
+                    val rotY = pct * 18f
+                    val rotZ = pct * -3.5f
+                    val scale = 1f - (kotlin.math.abs(pct) * 0.06f)
+
+                    rotationY = rotY
+                    rotationZ = rotZ
+                    scaleX = scale
+                    scaleY = scale
+                    cameraDistance = 8f * density
+
+                    val baseAlpha = if (isUnlocked) 1f else 0.58f
+                    alpha = baseAlpha - (kotlin.math.abs(pct) * 0.2f).coerceIn(0f, 0.2f)
+                } else {
+                    alpha = if (isUnlocked) 1f else 0.58f
+                }
             }
             .springPress(enabled = isUnlocked, onClick = onClick)
             .border(borderWidth, borderColor, shape)
@@ -1558,6 +1679,9 @@ private fun TreasuryThemePoster(
                     AppThemePreviewItem(
                         selected = isSelected && isUnlocked,
                         onClick = onClick,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(vertical = 12.dp),
                     )
                 }
                 Box(
