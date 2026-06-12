@@ -196,7 +196,12 @@ class NovelTtsSessionController(
 
     suspend fun updateWordProgress(wordIndex: Int) {
         val session = mutableState.value.session ?: return
-        val updatedSession = session.copy(wordIndex = wordIndex.coerceAtLeast(0))
+        val lastWordIndex = session.utterance.wordRanges.lastIndex
+        val safeWordIndex = when {
+            lastWordIndex < 0 -> 0
+            else -> wordIndex.coerceIn(0, lastWordIndex)
+        }
+        val updatedSession = session.copy(wordIndex = safeWordIndex)
         updateState(updatedSession, mutableState.value.playbackState)
         persistCheckpoint(updatedSession)
     }

@@ -483,6 +483,7 @@
     <string name="novel_reader_tts_prefer_translated_text_summary">Использует перевод главы, если он доступен, иначе читает оригинальный текст.</string>
     <string name="novel_reader_tts_read_chapter_title">Сначала читать название главы</string>
     <string name="novel_reader_tts_unknown_language">Неизвестный язык</string>
+    <string name="novel_reader_tts_system_default_voice_summary">Использовать голос по умолчанию выбранного движка для этого языка</string>
     <string name="novel_reader_tts_default_voice">Озвучка по умолчанию</string>
     <string name="novel_reader_tts_voice_number">Озвучка %d</string>
     <string name="novel_reader_tts_voice_hint_network">Сеть</string>

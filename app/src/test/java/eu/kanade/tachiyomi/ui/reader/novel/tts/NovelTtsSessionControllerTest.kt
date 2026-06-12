@@ -210,8 +210,9 @@ class NovelTtsSessionControllerTest {
 
             restoredController.restoreFromCheckpoint()
 
-            restoredController.state.value.session.shouldNotBeNull().wordIndex shouldBe 3
+            restoredController.state.value.session.shouldNotBeNull().wordIndex shouldBe 1
             restoredSpeaker.spokenUtteranceIds shouldContainExactly listOf("chapter-1-utterance-1")
+            restoredSpeaker.spokenStartWordIndexes shouldContainExactly listOf(1)
         }
     }
 
@@ -241,6 +242,56 @@ class NovelTtsSessionControllerTest {
             // resume() -> restartFromCurrentPosition() must use the cache, not call loadChapter() again
             chapterSource.loadCallCount shouldBe loadCallsAfterStart
             controller.state.value.session.shouldNotBeNull().textSource shouldBe NovelTtsTextSource.TRANSLATED
+        }
+    }
+
+    @Test
+    fun `stale utterance completion is ignored after skipping to another utterance`() {
+        runBlocking {
+            val speaker = FakeSpeaker()
+            val controller = NovelTtsSessionController(
+                chapterSource = FakeChapterSource(listOf(chapter(chapterId = 1L))),
+                speaker = speaker,
+                sessionStore = InMemoryNovelTtsSessionStore(),
+            )
+
+            controller.startFromCurrentPosition(
+                chapterId = 1L,
+                utteranceId = "chapter-1-utterance-0",
+                preferTranslatedText = false,
+                autoAdvanceChapter = true,
+            )
+            controller.skipNext()
+            controller.onUtteranceCompleted("chapter-1-utterance-0")
+
+            controller.state.value.session.shouldNotBeNull().utterance.id shouldBe "chapter-1-utterance-1"
+            speaker.spokenUtteranceIds shouldContainExactly listOf(
+                "chapter-1-utterance-0",
+                "chapter-1-utterance-1",
+            )
+        }
+    }
+
+    @Test
+    fun `word progress clamps to valid range`() {
+        runBlocking {
+            val controller = NovelTtsSessionController(
+                chapterSource = FakeChapterSource(listOf(chapter(chapterId = 1L))),
+                speaker = FakeSpeaker(),
+                sessionStore = InMemoryNovelTtsSessionStore(),
+            )
+
+            controller.startFromCurrentPosition(
+                chapterId = 1L,
+                utteranceId = "chapter-1-utterance-0",
+                preferTranslatedText = false,
+                autoAdvanceChapter = true,
+            )
+            controller.updateWordProgress(-5)
+            controller.state.value.session.shouldNotBeNull().wordIndex shouldBe 0
+
+            controller.updateWordProgress(999)
+            controller.state.value.session.shouldNotBeNull().wordIndex shouldBe 1
         }
     }
 

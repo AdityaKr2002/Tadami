@@ -447,6 +447,8 @@ class NovelReaderScreenModel(
     private var selectedTextTranslationJob: Job? = null
     private val selectedTextTranslationSessionCache = NovelSelectedTextTranslationSessionCache()
     private val progressPersistenceMutex = Mutex()
+    private val ttsRuntimeMutex = Mutex()
+    private var ttsRuntimeGeneration: Long = 0L
     private val pendingProgressPersistenceByChapterId = linkedMapOf<Long, PendingProgressPersistence>()
     private var progressPersistenceJob: Job? = null
 
@@ -1066,10 +1068,11 @@ class NovelReaderScreenModel(
         refreshTtsUiState()
     }
 
-    private suspend fun initializeTtsRuntime() {
+    private suspend fun initializeTtsRuntime() = ttsRuntimeMutex.withLock {
+        val generation = ++ttsRuntimeGeneration
         val settings = (mutableState.value as? State.Success)?.readerSettings ?: currentNovel?.source
             ?.let(novelReaderPreferences::resolveSettings)
-            ?: return
+            ?: return@withLock
         val recentLanguageTags = readRecentTtsLanguageTags()
         val preferredEngine = ttsEngineRegistry.resolvePreferredEngine(
             settings.ttsEnginePackage.takeIf { it.isNotBlank() },
@@ -1102,7 +1105,7 @@ class NovelReaderScreenModel(
                 errorMessage = null,
             )
             refreshTtsUiState()
-            return
+            return@withLock
         }
 
         val targetEnginePackage = preferredEngine?.packageName
@@ -1140,6 +1143,7 @@ class NovelReaderScreenModel(
             )
             ttsEngine.setLocale(selection.selectedLocaleTag.takeIf { it.isNotBlank() })
             ttsEngine.setVoice(selection.selectedVoiceId.takeIf { it.isNotBlank() })
+            if (generation != ttsRuntimeGeneration) return@withLock
             initializedTtsEnginePackage = targetEnginePackage
             ttsUiState = ttsUiState.copy(
                 enabled = true,
@@ -1365,6 +1369,9 @@ class NovelReaderScreenModel(
                     startWordIndex = session.wordIndex,
                 )
                 if (selection != null) {
+                    val currentSession = ttsSessionController.state.value.session
+                    if (currentSession?.utterance?.id != utterance.id) break
+                    if (ttsSessionController.state.value.playbackState != NovelTtsPlaybackState.PLAYING) break
                     ttsSessionController.updateWordProgress(selection.wordIndex)
                     ttsUiState = ttsUiState.copy(activeWordRange = selection.wordRange)
                     refreshTtsUiState()
@@ -1505,6 +1512,8 @@ class NovelReaderScreenModel(
             when (playbackState) {
                 eu.kanade.tachiyomi.ui.reader.novel.tts.NovelTtsPlaybackState.PLAYING -> {
                     pendingTtsStartRequest = null
+                    ttsWordProgressJob?.cancel()
+                    ttsWordProgressJob = null
                     ttsSessionController.pause()
                 }
                 eu.kanade.tachiyomi.ui.reader.novel.tts.NovelTtsPlaybackState.PAUSED -> {
@@ -1529,6 +1538,7 @@ class NovelReaderScreenModel(
     fun stopTtsPlayback() {
         screenModelScope.launch {
             ttsWordProgressJob?.cancel()
+            ttsWordProgressJob = null
             ttsAudioFocusManager.abandonPlaybackFocus()
             ttsSessionController.stop()
         }
@@ -1536,12 +1546,16 @@ class NovelReaderScreenModel(
 
     fun skipToNextTtsSegment() {
         screenModelScope.launch {
+            ttsWordProgressJob?.cancel()
+            ttsWordProgressJob = null
             ttsSessionController.skipNext()
         }
     }
 
     fun skipToPreviousTtsSegment() {
         screenModelScope.launch {
+            ttsWordProgressJob?.cancel()
+            ttsWordProgressJob = null
             ttsSessionController.skipPrevious()
         }
     }
@@ -1559,6 +1573,8 @@ class NovelReaderScreenModel(
         }
         screenModelScope.launch {
             pendingTtsStartRequest = startRequest
+            ttsWordProgressJob?.cancel()
+            ttsWordProgressJob = null
             ttsSessionController.pause()
         }
     }
@@ -1566,6 +1582,7 @@ class NovelReaderScreenModel(
     fun setTtsEnginePackage(value: String) = updateTtsSetting(
         setGlobal = { novelReaderPreferences.ttsEnginePackage().set(value) },
         setOverride = { it.copy(ttsEnginePackage = value) },
+        restartPlayback = true,
     )
 
     fun setTtsVoiceId(value: String) {
@@ -1586,6 +1603,7 @@ class NovelReaderScreenModel(
                     ttsLocaleTag = localeTag.takeIf(String::isNotBlank) ?: it.ttsLocaleTag,
                 )
             },
+            restartPlayback = true,
         )
         rememberRecentTtsLanguage(localeTag)
     }
@@ -1594,6 +1612,7 @@ class NovelReaderScreenModel(
         updateTtsSetting(
             setGlobal = { novelReaderPreferences.ttsLocaleTag().set(value) },
             setOverride = { it.copy(ttsLocaleTag = value) },
+            restartPlayback = true,
         )
         rememberRecentTtsLanguage(value)
     }
@@ -2695,10 +2714,20 @@ class NovelReaderScreenModel(
     private fun updateTtsSetting(
         setGlobal: () -> Unit,
         setOverride: (NovelReaderOverride) -> NovelReaderOverride,
+        restartPlayback: Boolean = false,
     ) {
         updateGeminiSetting(setGlobal, setOverride)
+        ttsWordProgressJob?.cancel()
+        ttsWordProgressJob = null
+        val wasPlaying = ttsSessionController.state.value.playbackState == NovelTtsPlaybackState.PLAYING
         screenModelScope.launch {
+            if (restartPlayback && wasPlaying) {
+                ttsSessionController.pause()
+            }
             initializeTtsRuntime()
+            if (restartPlayback && wasPlaying && ttsAudioFocusManager.requestPlaybackFocus()) {
+                ttsSessionController.resume()
+            }
         }
     }
     fun updateSelectedTextSelection(selection: NovelSelectedTextSelection?) {

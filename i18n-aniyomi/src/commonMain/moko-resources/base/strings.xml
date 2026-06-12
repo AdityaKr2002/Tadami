@@ -735,6 +735,7 @@
     <string name="novel_reader_tts_read_chapter_title">Read chapter title first</string>
     <string name="novel_reader_tts_unknown_language">Unknown language</string>
     <string name="novel_reader_tts_default_voice">Default voice</string>
+    <string name="novel_reader_tts_system_default_voice_summary">Use the engine's default voice for the selected language</string>
     <string name="novel_reader_tts_voice_number">Voice %d</string>
     <string name="novel_reader_tts_voice_hint_network">Network</string>
     <string name="novel_reader_tts_voice_hint_offline">Offline</string>
