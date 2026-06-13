@@ -24,11 +24,36 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import tachiyomi.domain.entries.novel.model.NovelCover
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
 
 class NovelCoverFetcherTest {
 
     @TempDir
     lateinit var tempDir: Path
+
+    @Test
+    fun `resolveNovelPluginImagePayload retries transient null results`() {
+        runTest {
+            val calls = AtomicInteger(0)
+
+            val payload = resolveNovelPluginImagePayload(
+                url = "novelimg://plugin-a?ref=cover-a",
+                retryDelayMillis = 0L,
+            ) {
+                if (calls.incrementAndGet() < 2) {
+                    null
+                } else {
+                    NovelPluginImagePayload(
+                        bytes = "fake-image".toByteArray(),
+                        mimeType = "image/png",
+                    )
+                }
+            }
+
+            assertEquals(2, calls.get())
+            assertEquals("image/png", payload?.mimeType)
+        }
+    }
 
     @Test
     fun `fetch resolves plugin image urls through plugin resolver`() {

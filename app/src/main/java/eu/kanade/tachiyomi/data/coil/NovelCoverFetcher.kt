@@ -103,7 +103,7 @@ class NovelCoverFetcher(
 
     private suspend fun pluginImageLoader(url: String): FetchResult {
         debugTitleCoverFlow(scope = "novel-fetcher", message = "plugin-image-fetch url=${previewTitleCoverUrl(url)}")
-        val resolved = pluginImageResolver(url)
+        val resolved = resolveNovelPluginImagePayload(url, resolver = pluginImageResolver)
             ?: throw IOException("Failed to resolve plugin image: $url")
         return SourceFetchResult(
             source = ImageSource(
