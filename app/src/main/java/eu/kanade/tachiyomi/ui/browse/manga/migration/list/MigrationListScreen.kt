@@ -120,7 +120,11 @@ class MigrationListScreen(
         }
 
         BackHandler(enabled = true) {
-            screenModel.showExitDialog()
+            if (state.items.isEmpty() && !state.isMigrating) {
+                navigator.pop()
+            } else {
+                screenModel.showExitDialog()
+            }
         }
     }
 }

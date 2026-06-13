@@ -265,7 +265,19 @@ class MangaLibraryUpdateJob(private val context: Context, workerParams: WorkerPa
                 .distinctBy { it.manga.id }
         }
 
-        val restrictions = libraryPreferences.autoUpdateItemRestrictions().get()
+        if (targetEntryIds != null) {
+            val queuedIds = listToUpdate.mapTo(mutableSetOf()) { it.manga.id }
+            targetEntryIds
+                .filterNot { it in queuedIds }
+                .forEach { entryId ->
+                    LibraryUpdateErrorStore.markResolved(
+                        media = LibraryUpdateErrorMedia.Manga,
+                        entryId = entryId,
+                    )
+                }
+        }
+
+        val restrictions = libraryPreferences.autoUpdateItemRestrictions().get().takeIf { targetEntryIds == null }.orEmpty()
         val skippedUpdates = mutableListOf<Pair<Manga, String?>>()
         val (_, fetchWindowUpperBound) = mangaFetchInterval.getWindow(ZonedDateTime.now())
 

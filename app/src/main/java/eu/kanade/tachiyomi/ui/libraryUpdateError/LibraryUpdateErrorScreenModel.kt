@@ -14,10 +14,17 @@ import eu.kanade.tachiyomi.data.library.updateerror.LibraryUpdateErrorStore
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.domain.entries.anime.interactor.GetAnime
+import tachiyomi.domain.entries.manga.interactor.GetManga
+import tachiyomi.domain.entries.novel.interactor.GetNovel
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-class LibraryUpdateErrorScreenModel : StateScreenModel<LibraryUpdateErrorScreenState>(
+class LibraryUpdateErrorScreenModel(
+    private val getManga: GetManga = Injekt.get(),
+    private val getAnime: GetAnime = Injekt.get(),
+    private val getNovel: GetNovel = Injekt.get(),
+) : StateScreenModel<LibraryUpdateErrorScreenState>(
     LibraryUpdateErrorScreenState(selectedMedia = LibraryUpdateErrorStore.getLastSelectedTab()),
 ) {
 
@@ -27,15 +34,17 @@ class LibraryUpdateErrorScreenModel : StateScreenModel<LibraryUpdateErrorScreenS
     init {
         screenModelScope.launchIO {
             LibraryUpdateErrorStore.errors.collectLatest { errors ->
+                val currentErrors = filterCurrentLibraryErrors(errors)
+
                 reconcileRetryingLibraryUpdateErrors(
-                    errors = errors,
+                    errors = currentErrors,
                     retryingErrors = retryingErrors,
                 )
 
                 mutableState.update { state ->
                     state.copy(
                         isLoading = false,
-                        items = errors.map { record ->
+                        items = currentErrors.map { record ->
                             LibraryUpdateErrorItem(
                                 record = record,
                                 selected = record.id in selectedErrorIds,
@@ -46,6 +55,62 @@ class LibraryUpdateErrorScreenModel : StateScreenModel<LibraryUpdateErrorScreenS
                 }
             }
         }
+    }
+
+    private suspend fun filterCurrentLibraryErrors(
+        errors: List<LibraryUpdateErrorRecord>,
+    ): List<LibraryUpdateErrorRecord> {
+        val staleErrorIds = mutableListOf<Long>()
+        val currentErrors = errors.mapNotNull { record ->
+            when (record.media) {
+                LibraryUpdateErrorMedia.Manga -> {
+                    val manga = getManga.await(record.entryId)
+                    if (manga?.favorite == true) {
+                        record.copy(
+                            title = manga.title,
+                            sourceId = manga.source,
+                            thumbnailUrl = manga.thumbnailUrl,
+                        )
+                    } else {
+                        staleErrorIds += record.id
+                        null
+                    }
+                }
+                LibraryUpdateErrorMedia.Anime -> {
+                    val anime = getAnime.await(record.entryId)
+                    if (anime?.favorite == true) {
+                        record.copy(
+                            title = anime.title,
+                            sourceId = anime.source,
+                            thumbnailUrl = anime.thumbnailUrl,
+                        )
+                    } else {
+                        staleErrorIds += record.id
+                        null
+                    }
+                }
+                LibraryUpdateErrorMedia.Novel -> {
+                    val novel = getNovel.await(record.entryId)
+                    if (novel?.favorite == true) {
+                        record.copy(
+                            title = novel.title,
+                            sourceId = novel.source,
+                            thumbnailUrl = novel.thumbnailUrl,
+                        )
+                    } else {
+                        staleErrorIds += record.id
+                        null
+                    }
+                }
+            }
+        }
+
+        if (staleErrorIds.isNotEmpty()) {
+            LibraryUpdateErrorStore.delete(staleErrorIds)
+            selectedErrorIds.removeAll(staleErrorIds.toSet())
+        }
+
+        return currentErrors
     }
 
     fun setSelectedTab(media: LibraryUpdateErrorMedia) {

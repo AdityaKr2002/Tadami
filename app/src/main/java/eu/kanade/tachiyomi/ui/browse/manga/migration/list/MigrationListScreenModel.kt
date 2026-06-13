@@ -6,6 +6,8 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import eu.kanade.domain.entries.manga.interactor.MigrateMangaUseCase
 import eu.kanade.domain.entries.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.data.library.updateerror.LibraryUpdateErrorMedia
+import eu.kanade.tachiyomi.data.library.updateerror.LibraryUpdateErrorStore
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.ui.browse.manga.migration.MangaMigrationFlags
 import eu.kanade.tachiyomi.ui.browse.manga.migration.list.search.SmartSourceSearchEngine
@@ -407,6 +409,7 @@ class MigrationListScreenModel(
             )
             migrateFlags.set(flags)
             migrateManga.migrateManga(item.manga, target, replace, flags)
+            markUpdateErrorResolved(item.manga.id, replace)
             removeManga(item)
         }
     }
@@ -467,6 +470,7 @@ class MigrationListScreenModel(
     private fun migrateMangas(replace: Boolean) {
         migrateJob = screenModelScope.launchIO {
             val items = state.value.items
+            val migratedItems = mutableListOf<MigratingManga>()
             mutableState.update { it.copy(isMigrating = true, migrationProgress = 0f, dialog = null) }
 
             try {
@@ -479,11 +483,14 @@ class MigrationListScreenModel(
                     )
                     migrateFlags.set(flags)
                     migrateManga.migrateManga(item.manga, target, replace, flags)
+                    markUpdateErrorResolved(item.manga.id, replace)
+                    migratedItems += item
                     mutableState.update {
                         it.copy(migrationProgress = ((index + 1).toFloat() / items.size).coerceAtMost(1f))
                     }
                 }
             } finally {
+                removeMigratedManga(migratedItems)
                 mutableState.update { it.copy(isMigrating = false, dialog = null) }
                 migrateJob = null
             }
@@ -496,10 +503,24 @@ class MigrationListScreenModel(
         mutableState.update { it.copy(isMigrating = false) }
     }
 
+    private fun markUpdateErrorResolved(mangaId: Long, replace: Boolean) {
+        if (!replace) return
+        LibraryUpdateErrorStore.markResolved(
+            media = LibraryUpdateErrorMedia.Manga,
+            entryId = mangaId,
+        )
+    }
+
     private fun removeManga(item: MigratingManga) {
-        allItems = allItems.filterNot { it.manga.id == item.manga.id }
+        removeMigratedManga(listOf(item))
+    }
+
+    private fun removeMigratedManga(items: Collection<MigratingManga>) {
+        if (items.isEmpty()) return
+        val migratedIds = items.mapTo(mutableSetOf()) { it.manga.id }
+        allItems = allItems.filterNot { it.manga.id in migratedIds }
         mutableState.update { state ->
-            val updatedItems = state.items.toPersistentList().remove(item)
+            val updatedItems = state.items.filterNot { it.manga.id in migratedIds }.toPersistentList()
             val finishedCount = updatedItems.count { it.searchResult != SearchResult.Searching }
             state.copy(
                 items = updatedItems,

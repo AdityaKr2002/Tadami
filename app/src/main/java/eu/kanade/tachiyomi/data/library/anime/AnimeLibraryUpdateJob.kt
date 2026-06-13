@@ -261,6 +261,18 @@ class AnimeLibraryUpdateJob(private val context: Context, workerParams: WorkerPa
                 .distinctBy { it.anime.id }
         }
 
+        if (targetEntryIds != null) {
+            val queuedIds = listToUpdate.mapTo(mutableSetOf()) { it.anime.id }
+            targetEntryIds
+                .filterNot { it in queuedIds }
+                .forEach { entryId ->
+                    LibraryUpdateErrorStore.markResolved(
+                        media = LibraryUpdateErrorMedia.Anime,
+                        entryId = entryId,
+                    )
+                }
+        }
+
         val includeSeasons = targetEntryIds == null && libraryPreferences.updateSeasonOnLibraryUpdate().get()
         val lastToUpdateWithSeasons = listToUpdate.flatMap { libAnime ->
             when (libAnime.anime.fetchType) {
@@ -280,7 +292,7 @@ class AnimeLibraryUpdateJob(private val context: Context, workerParams: WorkerPa
             }
         }
 
-        val restrictions = libraryPreferences.autoUpdateItemRestrictions().get()
+        val restrictions = libraryPreferences.autoUpdateItemRestrictions().get().takeIf { targetEntryIds == null }.orEmpty()
         val skippedUpdates = mutableListOf<Pair<Anime, String?>>()
         val (_, fetchWindowUpperBound) = animeFetchInterval.getWindow(ZonedDateTime.now())
 

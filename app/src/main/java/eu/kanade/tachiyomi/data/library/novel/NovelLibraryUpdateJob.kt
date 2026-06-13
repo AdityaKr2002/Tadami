@@ -251,11 +251,23 @@ class NovelLibraryUpdateJob(
                 .filterNot { it.novel.id in excludedNovelIds }
         }
 
+        if (targetEntryIds != null) {
+            val queuedIds = listToUpdate.mapTo(mutableSetOf()) { it.novel.id }
+            targetEntryIds
+                .filterNot { it in queuedIds }
+                .forEach { entryId ->
+                    LibraryUpdateErrorStore.markResolved(
+                        media = LibraryUpdateErrorMedia.Novel,
+                        entryId = entryId,
+                    )
+                }
+        }
+
         novelCategoryIdsByNovelId = listToUpdate
             .groupBy { it.novel.id }
             .mapValues { (_, entries) -> entries.map { it.category }.toSet() }
 
-        val restrictions = libraryPreferences.autoUpdateItemRestrictions().get()
+        val restrictions = libraryPreferences.autoUpdateItemRestrictions().get().takeIf { targetEntryIds == null }.orEmpty()
         val (_, fetchWindowUpperBound) = getNovelFetchWindow(ZonedDateTime.now())
         val skippedUpdates = mutableListOf<Pair<Novel, String?>>()
 
