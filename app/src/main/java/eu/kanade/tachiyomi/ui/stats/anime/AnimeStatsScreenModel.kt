@@ -9,6 +9,8 @@ import eu.kanade.core.util.fastCountNot
 import eu.kanade.core.util.fastFilterNot
 import eu.kanade.presentation.more.stats.StatsScreenState
 import eu.kanade.presentation.more.stats.data.StatsData
+import eu.kanade.tachiyomi.ui.stats.StatsCalculations
+import eu.kanade.tachiyomi.ui.stats.WatchProgress
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadManager
 import eu.kanade.tachiyomi.data.track.AnimeTracker
@@ -53,7 +55,7 @@ class AnimeStatsScreenModel(
             val overviewStatData = StatsData.AnimeOverview(
                 libraryAnimeCount = distinctLibraryAnime.size,
                 completedAnimeCount = distinctLibraryAnime.count {
-                    it.anime.status.toInt() == SAnime.COMPLETED && it.unseenCount == 0L
+                    StatsCalculations.isCompletedStatus(it.anime.status.toInt(), SAnime.COMPLETED)
                 },
                 totalSeenDuration = getWatchTime(distinctLibraryAnime),
             )
@@ -126,18 +128,17 @@ class AnimeStatsScreenModel(
     }
 
     private suspend fun getWatchTime(libraryAnimeList: List<LibraryAnime>): Long {
-        var watchTime = 0L
-        libraryAnimeList.forEach { libraryAnime ->
-            getEpisodesByAnimeId.await(libraryAnime.anime.id).forEach { episode ->
-                watchTime += if (episode.seen) {
-                    episode.totalSeconds
-                } else {
-                    episode.lastSecondSeen
+        return StatsCalculations.watchDurationMillis(
+            libraryAnimeList.flatMap { libraryAnime ->
+                getEpisodesByAnimeId.await(libraryAnime.anime.id).map { episode ->
+                    WatchProgress(
+                        seen = episode.seen,
+                        lastSeenMillis = episode.lastSecondSeen,
+                        totalMillis = episode.totalSeconds,
+                    )
                 }
-            }
-        }
-
-        return watchTime
+            },
+        )
     }
 
     private fun getScoredAnimeTrackMap(animeTrackMap: Map<Long, List<AnimeTrack>>): Map<Long, List<AnimeTrack>> {
@@ -151,12 +152,9 @@ class AnimeStatsScreenModel(
     }
 
     private fun getTrackMeanScore(scoredAnimeTrackMap: Map<Long, List<AnimeTrack>>): Double {
-        return scoredAnimeTrackMap
-            .map { (_, tracks) ->
-                tracks.map(::get10PointScore).average()
-            }
-            .fastFilter { !it.isNaN() }
-            .average()
+        return StatsCalculations.meanTitleScore(
+            scoredAnimeTrackMap.values.map { tracks -> tracks.map(::get10PointScore) },
+        )
     }
 
     private fun get10PointScore(track: AnimeTrack): Double {

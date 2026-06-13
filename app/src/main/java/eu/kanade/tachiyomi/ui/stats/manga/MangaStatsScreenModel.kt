@@ -9,6 +9,7 @@ import eu.kanade.core.util.fastCountNot
 import eu.kanade.core.util.fastFilterNot
 import eu.kanade.presentation.more.stats.StatsScreenState
 import eu.kanade.presentation.more.stats.data.StatsData
+import eu.kanade.tachiyomi.ui.stats.StatsCalculations
 import eu.kanade.tachiyomi.data.download.manga.MangaDownloadManager
 import eu.kanade.tachiyomi.data.track.MangaTracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
@@ -53,7 +54,7 @@ class MangaStatsScreenModel(
             val overviewStatData = StatsData.MangaOverview(
                 libraryMangaCount = distinctLibraryManga.size,
                 completedMangaCount = distinctLibraryManga.count {
-                    it.manga.status.toInt() == SManga.COMPLETED && it.unreadCount == 0L
+                    StatsCalculations.isCompletedStatus(it.manga.status.toInt(), SManga.COMPLETED)
                 },
                 totalReadDuration = getTotalReadDuration.await(),
             )
@@ -136,12 +137,9 @@ class MangaStatsScreenModel(
     }
 
     private fun getTrackMeanScore(scoredMangaTrackMap: Map<Long, List<MangaTrack>>): Double {
-        return scoredMangaTrackMap
-            .map { (_, tracks) ->
-                tracks.map(::get10PointScore).average()
-            }
-            .fastFilter { !it.isNaN() }
-            .average()
+        return StatsCalculations.meanTitleScore(
+            scoredMangaTrackMap.values.map { tracks -> tracks.map(::get10PointScore) },
+        )
     }
 
     private fun get10PointScore(track: MangaTrack): Double {

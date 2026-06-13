@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.more.stats.components.StatsAuroraProgressData
 import eu.kanade.presentation.more.stats.components.StatsAuroraStatItem
 import eu.kanade.presentation.theme.AuroraTheme
+import eu.kanade.tachiyomi.ui.stats.StatsCalculations
 import eu.kanade.presentation.util.toDurationString
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
@@ -148,21 +150,19 @@ fun NovelStatsAuroraContent(
                     progressBars = listOf(
                         remember(state.chapters.readChapterCount, state.chapters.totalChapterCount, accentColor) {
                             StatsAuroraProgressData(
-                                fraction = if (state.chapters.totalChapterCount > 0) {
-                                    state.chapters.readChapterCount.toFloat() / state.chapters.totalChapterCount
-                                } else {
-                                    0f
-                                },
+                                fraction = StatsCalculations.progressFraction(
+                                    done = state.chapters.readChapterCount,
+                                    total = state.chapters.totalChapterCount,
+                                ),
                                 color = accentColor,
                             )
                         },
                         remember(state.chapters.downloadCount, state.chapters.totalChapterCount) {
                             StatsAuroraProgressData(
-                                fraction = if (state.chapters.totalChapterCount > 0) {
-                                    state.chapters.downloadCount.toFloat() / state.chapters.totalChapterCount
-                                } else {
-                                    0f
-                                },
+                                fraction = StatsCalculations.progressFraction(
+                                    done = state.chapters.downloadCount,
+                                    total = state.chapters.totalChapterCount,
+                                ),
                                 color = colors.textSecondary,
                             )
                         },
@@ -255,20 +255,25 @@ private fun OverviewCard(
         modifier = modifier.height(120.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = tabContainerColor,
+            containerColor = Color.Transparent,
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = if (colors.isDark) {
-                Color.White.copy(alpha = 0.06f)
-            } else {
-                Color.Black.copy(alpha = 0.06f)
-            },
+            color = colors.accent.copy(alpha = if (colors.isDark) 0.20f else 0.16f),
         ),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            colors.accent.copy(alpha = if (colors.isDark) 0.16f else 0.10f),
+                            tabContainerColor,
+                            colors.textPrimary.copy(alpha = if (colors.isDark) 0.04f else 0.03f),
+                        ),
+                    ),
+                )
                 .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -323,18 +328,26 @@ private fun StatsSectionCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = tabContainerColor,
+            containerColor = Color.Transparent,
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = if (colors.isDark) {
-                Color.White.copy(alpha = 0.06f)
-            } else {
-                Color.Black.copy(alpha = 0.06f)
-            },
+            color = colors.accent.copy(alpha = if (colors.isDark) 0.20f else 0.16f),
         ),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            colors.accent.copy(alpha = if (colors.isDark) 0.10f else 0.07f),
+                            tabContainerColor,
+                            colors.background.copy(alpha = 0.08f),
+                        ),
+                    ),
+                )
+                .padding(16.dp),
+        ) {
             Text(
                 text = title,
                 color = colors.accent,

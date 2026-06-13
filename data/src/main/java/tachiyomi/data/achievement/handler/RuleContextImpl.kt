@@ -32,18 +32,18 @@ class RuleContextImpl(
     override suspend fun getChaptersRead(category: AchievementCategory): Int {
         return when (category) {
             AchievementCategory.MANGA -> {
-                mangaHandler.awaitOneOrNull { db -> db.historyQueries.getTotalChaptersRead() }?.toInt() ?: 0
+                mangaHandler.awaitOneOrNull { db -> db.chaptersQueries.getTotalReadChapterCount() }?.toInt() ?: 0
             }
             AchievementCategory.ANIME -> {
-                animeHandler.awaitOneOrNull { db -> db.animehistoryQueries.getTotalEpisodesWatched() }?.toInt() ?: 0
+                animeHandler.awaitOneOrNull { db -> db.episodesQueries.getTotalSeenEpisodeCount() }?.toInt() ?: 0
             }
             AchievementCategory.NOVEL -> {
-                novelHandler.awaitOneOrNull { db -> db.novel_historyQueries.getTotalChaptersRead() }?.toInt() ?: 0
+                novelHandler.awaitOneOrNull { db -> db.novel_chaptersQueries.getTotalReadChapterCount() }?.toInt() ?: 0
             }
             AchievementCategory.BOTH, AchievementCategory.SECRET -> {
-                val manga = mangaHandler.awaitOneOrNull { db -> db.historyQueries.getTotalChaptersRead() } ?: 0L
-                val anime = animeHandler.awaitOneOrNull { db -> db.animehistoryQueries.getTotalEpisodesWatched() } ?: 0L
-                val novel = novelHandler.awaitOneOrNull { db -> db.novel_historyQueries.getTotalChaptersRead() } ?: 0L
+                val manga = mangaHandler.awaitOneOrNull { db -> db.chaptersQueries.getTotalReadChapterCount() } ?: 0L
+                val anime = animeHandler.awaitOneOrNull { db -> db.episodesQueries.getTotalSeenEpisodeCount() } ?: 0L
+                val novel = novelHandler.awaitOneOrNull { db -> db.novel_chaptersQueries.getTotalReadChapterCount() } ?: 0L
                 (manga + anime + novel).toInt()
             }
         }

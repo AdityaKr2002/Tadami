@@ -8,6 +8,7 @@ import eu.kanade.core.util.fastCountNot
 import eu.kanade.core.util.fastFilterNot
 import eu.kanade.presentation.more.stats.StatsScreenState
 import eu.kanade.presentation.more.stats.data.StatsData
+import eu.kanade.tachiyomi.ui.stats.StatsCalculations
 import eu.kanade.tachiyomi.data.download.novel.NovelDownloadManager
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.coroutines.flow.update
@@ -38,7 +39,7 @@ class NovelStatsScreenModel(
             val overviewStatData = StatsData.NovelOverview(
                 libraryNovelCount = distinctLibraryNovels.size,
                 completedNovelCount = distinctLibraryNovels.count {
-                    it.novel.status.toInt() == SManga.COMPLETED && it.unreadCount == 0L
+                    StatsCalculations.isCompletedStatus(it.novel.status.toInt(), SManga.COMPLETED)
                 },
                 totalReadDuration = getTotalNovelReadDuration.await(),
             )

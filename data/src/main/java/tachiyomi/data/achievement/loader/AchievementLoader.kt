@@ -34,6 +34,8 @@ class AchievementLoader(
         private const val PREFS_NAME = "achievement_loader"
         private const val KEY_VERSION = "json_version"
         private const val KEY_CALCULATION_VERSION = "calculation_version"
+        private const val KEY_PROGRESS_RULE_VERSION = "progress_rule_version"
+        private const val CURRENT_PROGRESS_RULE_VERSION = 2
         private const val KEY_TREASURY_RECONCILIATION_VERSION = "treasury_reconciliation_version"
         private const val CURRENT_TREASURY_RECONCILIATION_VERSION = 1
         private const val KEY_LOCALE_TAG = "locale_tag"
@@ -85,6 +87,7 @@ class AchievementLoader(
                         // without invalidating other persisted state like user progress.
                         saveVersion(0)
                     } else {
+                        runRetroactiveCalculationIfNeeded(definitions.version)
                         runTreasuryReconciliationIfNeeded()
                         return Result.success(0)
                     }
@@ -116,27 +119,32 @@ class AchievementLoader(
             saveVersion(definitions.version)
             saveLocaleTag(currentLocaleTag)
 
-            // Trigger retroactive calculation on first load or version upgrade
-            if (shouldCalculateInitialProgress(definitions.version)) {
-                calculator?.let {
-                    logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Running retroactive achievement calculation..." }
-                    val result = it.calculateInitialProgress()
-                    if (result.success) {
-                        saveCalculationVersion(definitions.version)
-                        saveTreasuryReconciliationVersion(CURRENT_TREASURY_RECONCILIATION_VERSION)
-                        logcat(LogPriority.INFO) {
-                            "[ACHIEVEMENTS] Retroactive calculation completed: ${result.achievementsUnlocked} achievements unlocked"
-                        }
-                    } else {
-                        logcat(LogPriority.ERROR) { "[ACHIEVEMENTS] Retroactive calculation failed: ${result.error}" }
-                    }
-                }
-            }
+            // Trigger retroactive calculation on first load, JSON version upgrade,
+            // or achievement progress rule migration.
+            runRetroactiveCalculationIfNeeded(definitions.version)
 
             Result.success(inserted)
         } catch (e: Exception) {
             logcat(LogPriority.ERROR) { "[ACHIEVEMENTS] Failed to load achievements from JSON: ${e.message}" }
             Result.failure(e)
+        }
+    }
+
+    private suspend fun runRetroactiveCalculationIfNeeded(jsonVersion: Int) {
+        if (!shouldCalculateInitialProgress(jsonVersion)) return
+        calculator?.let {
+            logcat(LogPriority.INFO) { "[ACHIEVEMENTS] Running retroactive achievement calculation..." }
+            val result = it.calculateInitialProgress()
+            if (result.success) {
+                saveCalculationVersion(jsonVersion)
+                saveProgressRuleVersion(CURRENT_PROGRESS_RULE_VERSION)
+                saveTreasuryReconciliationVersion(CURRENT_TREASURY_RECONCILIATION_VERSION)
+                logcat(LogPriority.INFO) {
+                    "[ACHIEVEMENTS] Retroactive calculation completed: ${result.achievementsUnlocked} achievements unlocked"
+                }
+            } else {
+                logcat(LogPriority.ERROR) { "[ACHIEVEMENTS] Retroactive calculation failed: ${result.error}" }
+            }
         }
     }
 
@@ -200,8 +208,12 @@ class AchievementLoader(
     }
 
     private fun shouldCalculateInitialProgress(jsonVersion: Int): Boolean {
-        val calculationVersion = getCalculationVersion()
-        return calculationVersion < jsonVersion
+        return shouldRecalculateAchievementProgress(
+            calculationVersion = getCalculationVersion(),
+            jsonVersion = jsonVersion,
+            progressRuleVersion = getProgressRuleVersion(),
+            currentProgressRuleVersion = CURRENT_PROGRESS_RULE_VERSION,
+        )
     }
 
     private fun getCalculationVersion(): Int {
@@ -210,6 +222,14 @@ class AchievementLoader(
 
     private fun saveCalculationVersion(version: Int) {
         getPreferences().edit().putInt(KEY_CALCULATION_VERSION, version).apply()
+    }
+
+    private fun getProgressRuleVersion(): Int {
+        return getPreferences().getInt(KEY_PROGRESS_RULE_VERSION, 0)
+    }
+
+    private fun saveProgressRuleVersion(version: Int) {
+        getPreferences().edit().putInt(KEY_PROGRESS_RULE_VERSION, version).apply()
     }
 
     private fun getPreferences(): SharedPreferences {
@@ -272,4 +292,14 @@ internal fun shouldBackfillRewards(
         val dbEntry = existingById[jsonEntry.id] ?: return@any true
         dbEntry.rewards.isNullOrEmpty()
     }
+}
+
+
+internal fun shouldRecalculateAchievementProgress(
+    calculationVersion: Int,
+    jsonVersion: Int,
+    progressRuleVersion: Int,
+    currentProgressRuleVersion: Int,
+): Boolean {
+    return calculationVersion < jsonVersion || progressRuleVersion < currentProgressRuleVersion
 }
