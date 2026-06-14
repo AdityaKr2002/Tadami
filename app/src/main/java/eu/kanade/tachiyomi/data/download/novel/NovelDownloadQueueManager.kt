@@ -363,6 +363,9 @@ object NovelDownloadQueueManager {
 
     private fun startWorkerIfNeeded() {
         if (!runtimeState.tryStartWorker()) return
+        updateState { queueState ->
+            queueState.copy(tasks = recoverStaleDownloadingTasks(queueState.tasks))
+        }
         logcat(LogPriority.DEBUG) { "Novel queue worker starting" }
         queueScope.launch {
             try {
@@ -618,6 +621,23 @@ internal fun shouldWaitForNovelQueueWhilePaused(
     state: NovelDownloadQueueState,
 ): Boolean {
     return !state.isRunning && state.tasks.any { it.status == NovelQueuedDownloadStatus.DOWNLOADING }
+}
+
+internal fun recoverStaleDownloadingTasks(
+    tasks: List<NovelQueuedDownload>,
+): List<NovelQueuedDownload> {
+    if (tasks.none { it.status == NovelQueuedDownloadStatus.DOWNLOADING }) return tasks
+
+    return tasks.map { task ->
+        if (task.status == NovelQueuedDownloadStatus.DOWNLOADING) {
+            task.copy(
+                status = NovelQueuedDownloadStatus.QUEUED,
+                errorMessage = null,
+            )
+        } else {
+            task
+        }
+    }
 }
 
 /**
