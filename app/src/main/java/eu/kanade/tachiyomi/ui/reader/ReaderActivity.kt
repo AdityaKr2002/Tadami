@@ -482,6 +482,13 @@ class ReaderActivity : BaseActivity() {
                     val showBottomBarSettings by readerPreferences
                         .showBottomBarSettings()
                         .collectAsStateWithLifecycle()
+                    val bottomBarButtonsOrder by readerPreferences
+                        .bottomBarButtonsOrder()
+                        .collectAsStateWithLifecycle()
+                    val buttonsOrderList = remember(bottomBarButtonsOrder) {
+                        bottomBarButtonsOrder.split(",").filter { it.isNotBlank() }
+                    }
+
 
                     val showAutoScrollFloatingButton by
                         readerPreferences.showAutoScrollFloatingButton().collectAsStateWithLifecycle()
@@ -573,7 +580,6 @@ class ReaderActivity : BaseActivity() {
 
                         bottomBarPosition = bottomBarPosition,
 
-                        // Bottom bar button visibility
                         visibleButtons = BottomBarButtonFlags(
                             readingMode = showBottomBarReadingMode,
                             orientation = showBottomBarOrientation,
@@ -581,6 +587,7 @@ class ReaderActivity : BaseActivity() {
                             chapterList = showBottomBarChapterList,
                             settings = showBottomBarSettings,
                         ),
+                        buttonsOrder = buttonsOrderList,
 
                         // Navigator customization options
                         showNavigator = showNavigator,
