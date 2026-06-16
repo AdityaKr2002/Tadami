@@ -6,6 +6,7 @@ import tachiyomi.data.achievement.rules.ChadRule
 import tachiyomi.data.achievement.rules.CompletionCountRule
 import tachiyomi.data.achievement.rules.CompletionRatioRule
 import tachiyomi.data.achievement.rules.CrybabyRule
+import tachiyomi.data.achievement.rules.DarkFantasyRule
 import tachiyomi.data.achievement.rules.DekuRule
 import tachiyomi.data.achievement.rules.DiversityRule
 import tachiyomi.data.achievement.rules.ErenRule
@@ -125,7 +126,7 @@ class AchievementRuleRegistry(
             GenreCountRule("horror_aficionado", "horror"),
             GenreCountRule("isekai_addict", "Isekai"),
             GenreCountRule("slice_of_life_zen", "slice of life"),
-            GenreCountRule("secret_shadow_monarch", "dark fantasy"),
+            DarkFantasyRule(mangaRepository, animeRepository, novelRepository),
 
             // Time based rules
             TimeBasedRule("night_owl"),

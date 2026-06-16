@@ -11,7 +11,18 @@ object GenreAliases {
         "Psychological" to listOf("Психологическое", "Психологический"),
         "Tragedy" to listOf("Трагедия"),
         "Drama" to listOf("Драма"),
+        "romance" to listOf("Романтика"),
+        "horror" to listOf("Ужасы", "Хоррор"),
+        "slice of life" to listOf("Повседневность"),
+        "dark fantasy" to listOf("Тёмное фэнтези", "Дарк фэнтези"),
+        "Fantasy" to listOf("Фэнтези"),
+        "Horror" to listOf("Ужасы", "Хоррор"),
+        "Dark" to listOf("Тёмный", "Мрачный"),
     )
+
+    // Groups used by DarkFantasyRule for the combo check (Dark/Horror + Fantasy).
+    val darkGroupA: List<String> = listOf("Dark", "Horror", "dark fantasy")
+    val darkGroupB: List<String> = listOf("Fantasy")
 
     private val titleAliases: Map<String, List<String>> = mapOf(
         "jojo" to listOf("джоджо", "джо джо"),
