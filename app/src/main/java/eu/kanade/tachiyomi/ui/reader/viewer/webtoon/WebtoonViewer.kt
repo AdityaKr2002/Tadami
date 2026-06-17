@@ -222,8 +222,8 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
         // Page is transition page - preload allowed
         page ?: return true
 
-        // Initial opening - preload allowed
-        currentPage ?: return true
+        // Initial opening is a programmatic selection. Do not pull another chapter until the user scrolls.
+        currentPage ?: return false
 
         val nextItem = adapter.items.getOrNull(adapter.items.size - 1)
         val nextChapter = (nextItem as? ChapterTransition.Next)?.to ?: (nextItem as? ReaderPage)?.chapter

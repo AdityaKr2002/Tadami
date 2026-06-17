@@ -40,12 +40,11 @@ internal fun buildAuroraPosterBackgroundRequest(
     configure: ImageRequest.Builder.() -> Unit = {},
 ): ImageRequest {
     val placeholderKey = resolveAuroraPosterPlaceholderMemoryCacheKey(placeholderData)
-    debugTitleCoverFlow(
-        scope = "poster-request",
-        message = "build data=${previewTitleCoverValue(
+    debugTitleCoverFlow(scope = "poster-request") {
+        "build data=${previewTitleCoverValue(
             data,
-        )} memoryKey=${spec.memoryCacheKey} placeholderKey=$placeholderKey size=${containerWidthPx}x$containerHeightPx",
-    )
+        )} memoryKey=${spec.memoryCacheKey} placeholderKey=$placeholderKey size=${containerWidthPx}x$containerHeightPx"
+    }
     return ImageRequest.Builder(context)
         .data(data)
         .memoryCacheKey(spec.memoryCacheKey)
@@ -82,3 +81,7 @@ internal fun Modifier.auroraPosterBlur(blurRadius: Dp): Modifier {
         this
     }
 }
+internal fun shouldDrawAuroraPosterBlurOverlay(alpha: Float): Boolean {
+    return alpha > 0.01f
+}
+
