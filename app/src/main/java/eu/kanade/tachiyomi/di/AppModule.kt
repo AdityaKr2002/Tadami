@@ -565,6 +565,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { tachiyomi.data.anilist.AnilistMetadataCache(get()) }
         addSingletonFactory { tachiyomi.data.metadata.AnimeExternalMetadataCache(get(), get()) }
         addSingletonFactory { tachiyomi.data.metadata.MangaExternalMetadataCache(get()) }
+        addSingletonFactory { eu.kanade.tachiyomi.data.coil.MetadataCoverResolver(get(), get(), get()) }
 
         addSingletonFactory { NetworkHelper(app, get()) }
         addSingletonFactory { JavaScriptEngine(app) }
