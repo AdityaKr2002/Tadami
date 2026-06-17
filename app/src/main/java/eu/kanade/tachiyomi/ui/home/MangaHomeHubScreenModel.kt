@@ -154,9 +154,12 @@ internal class MangaHomeHubScreenModel(
                 )
 
                 val hero = filteredHistory.firstOrNull()
-                val history = filteredHistory
-                    .filter { hero == null || it.mangaId != hero.mangaId }
-                    .take(6)
+                val history = takeHomeHubHistoryExcluding(
+                    items = filteredHistory,
+                    limit = 6,
+                    excludedEntryId = hero?.mangaId,
+                    entryIdSelector = { it.mangaId },
+                )
 
                 val hasData = hero != null || history.isNotEmpty() || filteredManga.isNotEmpty()
                 val isInitialized = hasData ||

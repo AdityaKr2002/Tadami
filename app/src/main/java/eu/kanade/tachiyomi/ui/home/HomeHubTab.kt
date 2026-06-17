@@ -743,7 +743,7 @@ object HomeHubTab : Tab {
         val scope = rememberCoroutineScope()
         val activityDataFlow = remember(activityDataRepository) { activityDataRepository.getActivityData(days = 365) }
         val activityData by activityDataFlow.collectAsStateWithLifecycle(initialValue = emptyList())
-        val currentStreak = calculateHomeOpenStreak(activityData)
+        val currentStreak = remember(activityData) { calculateHomeOpenStreak(activityData) }
         val isNameEdited by userProfilePreferences.nameEdited().collectAsStateWithLifecycle()
         val showHomeGreeting by userProfilePreferences.showHomeGreeting().collectAsStateWithLifecycle()
         val showHomeStreak by userProfilePreferences.showHomeStreak().collectAsStateWithLifecycle()

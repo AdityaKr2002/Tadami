@@ -164,6 +164,47 @@ class HomeHubCategoryDerivedStateTest {
         result.map { it.label } shouldBe listOf("first visible", "system")
     }
 
+    @Test
+    fun `takeHomeHubHistoryExcluding skips excluded entry and stops at limit`() {
+        data class Item(val entryId: Long, val label: String)
+
+        val items = listOf(
+            Item(entryId = 1L, label = "hero"),
+            Item(entryId = 2L, label = "first"),
+            Item(entryId = 3L, label = "second"),
+            Item(entryId = 4L, label = "third"),
+        )
+
+        val result = takeHomeHubHistoryExcluding(
+            items = items,
+            limit = 2,
+            excludedEntryId = 1L,
+            entryIdSelector = { it.entryId },
+        )
+
+        result.map { it.label } shouldBe listOf("first", "second")
+    }
+
+    @Test
+    fun `takeHomeHubHistoryExcluding keeps first items when no entry is excluded`() {
+        data class Item(val entryId: Long, val label: String)
+
+        val items = listOf(
+            Item(entryId = 1L, label = "first"),
+            Item(entryId = 2L, label = "second"),
+            Item(entryId = 3L, label = "third"),
+        )
+
+        val result = takeHomeHubHistoryExcluding(
+            items = items,
+            limit = 2,
+            excludedEntryId = null,
+            entryIdSelector = { it.entryId },
+        )
+
+        result.map { it.label } shouldBe listOf("first", "second")
+    }
+
     private fun category(
         id: Long,
         hiddenFromHomeHub: Boolean,

@@ -99,6 +99,26 @@ internal fun <T : Any> homeHubCategoryIdsByEntryId(
     return result
 }
 
+internal inline fun <T : Any> takeHomeHubHistoryExcluding(
+    items: List<T>,
+    limit: Int,
+    excludedEntryId: Long?,
+    crossinline entryIdSelector: (T) -> Long,
+): List<T> {
+    if (limit <= 0 || items.isEmpty()) return emptyList()
+
+    val result = ArrayList<T>(limit)
+    for (item in items) {
+        if (excludedEntryId != null && entryIdSelector(item) == excludedEntryId) {
+            continue
+        }
+
+        result += item
+        if (result.size == limit) break
+    }
+    return result
+}
+
 private fun isHomeHubEntryVisible(
     categoryIds: List<Long>?,
     hiddenCategoryIds: Set<Long>,
