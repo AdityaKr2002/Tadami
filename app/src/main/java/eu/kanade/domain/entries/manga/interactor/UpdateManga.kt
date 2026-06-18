@@ -49,6 +49,22 @@ class UpdateManga(
         return mangaRepository.updateAllManga(mangaUpdates)
     }
 
+    suspend fun awaitUpdateSourceRating(
+        localManga: Manga,
+        sourceRating: Float,
+    ): Boolean {
+        val mergedRating = mergeRatings(
+            current = localManga.rating,
+            incoming = sourceRating,
+        )
+        return mangaRepository.updateManga(
+            MangaUpdate(
+                id = localManga.id,
+                rating = mergedRating.takeIf { it >= 0f },
+            ),
+        )
+    }
+
     suspend fun awaitUpdateFromSource(
         localManga: Manga,
         remoteManga: SManga,

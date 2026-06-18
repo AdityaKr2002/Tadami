@@ -734,15 +734,11 @@ class AnimeScreenModel(
         try {
             withIOContext {
                 val networkAnime = state.source.getAnimeDetails(state.anime.toSAnime())
-                val sourceRating = animeRatingFetcher.await(
-                    source = state.source,
-                    anime = state.anime,
+                updateAnime.awaitUpdateFromSource(state.anime, networkAnime, manualFetch)
+                refreshAnimeSourceRating(
+                    state = state,
                     forceRefresh = manualFetch,
                 )
-                updateAnime.awaitUpdateFromSource(state.anime, networkAnime, manualFetch)
-                updateSuccessState {
-                    it.copy(sourceRating = sourceRating)
-                }
             }
         } catch (e: Throwable) {
             // Ignore early hints "errors" that aren't handled by OkHttp
@@ -755,17 +751,26 @@ class AnimeScreenModel(
         }
     }
 
-    private suspend fun restoreAnimeSourceRating() {
+    private fun restoreAnimeSourceRating() {
         val state = successState ?: return
-        val sourceRating = animeRatingFetcher.await(
-            source = state.source,
-            anime = state.anime,
-            forceRefresh = false,
-        )
+        refreshAnimeSourceRating(state, forceRefresh = false)
+    }
 
-        if (sourceRating != null || state.sourceRating != null) {
-            updateSuccessState {
-                it.copy(sourceRating = sourceRating ?: it.sourceRating)
+    private fun refreshAnimeSourceRating(
+        state: State.Success,
+        forceRefresh: Boolean,
+    ) {
+        screenModelScope.launchIO {
+            val sourceRating = animeRatingFetcher.await(
+                source = state.source,
+                anime = state.anime,
+                forceRefresh = forceRefresh,
+            )
+
+            if (sourceRating != null || state.sourceRating != null) {
+                updateSuccessState { current ->
+                    if (current.anime.id != state.anime.id) current else current.copy(sourceRating = sourceRating ?: current.sourceRating)
+                }
             }
         }
     }

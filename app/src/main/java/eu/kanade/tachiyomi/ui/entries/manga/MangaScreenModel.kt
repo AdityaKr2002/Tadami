@@ -616,19 +616,15 @@ class MangaScreenModel(
             withIOContext {
                 val networkManga = state.source.getMangaDetails(state.manga.toSManga())
                 val sourceRating = networkManga.rating.takeIf { it > 0f }
-                val fetchedRating = sourceMangaRatingFetcher.await(
-                    source = state.source,
-                    manga = state.manga,
-                    sourceRating = sourceRating,
-                    forceRefresh = manualFetch,
-                )
-                if (networkManga.rating <= 0f && fetchedRating != null) {
-                    networkManga.rating = fetchedRating
-                }
                 debugLog(
                     "fetchMangaFromSource: source=${state.source.name} title=${networkManga.safeTitle().previewForLog()} rating=${networkManga.rating} desc=${networkManga.description.previewForLog()}",
                 )
                 updateManga.awaitUpdateFromSource(state.manga, networkManga, manualFetch)
+                refreshMangaSourceRating(
+                    state = state,
+                    sourceRating = sourceRating,
+                    forceRefresh = manualFetch,
+                )
             }
         } catch (e: Throwable) {
             // Ignore early hints "errors" that aren't handled by OkHttp
@@ -654,6 +650,22 @@ class MangaScreenModel(
             screenModelScope.launch {
                 snackbarHostState.showSnackbar(message = formattedMessage)
             }
+        }
+    }
+
+    private fun refreshMangaSourceRating(
+        state: State.Success,
+        sourceRating: Float?,
+        forceRefresh: Boolean,
+    ) {
+        screenModelScope.launchIO {
+            val fetchedRating = sourceMangaRatingFetcher.await(
+                source = state.source,
+                manga = state.manga,
+                sourceRating = sourceRating,
+                forceRefresh = forceRefresh,
+            ) ?: return@launchIO
+            updateManga.awaitUpdateSourceRating(state.manga, fetchedRating)
         }
     }
 
