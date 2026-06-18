@@ -4,8 +4,10 @@ import android.content.SharedPreferences
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
@@ -73,6 +75,45 @@ class EntryRatingCacheTest {
         }
 
         ratings shouldBe listOf(9.1f, 9.1f, 9.1f)
+        calls.get() shouldBe 1
+    }
+
+    @Test
+    fun `cancelled waiter does not remove active in-flight load`() = runTest {
+        val cache = EntryRatingCache(preferences)
+        val calls = AtomicInteger(0)
+        val started = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Float?>()
+
+        val first = async {
+            cache.resolve("manga", "Source", "https://example.org/cancel") {
+                calls.incrementAndGet()
+                started.complete(Unit)
+                finish.await()
+            }
+        }
+        started.await()
+
+        val cancelledWaiter = async {
+            cache.resolve("manga", "Source", "https://example.org/cancel") {
+                calls.incrementAndGet()
+                1f
+            }
+        }
+        delay(10)
+        cancelledWaiter.cancelAndJoin()
+
+        val third = async {
+            cache.resolve("manga", "Source", "https://example.org/cancel") {
+                calls.incrementAndGet()
+                2f
+            }
+        }
+
+        finish.complete(6.3f)
+
+        first.await() shouldBe 6.3f
+        third.await() shouldBe 6.3f
         calls.get() shouldBe 1
     }
 

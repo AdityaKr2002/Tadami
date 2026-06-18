@@ -29,6 +29,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.Closeable
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Combines anime, manga, and novel backend queue states into one aggregated
@@ -54,10 +55,7 @@ class DownloadEngineFacade(
     private val storageStatsRefreshMs = 5_000L
     private var lastStorageStatsAtMs = 0L
     private var storageStatsJob: Job? = null
-    private var cachedAnimeStorageBytes = 0L
-    private var cachedMangaStorageBytes = 0L
-    private var cachedNovelStorageBytes = 0L
-    private var cachedFreeSpaceBytes: Long? = null
+    private val storageStats = AtomicReference(DownloadEngineStorageStats.EMPTY)
 
     private val _state = MutableStateFlow(DownloadEngineSnapshot())
     val state: StateFlow<DownloadEngineSnapshot> = _state.asStateFlow()
@@ -96,7 +94,9 @@ class DownloadEngineFacade(
                 mangaRunningFlow = mangaManager.isDownloaderRunning,
                 telemetryVersionFlow = telemetryCollector.version,
                 buildSnapshot = ::buildSnapshot,
-            ).collect { snapshot -> _state.update { snapshot } }
+            ).collect { snapshot ->
+                _state.update { snapshot.withStorageStats(storageStats.get()) }
+            }
         }
     }
 
@@ -122,6 +122,7 @@ class DownloadEngineFacade(
         // ETA stays hidden until every backend exposes reliable total bytes.
         // This is intentionally honest: no fake estimate is better than a polished lie.
         val speedSnapshot = speedTracker.snapshot(remainingBytes = null)
+        val stats = storageStats.get()
 
         return DownloadEngineSnapshot(
             animeItems = animeQueue.size,
@@ -143,10 +144,10 @@ class DownloadEngineFacade(
             averageSpeedBps = speedSnapshot.averageSpeedBps,
             etaMillis = speedSnapshot.etaMillis,
             speedHistoryBps = speedSnapshot.speedHistoryBps,
-            animeStorageBytes = cachedAnimeStorageBytes,
-            mangaStorageBytes = cachedMangaStorageBytes,
-            novelStorageBytes = cachedNovelStorageBytes,
-            freeSpaceBytes = cachedFreeSpaceBytes,
+            animeStorageBytes = stats.animeStorageBytes,
+            mangaStorageBytes = stats.mangaStorageBytes,
+            novelStorageBytes = stats.novelStorageBytes,
+            freeSpaceBytes = stats.freeSpaceBytes,
         )
     }
 
@@ -164,18 +165,8 @@ class DownloadEngineFacade(
         lastStorageStatsAtMs = nowMs
         storageStatsJob = scope.launch {
             val stats = loadStorageStats()
-            cachedAnimeStorageBytes = stats.animeStorageBytes
-            cachedMangaStorageBytes = stats.mangaStorageBytes
-            cachedNovelStorageBytes = stats.novelStorageBytes
-            cachedFreeSpaceBytes = stats.freeSpaceBytes
-            _state.update { current ->
-                current.copy(
-                    animeStorageBytes = stats.animeStorageBytes,
-                    mangaStorageBytes = stats.mangaStorageBytes,
-                    novelStorageBytes = stats.novelStorageBytes,
-                    freeSpaceBytes = stats.freeSpaceBytes,
-                )
-            }
+            storageStats.set(stats)
+            _state.update { current -> current.withStorageStats(stats) }
         }
     }
 
@@ -228,7 +219,25 @@ private data class DownloadEngineStorageStats(
     val mangaStorageBytes: Long,
     val novelStorageBytes: Long,
     val freeSpaceBytes: Long?,
-)
+) {
+    companion object {
+        val EMPTY = DownloadEngineStorageStats(
+            animeStorageBytes = 0L,
+            mangaStorageBytes = 0L,
+            novelStorageBytes = 0L,
+            freeSpaceBytes = null,
+        )
+    }
+}
+
+private fun DownloadEngineSnapshot.withStorageStats(stats: DownloadEngineStorageStats): DownloadEngineSnapshot {
+    return copy(
+        animeStorageBytes = stats.animeStorageBytes,
+        mangaStorageBytes = stats.mangaStorageBytes,
+        novelStorageBytes = stats.novelStorageBytes,
+        freeSpaceBytes = stats.freeSpaceBytes,
+    )
+}
 
 internal fun shouldStartStorageStatsRefresh(
     nowMs: Long,

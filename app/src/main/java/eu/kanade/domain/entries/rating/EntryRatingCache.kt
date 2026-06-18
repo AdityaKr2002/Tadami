@@ -3,9 +3,12 @@ package eu.kanade.domain.entries.rating
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import uy.kohesive.injekt.Injekt
@@ -22,6 +25,7 @@ class EntryRatingCache(
         sharedPreferences ?: Injekt.get<Application>().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
     private val mutex = Mutex()
+    private val loaderScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inFlight = mutableMapOf<String, Deferred<Float?>>()
 
     suspend fun resolve(
@@ -71,19 +75,23 @@ class EntryRatingCache(
     private suspend fun loadOnce(
         key: String,
         loader: suspend () -> Float?,
-    ): Float? = coroutineScope {
+    ): Float? {
         val deferred = mutex.withLock {
-            inFlight[key] ?: async { loader() }.also { inFlight[key] = it }
-        }
-        try {
-            deferred.await()
-        } finally {
-            mutex.withLock {
-                if (inFlight[key] === deferred) {
-                    inFlight.remove(key)
+            inFlight[key] ?: loaderScope.async { loader() }.also { newDeferred ->
+                inFlight[key] = newDeferred
+                newDeferred.invokeOnCompletion {
+                    // ponytail: app-scope load survives caller cancellation; completion cleanup is enough.
+                    loaderScope.launch {
+                        mutex.withLock {
+                            if (inFlight[key] === newDeferred) {
+                                inFlight.remove(key)
+                            }
+                        }
+                    }
                 }
             }
         }
+        return deferred.await()
     }
 
     private fun read(key: String): CachedRating? {

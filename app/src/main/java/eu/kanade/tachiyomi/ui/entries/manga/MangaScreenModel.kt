@@ -469,11 +469,7 @@ class MangaScreenModel(
                 setMangaDefaultChapterFlags.await(manga)
             }
 
-            val availableScanlators = getAvailableScanlators.await(mangaId)
-            val scanlatorChapterCounts = getScanlatorChapterCounts.await(mangaId)
-            val storedExcludedScanlators = getExcludedScanlators.await(mangaId)
-            val initialExcludedScanlators = storedExcludedScanlators
-
+            val source = Injekt.get<MangaSourceManager>().getOrStub(manga.source)
             val chapters = getMangaAndChapters.awaitChapters(mangaId, applyScanlatorFilter = true)
                 .toChapterListItems(manga)
 
@@ -488,12 +484,12 @@ class MangaScreenModel(
             mutableState.update {
                 State.Success(
                     manga = manga,
-                    source = Injekt.get<MangaSourceManager>().getOrStub(manga.source),
+                    source = source,
                     isFromSource = isFromSource,
                     chapters = chapters,
-                    availableScanlators = availableScanlators,
-                    scanlatorChapterCounts = scanlatorChapterCounts,
-                    excludedScanlators = initialExcludedScanlators,
+                    availableScanlators = emptySet(),
+                    scanlatorChapterCounts = emptyMap(),
+                    excludedScanlators = emptySet(),
                     downloadedOnly = basePreferences.downloadedOnly().get(),
                     isRefreshingData = needRefreshInfo || needRefreshChapter,
                     dialog = null,
@@ -506,6 +502,27 @@ class MangaScreenModel(
                     },
                 )
             }
+            val fetchFromSourceTasks = if (screenModelScope.isActive) {
+                listOf(
+                    async { if (needRefreshInfo) fetchMangaFromSource() },
+                    async { if (needRefreshChapter) fetchChaptersFromSource() },
+                )
+            } else {
+                emptyList()
+            }
+
+            screenModelScope.launchIO {
+                val availableScanlators = getAvailableScanlators.await(mangaId)
+                val scanlatorChapterCounts = getScanlatorChapterCounts.await(mangaId)
+                val excludedScanlators = getExcludedScanlators.await(mangaId)
+                updateSuccessState { current ->
+                    if (current.manga.id != manga.id) current else current.copy(
+                        availableScanlators = availableScanlators,
+                        scanlatorChapterCounts = scanlatorChapterCounts,
+                        excludedScanlators = excludedScanlators,
+                    )
+                }
+            }
             screenModelScope.launchIO {
                 basePreferences.downloadedOnly().changes()
                     .collectLatest { downloadedOnly ->
@@ -513,7 +530,7 @@ class MangaScreenModel(
                     }
             }
 
-            // Fetch suggestions asynchronously
+            // Fetch suggestions asynchronously after source refresh has been started.
             loadSuggestions(
                 buildSuggestionSeed(manga, cachedMetadata),
                 manga = manga,
@@ -523,14 +540,7 @@ class MangaScreenModel(
             // Start observe tracking since it only needs mangaId
             observeTrackers()
 
-            // Fetch info-chapters when needed
-            if (screenModelScope.isActive) {
-                val fetchFromSourceTasks = listOf(
-                    async { if (needRefreshInfo) fetchMangaFromSource() },
-                    async { if (needRefreshChapter) fetchChaptersFromSource() },
-                )
-                fetchFromSourceTasks.awaitAll()
-            }
+            fetchFromSourceTasks.awaitAll()
 
             loadMangaMetadata(mangaId)
 
