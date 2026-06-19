@@ -14,7 +14,6 @@ import eu.kanade.tachiyomi.util.system.toast
 import okhttp3.Cookie
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import tachiyomi.i18n.MR
 import java.util.concurrent.CountDownLatch
@@ -32,7 +31,6 @@ internal class WebViewCloudflareChallengeResolver(
     private val createWebView: (Request) -> WebView,
     private val parseHeaders: (Headers) -> Map<String, String>,
     private val isWebViewOutdated: (WebView) -> Boolean,
-    private val nonCloudflareClientProvider: () -> OkHttpClient? = { null },
 ) : CloudflareChallengeResolver {
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -164,13 +162,10 @@ internal class WebViewCloudflareChallengeResolver(
     }
 }
 
-private val INTERACTIVE_WIDGET_PROBE = """
+internal val INTERACTIVE_WIDGET_PROBE = """
     (function() {
         try {
-            var hasTurnstile = document.querySelector('.cf-turnstile, [data-sitekey], iframe[src*="challenges.cloudflare.com"]') != null;
-            var hasManaged = document.getElementById('challenge-stage') != null ||
-                document.getElementById('cf-please-wait') != null;
-            return hasTurnstile || hasManaged;
+            return document.querySelector('.cf-turnstile, [data-sitekey], iframe[src*="challenges.cloudflare.com"]') != null;
         } catch (_) {
             return false;
         }

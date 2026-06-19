@@ -5,7 +5,6 @@ import androidx.core.content.ContextCompat
 import eu.kanade.tachiyomi.network.AndroidCookieJar
 import eu.kanade.tachiyomi.util.system.isOutdated
 import okhttp3.Interceptor
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import tachiyomi.core.common.i18n.stringResource
@@ -17,7 +16,6 @@ class CloudflareInterceptor(
     private val context: Context,
     private val cookieManager: AndroidCookieJar,
     defaultUserAgentProvider: () -> String,
-    nonCloudflareClientProvider: () -> OkHttpClient? = { null },
     private val challengeResolver: CloudflareChallengeResolver? = null,
 ) : WebViewInterceptor(context, defaultUserAgentProvider) {
 
@@ -29,7 +27,6 @@ class CloudflareInterceptor(
         createWebView = this::createWebView,
         parseHeaders = this::parseHeaders,
         isWebViewOutdated = { it.isOutdated() },
-        nonCloudflareClientProvider = nonCloudflareClientProvider,
     )
 
     override fun shouldIntercept(response: Response): Boolean {
@@ -58,17 +55,14 @@ class CloudflareInterceptor(
                     val oldCookie = cookieManager.get(request.url)
                         .firstOrNull { it.name == "cf_clearance" }
 
-                    // Try the request as-is first; the user may have already solved
-                    // Cloudflare manually via WebView and cookies are waiting in CookieManager.
-                    val immediateRetry = chain.proceed(request)
-                    if (!shouldIntercept(immediateRetry)) {
-                        return immediateRetry
-                    }
-                    immediateRetry.close()
-
-                    // Still blocked. Only clear an empty slot, not a clearance that the user
-                    // just solved manually in WebView.
-                    if (oldCookie == null) {
+                    // Only pay for an immediate network retry when there is a clearance to try.
+                    // With no cookie this was just an extra blocked request before WebView.
+                    if (oldCookie != null) {
+                        val immediateRetry = chain.proceed(request)
+                        if (!shouldIntercept(immediateRetry)) {
+                            return immediateRetry
+                        }
+                        immediateRetry.close()
                         cookieManager.remove(request.url, COOKIE_NAMES, 0)
                     }
 
