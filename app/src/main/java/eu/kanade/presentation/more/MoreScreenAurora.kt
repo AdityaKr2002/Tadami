@@ -298,8 +298,8 @@ fun AuroraSettingItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = AURORA_MORE_CARD_VERTICAL_INSET)
-            .auroraCardStyle(colors, RoundedCornerShape(16.dp), applyDarkRimLight = darkRimLightEnabled),
-        shape = RoundedCornerShape(16.dp),
+            .auroraCardStyle(colors, RoundedCornerShape(20.dp), applyDarkRimLight = darkRimLightEnabled),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (!colors.isDark && !colors.isEInk) {
                 Color.Transparent
@@ -371,8 +371,8 @@ fun AuroraToggleItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = AURORA_MORE_CARD_VERTICAL_INSET)
-            .auroraCardStyle(colors, RoundedCornerShape(16.dp), applyDarkRimLight = darkRimLightEnabled),
-        shape = RoundedCornerShape(16.dp),
+            .auroraCardStyle(colors, RoundedCornerShape(20.dp), applyDarkRimLight = darkRimLightEnabled),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (!colors.isDark && !colors.isEInk) {
                 Color.Transparent

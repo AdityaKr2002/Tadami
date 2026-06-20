@@ -710,8 +710,8 @@ private fun LibraryUpdateErrorRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
-                .auroraCardStyle(colors, RoundedCornerShape(16.dp), applyDarkRimLight = darkRimLightEnabled),
-            shape = RoundedCornerShape(16.dp),
+                .auroraCardStyle(colors, RoundedCornerShape(20.dp), applyDarkRimLight = darkRimLightEnabled),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
                 containerColor = if (!colors.isDark && !colors.isEInk) {
                     Color.Transparent

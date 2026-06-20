@@ -1961,7 +1961,8 @@ class NovelScreenModel(
         screenModelScope.launchIO {
             val added = enqueueOriginal(state.novel, listOf(chapter))
             notifyQueueStarted(added)
-            syncDownloadedState(deferFilesystemFallback = false)
+            // ponytail: queue state already updates the download icons; avoid an immediate SAF scan.
+            syncDownloadedState(deferFilesystemFallback = true)
         }
     }
 
@@ -1976,7 +1977,8 @@ class NovelScreenModel(
             val added = enqueueOriginal(state.novel, selectedChapters)
             notifyQueueStarted(added)
             toggleAllSelection(false)
-            syncDownloadedState(deferFilesystemFallback = false)
+            // ponytail: queue state already updates the download icons; avoid an immediate SAF scan.
+            syncDownloadedState(deferFilesystemFallback = true)
         }
     }
 
@@ -1997,7 +1999,8 @@ class NovelScreenModel(
         screenModelScope.launchIO {
             val added = enqueueOriginal(state.novel, chaptersToDownload)
             notifyQueueStarted(added)
-            syncDownloadedState(deferFilesystemFallback = false)
+            // ponytail: queue state already updates the download icons; avoid an immediate SAF scan.
+            syncDownloadedState(deferFilesystemFallback = true)
         }
     }
 
@@ -2024,7 +2027,8 @@ class NovelScreenModel(
 
         val added = NovelDownloadQueueManager.enqueueOriginal(state.novel, chapters)
         notifyQueueStarted(added)
-        syncDownloadedState(deferFilesystemFallback = false)
+        // ponytail: queue state already updates the download icons; avoid an immediate SAF scan.
+        syncDownloadedState(deferFilesystemFallback = true)
         return added
     }
 

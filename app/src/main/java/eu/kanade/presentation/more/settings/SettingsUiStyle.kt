@@ -13,12 +13,12 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.EInkProfile
-import eu.kanade.presentation.components.auroraMenuRimLightBrush
 import eu.kanade.presentation.more.resolveAuroraMoreCardContainerColor
 import eu.kanade.presentation.theme.AuroraColors
 import eu.kanade.presentation.theme.AuroraTheme
@@ -43,7 +43,7 @@ val LocalSettingsUiStyle = compositionLocalOf { SettingsUiStyle.Classic }
 internal const val AURORA_SETTINGS_DIALOG_ALPHA = 0.92f
 internal const val AURORA_SETTINGS_SELECTION_BACKGROUND_ALPHA = 0.25f
 internal const val AURORA_SETTINGS_SELECTION_BORDER_ALPHA = 0.42f
-internal val AURORA_SETTINGS_CARD_CORNER_RADIUS = 16.dp
+internal val AURORA_SETTINGS_CARD_CORNER_RADIUS = 20.dp
 internal val AURORA_SETTINGS_CARD_VERTICAL_PADDING = 6.dp
 internal val AURORA_SETTINGS_CARD_HORIZONTAL_INSET = 16.dp
 internal val AURORA_SETTINGS_CARD_SHAPE: Shape = RoundedCornerShape(AURORA_SETTINGS_CARD_CORNER_RADIUS)
@@ -127,7 +127,7 @@ fun Modifier.auroraCardStyle(
                 )
             }
             .background(
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                brush = Brush.verticalGradient(
                     listOf(
                         Color.White.copy(alpha = 0.78f),
                         Color.White.copy(alpha = 0.68f),
@@ -138,7 +138,7 @@ fun Modifier.auroraCardStyle(
             )
             .border(
                 width = 1.dp,
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                brush = Brush.verticalGradient(
                     listOf(
                         Color.White.copy(alpha = 0.75f),
                         Color.White.copy(alpha = 0.28f),
@@ -148,22 +148,44 @@ fun Modifier.auroraCardStyle(
                 shape = shape,
             )
     } else if (colors.isDark && !colors.isEInk) {
-        val baseModifier = if (applyModifierBackgroundInDark) {
-            this.background(
-                color = resolveAuroraMoreCardContainerColor(colors),
-                shape = shape,
-            )
-        } else {
-            this
-        }
         if (applyDarkRimLight) {
-            val borderBrush = auroraMenuRimLightBrush(colors)
-            baseModifier.border(
-                width = 1.dp,
-                brush = borderBrush,
-                shape = shape,
+            val michelangeloBorderBrush = Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0.00f to Color.White.copy(alpha = 0.38f),
+                    0.50f to Color.White.copy(alpha = 0.18f),
+                    0.75f to Color.Transparent,
+                    1.00f to Color.Transparent,
+                ),
             )
+            this
+                .drawBehind {
+                    val radius = 20.dp.toPx()
+                    val cornerRadiusPx = CornerRadius(radius, radius)
+                    drawRoundRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f)),
+                            startY = size.height * 0.5f,
+                            endY = size.height + 3.dp.toPx(),
+                        ),
+                        topLeft = Offset(0f, 3.dp.toPx()),
+                        size = size,
+                        cornerRadius = cornerRadiusPx,
+                    )
+                }
+                .border(
+                    width = 1.dp,
+                    brush = michelangeloBorderBrush,
+                    shape = shape,
+                )
         } else {
+            val baseModifier = if (applyModifierBackgroundInDark) {
+                this.background(
+                    color = resolveAuroraMoreCardContainerColor(colors),
+                    shape = shape,
+                )
+            } else {
+                this
+            }
             baseModifier
         }
     } else if (applyModifierBackgroundInDark) {
