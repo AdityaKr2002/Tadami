@@ -24,6 +24,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +42,7 @@ import coil3.compose.AsyncImage
 import com.tadami.aurora.R
 import eu.kanade.presentation.browse.BaseBrowseItem
 import eu.kanade.presentation.browse.manga.ExtensionHeader
+import eu.kanade.presentation.browse.manga.ExtensionTrustDialog
 import eu.kanade.presentation.more.settings.screen.browse.NovelExtensionReposScreen
 import eu.kanade.tachiyomi.extension.InstallStep
 import eu.kanade.tachiyomi.ui.browse.novel.extension.NovelExtensionItem
@@ -66,6 +71,7 @@ internal enum class NovelExtensionRowAction {
     Update,
     Reinstall,
     Open,
+    Trust,
 }
 
 internal fun resolveNovelExtensionRowAction(item: NovelExtensionItem): NovelExtensionRowAction {
@@ -78,6 +84,7 @@ internal fun resolveNovelExtensionRowAction(item: NovelExtensionItem): NovelExte
                 NovelExtensionRowAction.Reinstall
             }
             plugin is NovelPlugin.Installed && item.hasUpdate -> NovelExtensionRowAction.Update
+            plugin is NovelPlugin.Untrusted -> NovelExtensionRowAction.Trust
             else -> NovelExtensionRowAction.None
         }
         else -> when {
@@ -87,6 +94,7 @@ internal fun resolveNovelExtensionRowAction(item: NovelExtensionItem): NovelExte
             }
             plugin is NovelPlugin.Installed && item.hasUpdate -> NovelExtensionRowAction.Update
             plugin is NovelPlugin.Installed -> NovelExtensionRowAction.Open
+            plugin is NovelPlugin.Untrusted -> NovelExtensionRowAction.Trust
             else -> NovelExtensionRowAction.None
         }
     }
@@ -103,6 +111,8 @@ fun NovelExtensionScreen(
     onOpenExtension: (NovelPlugin.Installed) -> Unit,
     onOpenExtensionSettings: (Long) -> Unit,
     onUninstallExtension: (NovelPlugin.Installed) -> Unit,
+    onUninstallUntrustedExtension: (NovelPlugin.Untrusted) -> Unit,
+    onTrustExtension: (NovelPlugin.Untrusted) -> Unit,
     onUpdateAll: () -> Unit,
     onRefresh: () -> Unit,
     onToggleSection: (String) -> Unit,
@@ -144,6 +154,8 @@ fun NovelExtensionScreen(
                     onOpenExtension = onOpenExtension,
                     onOpenExtensionSettings = onOpenExtensionSettings,
                     onUninstallExtension = onUninstallExtension,
+                    onUninstallUntrustedExtension = onUninstallUntrustedExtension,
+                    onTrustExtension = onTrustExtension,
                     onUpdateAll = onUpdateAll,
                     onToggleSection = onToggleSection,
                 )
@@ -162,11 +174,14 @@ private fun NovelExtensionContent(
     onOpenExtension: (NovelPlugin.Installed) -> Unit,
     onOpenExtensionSettings: (Long) -> Unit,
     onUninstallExtension: (NovelPlugin.Installed) -> Unit,
+    onUninstallUntrustedExtension: (NovelPlugin.Untrusted) -> Unit,
+    onTrustExtension: (NovelPlugin.Untrusted) -> Unit,
     onUpdateAll: () -> Unit,
     onToggleSection: (String) -> Unit,
 ) {
     val grouped = state.items.groupBy { it.status }
     val context = LocalContext.current
+    var trustState by remember { mutableStateOf<NovelPlugin.Untrusted?>(null) }
 
     FastScrollLazyColumn(
         contentPadding = contentPadding + topSmallPaddingValues,
@@ -199,11 +214,13 @@ private fun NovelExtensionContent(
                     onOpenExtension = onOpenExtension,
                     onOpenExtensionSettings = onOpenExtensionSettings,
                     onUninstallExtension = onUninstallExtension,
+                    onTrustExtension = { trustState = it },
                 )
             }
         }
 
-        val installed = grouped[NovelExtensionItem.Status.Installed].orEmpty()
+        val installed = grouped[NovelExtensionItem.Status.Installed].orEmpty() +
+            grouped[NovelExtensionItem.Status.Untrusted].orEmpty()
         if (installed.isNotEmpty()) {
             item(key = "novel-ext-installed-header") {
                 ExtensionHeader(textRes = MR.strings.ext_installed)
@@ -217,6 +234,7 @@ private fun NovelExtensionContent(
                     onOpenExtension = onOpenExtension,
                     onOpenExtensionSettings = onOpenExtensionSettings,
                     onUninstallExtension = onUninstallExtension,
+                    onTrustExtension = { trustState = it },
                 )
             }
         }
@@ -265,6 +283,22 @@ private fun NovelExtensionContent(
             }
         }
     }
+
+    trustState?.let { plugin ->
+        ExtensionTrustDialog(
+            onClickConfirm = {
+                onTrustExtension(plugin)
+                trustState = null
+            },
+            onClickDismiss = {
+                onUninstallUntrustedExtension(plugin)
+                trustState = null
+            },
+            onDismissRequest = {
+                trustState = null
+            },
+        )
+    }
 }
 
 @Composable
@@ -276,6 +310,7 @@ private fun NovelExtensionItemRow(
     onOpenExtension: ((NovelPlugin.Installed) -> Unit)? = null,
     onOpenExtensionSettings: ((Long) -> Unit)? = null,
     onUninstallExtension: ((NovelPlugin.Installed) -> Unit)? = null,
+    onTrustExtension: ((NovelPlugin.Untrusted) -> Unit)? = null,
 ) {
     val plugin = item.plugin
     val onItemClick: () -> Unit = {
@@ -289,6 +324,7 @@ private fun NovelExtensionItemRow(
                 onReinstallExtension?.invoke(it)
             }
             NovelExtensionRowAction.Open -> (plugin as? NovelPlugin.Installed)?.let { onOpenExtension?.invoke(it) }
+            NovelExtensionRowAction.Trust -> (plugin as? NovelPlugin.Untrusted)?.let { onTrustExtension?.invoke(it) }
         }
     }
 
@@ -343,6 +379,15 @@ private fun NovelExtensionItemRow(
                             Icon(
                                 imageVector = Icons.Outlined.GetApp,
                                 contentDescription = stringResource(MR.strings.ext_install),
+                            )
+                        }
+                    }
+                    plugin is NovelPlugin.Untrusted -> {
+                        IconButton(onClick = { onTrustExtension?.invoke(plugin) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Warning,
+                                contentDescription = stringResource(MR.strings.ext_trust),
+                                tint = MaterialTheme.colorScheme.error,
                             )
                         }
                     }
@@ -426,6 +471,17 @@ private fun NovelExtensionItemRow(
                         )
                     }
                 }
+                if (plugin is NovelPlugin.Untrusted) {
+                    Row(modifier = Modifier.padding(start = 8.dp)) {
+                        Text(
+                            text = stringResource(MR.strings.ext_untrusted).uppercase(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 if (item.hasRepoUpdate) {
                     Row(modifier = Modifier.padding(start = 8.dp)) {
                         Text(
@@ -465,9 +521,10 @@ private fun NovelPlugin.repoDisplayName(repoSourceCount: Int): String? {
     val rawName = when (this) {
         is NovelPlugin.Available -> repoName.ifBlank { repoUrl.shortRepoName() }
         is NovelPlugin.Installed -> repoName?.takeIf { it.isNotBlank() } ?: repoUrl.shortRepoName()
+        is NovelPlugin.Untrusted -> null
     }
 
-    return rawName.takeIf { it.isNotBlank() }?.oneWordRepoName()
+    return rawName?.takeIf { it.isNotBlank() }?.oneWordRepoName()
 }
 
 private fun String.shortRepoName(): String {

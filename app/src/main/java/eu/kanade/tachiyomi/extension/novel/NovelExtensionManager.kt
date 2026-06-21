@@ -10,6 +10,7 @@ interface NovelExtensionManager {
     val installedSourcesFlow: Flow<List<NovelSource>>
     val installedPluginsFlow: Flow<List<NovelPlugin.Installed>>
     val availablePluginsFlow: Flow<List<NovelPlugin.Available>>
+    val untrustedPluginsFlow: Flow<List<NovelPlugin.Untrusted>>
     val updatesFlow: Flow<List<NovelPlugin.Installed>>
 
     suspend fun refreshAvailablePlugins()
@@ -18,10 +19,14 @@ interface NovelExtensionManager {
 
     suspend fun uninstallPlugin(plugin: NovelPlugin.Installed)
 
+    suspend fun uninstallPlugin(plugin: NovelPlugin.Untrusted)
+
     suspend fun replacePluginFromRepo(
         installed: NovelPlugin.Installed,
         replacement: NovelPlugin.Available,
     ): NovelPlugin.Installed
+
+    suspend fun trustPlugin(plugin: NovelPlugin.Untrusted)
 
     suspend fun getSourceData(id: Long): StubNovelSource?
 

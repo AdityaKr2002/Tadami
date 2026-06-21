@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import eu.kanade.domain.extension.novel.interactor.TrustNovelExtension
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.novel.api.NovelPluginApiFacade
 import eu.kanade.tachiyomi.extension.novel.kotlin.KotlinNovelExtensionInstaller
@@ -50,6 +51,9 @@ class DefaultNovelExtensionManager(
     private val installer: NovelPluginInstallerFacade,
     private val sourceFactory: NovelPluginSourceFactory,
     private val kotlinInstaller: KotlinNovelExtensionInstaller?,
+    private val trustExtension: TrustNovelExtension? = runCatching {
+        Injekt.get<TrustNovelExtension>()
+    }.getOrNull(),
 ) : NovelExtensionManager {
     constructor(
         repository: NovelPluginRepository,
@@ -62,6 +66,7 @@ class DefaultNovelExtensionManager(
     private val installedSources = MutableStateFlow<List<NovelSource>>(emptyList())
     private val installedPlugins = MutableStateFlow<List<NovelPlugin.Installed>>(emptyList())
     private val availablePlugins = MutableStateFlow<List<NovelPlugin.Available>>(emptyList())
+    private val untrustedPlugins = MutableStateFlow<List<NovelPlugin.Untrusted>>(emptyList())
     private val updates = MutableStateFlow<List<NovelPlugin.Installed>>(emptyList())
     private val installedPluginIconUrls = ConcurrentHashMap<Long, String?>()
     private val pendingInstallRepos = ConcurrentHashMap<String, InstalledRepo>()
@@ -78,6 +83,7 @@ class DefaultNovelExtensionManager(
     override val installedSourcesFlow: Flow<List<NovelSource>> = installedSources.asStateFlow()
     override val installedPluginsFlow: Flow<List<NovelPlugin.Installed>> = installedPlugins.asStateFlow()
     override val availablePluginsFlow: Flow<List<NovelPlugin.Available>> = availablePlugins.asStateFlow()
+    override val untrustedPluginsFlow: Flow<List<NovelPlugin.Untrusted>> = untrustedPlugins.asStateFlow()
     override val updatesFlow: Flow<List<NovelPlugin.Installed>> = updates.asStateFlow()
 
     init {
@@ -112,7 +118,7 @@ class DefaultNovelExtensionManager(
                     val pkgName = intent?.data?.encodedSchemeSpecificPart
                     val knownInstalled = pkgName != null &&
                         installedKotlinExtensionsSnapshot.any {
-                            it.plugin.pkgName == pkgName || it.plugin.id == pkgName
+                            it.plugin.packageNameOrId() == pkgName || it.plugin.id == pkgName
                         }
                     scope.launch {
                         val shouldReload = when {
@@ -173,6 +179,13 @@ class DefaultNovelExtensionManager(
         applyInstalledSnapshots()
     }
 
+    override suspend fun uninstallPlugin(plugin: NovelPlugin.Untrusted) {
+        requireNotNull(kotlinInstaller) { "Kotlin novel extension installer is not available" }
+            .uninstall(plugin.toInstalledForUninstall())
+        untrustedPlugins.value = untrustedPlugins.value.filterNot { it.pkgName == plugin.pkgName }
+        reloadInstalledKotlinExtensions()
+    }
+
     override suspend fun replacePluginFromRepo(
         installed: NovelPlugin.Installed,
         replacement: NovelPlugin.Available,
@@ -191,6 +204,12 @@ class DefaultNovelExtensionManager(
         }
 
         return installPlugin(replacement)
+    }
+
+    override suspend fun trustPlugin(plugin: NovelPlugin.Untrusted) {
+        requireNotNull(trustExtension) { "Novel extension trust service is not available" }
+            .trust(plugin.pkgName, plugin.versionCode.toLong(), plugin.signatureHash)
+        reloadInstalledKotlinExtensions()
     }
 
     override suspend fun getSourceData(id: Long): StubNovelSource? {
@@ -223,14 +242,23 @@ class DefaultNovelExtensionManager(
         val normalizedJs = installedJsPluginsSnapshot
             .map { it.withNormalizedLang().withPendingSavedOrInferredRepo(availableById[it.id].orEmpty()) }
         val normalizedKotlin = installedKotlinExtensionsSnapshot
-            .map {
-                it.plugin.withNormalizedLang().withPendingSavedOrInferredRepo(availableById[it.plugin.id].orEmpty())
+            .mapNotNull { result ->
+                (result.plugin as? NovelPlugin.Installed)
+                    ?.withNormalizedLang()
+                    ?.withPendingSavedOrInferredRepo(availableById[result.plugin.id].orEmpty())
+            }
+        val normalizedUntrusted = installedKotlinExtensionsSnapshot
+            .mapNotNull { result ->
+                (result.plugin as? NovelPlugin.Untrusted)?.withNormalizedLang()
             }
         (normalizedJs + normalizedKotlin).forEach(::saveInstalledRepo)
         installedPlugins.value = normalizedJs + normalizedKotlin
+        untrustedPlugins.value = normalizedUntrusted
         installedSources.value =
             normalizedJs.mapNotNull { plugin -> sourceFactory.create(plugin) } +
-            installedKotlinExtensionsSnapshot.flatMap { it.sources }
+            installedKotlinExtensionsSnapshot
+                .filter { it.plugin is NovelPlugin.Installed }
+                .flatMap { it.sources }
 
         installedPluginIconUrls.clear()
         normalizedJs.forEach { plugin ->
@@ -325,6 +353,38 @@ class DefaultNovelExtensionManager(
         val url: String,
         val name: String,
     )
+
+    private fun NovelPlugin.Untrusted.toInstalledForUninstall(): NovelPlugin.Installed {
+        return NovelPlugin.Installed(
+            id = id,
+            name = name,
+            site = site,
+            lang = lang,
+            versionCode = versionCode,
+            versionName = versionName,
+            url = url,
+            iconUrl = iconUrl,
+            customJs = customJs,
+            customCss = customCss,
+            hasSettings = hasSettings,
+            sha256 = sha256,
+            repoUrl = repoUrl,
+            pkgName = pkgName,
+            isKotlinExtension = true,
+        )
+    }
+
+    private fun NovelPlugin.packageNameOrId(): String {
+        return when (this) {
+            is NovelPlugin.Available -> pkgName ?: id
+            is NovelPlugin.Installed -> pkgName ?: id
+            is NovelPlugin.Untrusted -> pkgName
+        }
+    }
+
+    private fun NovelPlugin.Untrusted.withNormalizedLang(): NovelPlugin.Untrusted {
+        return copy(lang = lang.lowercase().takeIf { it.isNotBlank() } ?: "all")
+    }
 
     private fun updatePendingUpdates() {
         val bestAvailableByIdVersion = availablePlugins.value

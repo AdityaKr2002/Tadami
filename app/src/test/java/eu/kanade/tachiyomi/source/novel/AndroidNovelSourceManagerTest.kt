@@ -146,6 +146,7 @@ class AndroidNovelSourceManagerTest {
         override val installedSourcesFlow: Flow<List<NovelSource>> = sourcesState
         override val installedPluginsFlow = MutableStateFlow<List<NovelPlugin.Installed>>(emptyList())
         override val availablePluginsFlow = MutableStateFlow<List<NovelPlugin.Available>>(emptyList())
+        override val untrustedPluginsFlow = MutableStateFlow<List<NovelPlugin.Untrusted>>(emptyList())
         override val updatesFlow = MutableStateFlow<List<NovelPlugin.Installed>>(emptyList())
 
         fun emitSources(list: List<NovelSource>) {
@@ -159,6 +160,10 @@ class AndroidNovelSourceManagerTest {
         }
 
         override suspend fun uninstallPlugin(plugin: NovelPlugin.Installed) = Unit
+
+        override suspend fun uninstallPlugin(plugin: NovelPlugin.Untrusted) = Unit
+
+        override suspend fun trustPlugin(plugin: NovelPlugin.Untrusted) = Unit
 
         override suspend fun replacePluginFromRepo(
             installed: NovelPlugin.Installed,

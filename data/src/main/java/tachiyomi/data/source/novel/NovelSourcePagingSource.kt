@@ -55,6 +55,7 @@ abstract class NovelSourcePagingSource(
 ) : SourcePagingSourceType() {
 
     private val networkToLocalNovel: NetworkToLocalNovel = Injekt.get()
+    private val seenNovels = hashSetOf<String>()
 
     abstract suspend fun requestNextPage(currentPage: Int): NovelsPage
 
@@ -66,7 +67,9 @@ abstract class NovelSourcePagingSource(
                 val novelsPage = withTimeout(requestTimeoutMillis) { requestNextPage(page.toInt()) }
                 when {
                     novelsPage.novels.isNotEmpty() -> {
-                        val domainNovels = novelsPage.novels.map { it.toDomainNovel(source.id) }
+                        val domainNovels = novelsPage.novels
+                            .map { it.toDomainNovel(source.id) }
+                            .filter { seenNovels.add(it.url) }
                         val savedNovels = networkToLocalNovel.await(domainNovels)
                         LoadResult.Page(
                             data = savedNovels,

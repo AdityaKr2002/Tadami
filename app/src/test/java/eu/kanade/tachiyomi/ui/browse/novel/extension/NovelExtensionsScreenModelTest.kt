@@ -202,6 +202,61 @@ class NovelExtensionsScreenModelTest {
     }
 
     @Test
+    fun `untrusted plugins are listed as installed items without sources`() {
+        runBlocking {
+            val untrusted = pluginUntrusted("pkg.untrusted")
+
+            val screenModel = NovelExtensionsScreenModel(
+                extensionManager = FakeNovelExtensionManager(
+                    installed = emptyList(),
+                    available = emptyList(),
+                    updates = emptyList(),
+                    untrusted = listOf(untrusted),
+                ),
+                sourcePreferences = sourcePreferences,
+            ).also(activeScreenModels::add)
+
+            withTimeout(1_000) {
+                while (screenModel.state.value.isLoading) {
+                    yield()
+                }
+            }
+
+            val item = screenModel.state.value.items.single()
+            item.plugin shouldBe untrusted
+            item.status shouldBe NovelExtensionItem.Status.Untrusted
+            item.settingsSourceId shouldBe null
+        }
+    }
+
+    @Test
+    fun `trust delegates to extension manager`() {
+        runBlocking {
+            val untrusted = pluginUntrusted("pkg.trust")
+            val extensionManager = FakeNovelExtensionManager(
+                installed = emptyList(),
+                available = emptyList(),
+                updates = emptyList(),
+                untrusted = listOf(untrusted),
+            )
+            val screenModel = NovelExtensionsScreenModel(
+                extensionManager = extensionManager,
+                sourcePreferences = sourcePreferences,
+            ).also(activeScreenModels::add)
+
+            screenModel.trust(untrusted)
+
+            withTimeout(1_000) {
+                while (extensionManager.trustedPlugin == null) {
+                    yield()
+                }
+            }
+
+            extensionManager.trustedPlugin shouldBe untrusted
+        }
+    }
+
+    @Test
     fun `failed install marks plugin as error instead of crashing`() {
         runBlocking {
             val available = pluginAvailable("id-timeout", 1)
@@ -325,6 +380,7 @@ class NovelExtensionsScreenModelTest {
             every { extensionManager.installedSourcesFlow } returns MutableStateFlow(emptyList())
             every { extensionManager.installedPluginsFlow } returns MutableStateFlow(installed)
             every { extensionManager.availablePluginsFlow } returns MutableStateFlow(available)
+            every { extensionManager.untrustedPluginsFlow } returns MutableStateFlow(emptyList())
             every { extensionManager.updatesFlow } returns MutableStateFlow(installed)
             coEvery { extensionManager.refreshAvailablePlugins() } returns Unit
             coEvery { extensionManager.installPlugin(available[0]) } coAnswers {
@@ -375,6 +431,24 @@ class NovelExtensionsScreenModelTest {
         }
     }
 
+    private fun pluginUntrusted(id: String) = NovelPlugin.Untrusted(
+        id = id,
+        name = "Source $id",
+        site = "",
+        lang = "",
+        versionCode = 1,
+        versionName = "1",
+        url = "",
+        iconUrl = null,
+        customJs = null,
+        customCss = null,
+        hasSettings = false,
+        sha256 = "",
+        repoUrl = "",
+        pkgName = id,
+        signatureHash = "signature",
+    )
+
     private fun pluginAvailable(id: String, version: Int) = NovelPlugin.Available(
         id = id,
         name = "Source $id",
@@ -412,14 +486,20 @@ class NovelExtensionsScreenModelTest {
         installedSources: List<NovelSource> = emptyList(),
         available: List<NovelPlugin.Available>,
         updates: List<NovelPlugin.Installed>,
+        untrusted: List<NovelPlugin.Untrusted> = emptyList(),
         private val installFailure: Throwable? = null,
     ) : NovelExtensionManager {
+        var trustedPlugin: NovelPlugin.Untrusted? = null
+            private set
+
         override val installedSourcesFlow: Flow<List<NovelSource>> =
             MutableStateFlow(installedSources)
         override val installedPluginsFlow: Flow<List<NovelPlugin.Installed>> =
             MutableStateFlow(installed)
         override val availablePluginsFlow: Flow<List<NovelPlugin.Available>> =
             MutableStateFlow(available)
+        override val untrustedPluginsFlow: Flow<List<NovelPlugin.Untrusted>> =
+            MutableStateFlow(untrusted)
         override val updatesFlow: Flow<List<NovelPlugin.Installed>> =
             MutableStateFlow(updates)
 
@@ -431,6 +511,12 @@ class NovelExtensionsScreenModelTest {
         }
 
         override suspend fun uninstallPlugin(plugin: NovelPlugin.Installed) = Unit
+
+        override suspend fun uninstallPlugin(plugin: NovelPlugin.Untrusted) = Unit
+
+        override suspend fun trustPlugin(plugin: NovelPlugin.Untrusted) {
+            trustedPlugin = plugin
+        }
 
         override suspend fun replacePluginFromRepo(
             installed: NovelPlugin.Installed,

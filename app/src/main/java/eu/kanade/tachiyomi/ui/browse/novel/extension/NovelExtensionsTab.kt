@@ -69,6 +69,8 @@ fun novelExtensionsTab(
                 onOpenExtension = { navigator.push(novelExtensionDetailsScreen(it.id)) },
                 onOpenExtensionSettings = { navigator.push(novelExtensionSettingsScreen(it)) },
                 onUninstallExtension = { pluginToUninstall = it },
+                onUninstallUntrustedExtension = extensionsScreenModel::uninstallExtension,
+                onTrustExtension = extensionsScreenModel::trust,
                 onUpdateAll = extensionsScreenModel::updateAllExtensions,
                 onRefresh = extensionsScreenModel::refresh,
                 onToggleSection = extensionsScreenModel::toggleSection,

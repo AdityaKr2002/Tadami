@@ -167,7 +167,7 @@ fun NovelPlugin.Available.toInstalledKotlin(): NovelPlugin.Installed {
 }
 
 data class KotlinNovelExtensionLoadResult(
-    val plugin: NovelPlugin.Installed,
+    val plugin: NovelPlugin,
     val sources: List<NovelSource>,
 )
 
@@ -267,17 +267,37 @@ object KotlinNovelExtensionLoader {
             logcat(LogPriority.WARN) { "Kotlin novel extension $pkgName is not signed" }
             return null
         }
-        val isPackageExtension = pkgName.contains(".novelextension.") ||
-            pkgName.startsWith("eu.kanade.tachiyomi.novelextension") ||
-            pkgName.startsWith("app.tsundoku.extension.")
-        if (!isPackageExtension && !trustExtension.isTrusted(pkgInfo, signatures)) {
-            logcat(LogPriority.WARN) { "Kotlin novel extension $pkgName is not trusted" }
-            return null
-        }
         val isNsfw = appInfo.metaData?.getInt(METADATA_NSFW) == 1
         if (!preferences.showNsfwSource().get() && isNsfw) {
             logcat(LogPriority.WARN) { "NSFW Kotlin novel extension $pkgName not allowed" }
             return null
+        }
+        val iconUrl = runCatching { saveIcon(context, pkgName, appInfo.loadIcon(pkgManager)) }
+            .onFailure { logcat(LogPriority.WARN, it) { "Failed to save Kotlin novel extension icon for $pkgName" } }
+            .getOrNull()
+        if (!trustExtension.isTrusted(pkgInfo, signatures)) {
+            logcat(LogPriority.WARN) { "Kotlin novel extension $pkgName is not trusted" }
+            return KotlinNovelExtensionLoadResult(
+                plugin = NovelPlugin.Untrusted(
+                    id = pkgName,
+                    name = extName,
+                    site = "",
+                    lang = "",
+                    versionCode = versionCode,
+                    versionName = versionName,
+                    url = "",
+                    iconUrl = iconUrl,
+                    customJs = null,
+                    customCss = null,
+                    hasSettings = false,
+                    sha256 = "",
+                    repoUrl = "",
+                    pkgName = pkgName,
+                    signatureHash = signatures.last(),
+                    isKotlinExtension = true,
+                ),
+                sources = emptyList(),
+            )
         }
 
         val classLoader = try {
@@ -318,9 +338,6 @@ object KotlinNovelExtensionLoader {
                 else -> "all"
             }
         }
-        val iconUrl = runCatching { saveIcon(context, pkgName, appInfo.loadIcon(pkgManager)) }
-            .onFailure { logcat(LogPriority.WARN, it) { "Failed to save Kotlin novel extension icon for $pkgName" } }
-            .getOrNull()
         val pluginSite = sources.asSequence()
             .mapNotNull { (it as? NovelSiteSource)?.siteUrl }
             .firstOrNull { it.isNotBlank() }

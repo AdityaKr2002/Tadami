@@ -83,6 +83,14 @@ class NovelExtensionRowActionTest {
     }
 
     @Test
+    fun `untrusted idle row asks for trust`() {
+        assertEquals(
+            NovelExtensionRowAction.Trust,
+            resolveNovelExtensionRowAction(item(untrusted(), NovelExtensionItem.Status.Untrusted)),
+        )
+    }
+
+    @Test
     fun `active install row does nothing`() {
         assertEquals(
             NovelExtensionRowAction.None,
@@ -109,6 +117,24 @@ class NovelExtensionRowActionTest {
         settingsSourceId = null,
         hasUpdate = hasUpdate,
         hasRepoUpdate = hasRepoUpdate,
+    )
+
+    private fun untrusted() = NovelPlugin.Untrusted(
+        id = "plugin.id",
+        name = "Plugin",
+        site = "",
+        lang = "",
+        versionCode = 1,
+        versionName = "1",
+        url = "",
+        iconUrl = null,
+        customJs = null,
+        customCss = null,
+        hasSettings = false,
+        sha256 = "",
+        repoUrl = "",
+        pkgName = "plugin.id",
+        signatureHash = "signature",
     )
 
     private fun available() = NovelPlugin.Available(

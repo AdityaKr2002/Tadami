@@ -41,12 +41,14 @@ class NovelExtensionsScreenModel(
                 extensionManager.installedPluginsFlow,
                 extensionManager.installedSourcesFlow,
                 extensionManager.availablePluginsFlow,
-            ) { downloads, installed, installedSources, available ->
+                extensionManager.untrustedPluginsFlow,
+            ) { downloads, installed, installedSources, available, untrusted ->
                 ListingSourceState(
                     downloads = downloads,
                     installed = installed,
                     installedSources = installedSources,
                     available = available,
+                    untrusted = untrusted,
                 )
             }
             val listingFlow = combine(
@@ -59,6 +61,7 @@ class NovelExtensionsScreenModel(
                     installed = sourceState.installed,
                     installedSources = sourceState.installedSources,
                     available = sourceState.available,
+                    untrusted = sourceState.untrusted,
                 )
             }
 
@@ -94,7 +97,7 @@ class NovelExtensionsScreenModel(
                 val updateIds = updateStatesById
                     .filterValues { it.hasAnyUpdate }
                     .keys
-                val installedIds = input.installed.map { it.id }.toSet()
+                val installedIds = (input.installed.map { it.id } + input.untrusted.map { it.id }).toSet()
                 val matches: (NovelPlugin) -> Boolean = { plugin ->
                     if (searchQuery.isEmpty()) {
                         true
@@ -139,6 +142,16 @@ class NovelExtensionsScreenModel(
                                 settingsSourceId = plugin.settingsSourceId(installedSettingsSourceIdsByPluginId),
                                 repoSourceCount = repoCounts[plugin.id] ?: 1,
                                 repoDisplayName = plugin.fallbackRepoDisplayName(variantsMap[plugin.id].orEmpty()),
+                            ),
+                        )
+                    }
+                    input.untrusted.filter(matches).forEach { plugin ->
+                        add(
+                            NovelExtensionItem(
+                                plugin = plugin,
+                                status = NovelExtensionItem.Status.Untrusted,
+                                installStep = input.downloads[plugin.id] ?: InstallStep.Idle,
+                                settingsSourceId = null,
                             ),
                         )
                     }
@@ -291,6 +304,18 @@ class NovelExtensionsScreenModel(
         }
     }
 
+    fun uninstallExtension(plugin: NovelPlugin.Untrusted) {
+        screenModelScope.launchIO {
+            extensionManager.uninstallPlugin(plugin)
+        }
+    }
+
+    fun trust(extension: NovelPlugin.Untrusted) {
+        screenModelScope.launchIO {
+            extensionManager.trustPlugin(extension)
+        }
+    }
+
     private fun addDownloadState(plugin: NovelPlugin, installStep: InstallStep) {
         currentDownloads.update { it + Pair(plugin.id, installStep) }
     }
@@ -339,6 +364,7 @@ class NovelExtensionsScreenModel(
         val installed: List<NovelPlugin.Installed>,
         val installedSources: List<eu.kanade.tachiyomi.novelsource.NovelSource>,
         val available: List<NovelPlugin.Available>,
+        val untrusted: List<NovelPlugin.Untrusted>,
     )
 
     private data class ListingSourceState(
@@ -346,6 +372,7 @@ class NovelExtensionsScreenModel(
         val installed: List<NovelPlugin.Installed>,
         val installedSources: List<eu.kanade.tachiyomi.novelsource.NovelSource>,
         val available: List<NovelPlugin.Available>,
+        val untrusted: List<NovelPlugin.Untrusted>,
     )
 }
 
@@ -365,6 +392,7 @@ data class NovelExtensionItem(
     sealed interface Status {
         data object UpdateAvailable : Status
         data object Installed : Status
+        data object Untrusted : Status
         data object Available : Status
     }
 }

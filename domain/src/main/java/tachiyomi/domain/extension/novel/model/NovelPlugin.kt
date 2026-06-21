@@ -54,4 +54,23 @@ sealed class NovelPlugin {
         val apkUrl: String? = null,
         val isKotlinExtension: Boolean = false,
     ) : NovelPlugin()
+
+    data class Untrusted(
+        override val id: String,
+        override val name: String,
+        override val site: String,
+        override val lang: String,
+        override val versionCode: Int,
+        override val versionName: String,
+        override val url: String,
+        override val iconUrl: String?,
+        override val customJs: String?,
+        override val customCss: String?,
+        override val hasSettings: Boolean,
+        override val sha256: String,
+        override val repoUrl: String,
+        val pkgName: String,
+        val signatureHash: String,
+        val isKotlinExtension: Boolean = true,
+    ) : NovelPlugin()
 }
