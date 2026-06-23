@@ -169,6 +169,7 @@ import eu.kanade.tachiyomi.ui.series.novel.NovelSeriesScreen
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -179,7 +180,6 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.entries.anime.model.Anime
 import tachiyomi.domain.entries.manga.model.Manga
-import tachiyomi.domain.entries.novel.interactor.GetLibraryNovel
 import tachiyomi.domain.items.episode.model.Episode
 import tachiyomi.domain.library.anime.LibraryAnime
 import tachiyomi.domain.library.manga.LibraryManga
@@ -211,6 +211,8 @@ data object AnimeLibraryTab : Tab {
 
     private var lastAuroraSection: Section = Section.Anime
 
+    private const val AURORA_LIBRARY_IDLE_PRELOAD_DELAY_MS = 300L
+
     @OptIn(ExperimentalAnimationGraphicsApi::class)
     override val options: TabOptions
         @Composable
@@ -240,7 +242,7 @@ data object AnimeLibraryTab : Tab {
         val haptic = LocalHapticFeedback.current
 
         val screenModel = rememberScreenModel { AnimeLibraryScreenModel() }
-        val mangaScreenModel = rememberScreenModel { MangaLibraryScreenModel() }
+        val mangaScreenModel = rememberScreenModel { MangaLibraryScreenModel(startActive = false) }
         val settingsScreenModel = rememberScreenModel { AnimeLibrarySettingsScreenModel() }
         val mangaSettingsScreenModel = rememberScreenModel { MangaLibrarySettingsScreenModel() }
         val state by screenModel.state.collectAsStateWithLifecycle()
@@ -296,32 +298,32 @@ data object AnimeLibraryTab : Tab {
         } else {
             null
         }
-        val shouldActivateNovelLibrary = showNovelSection && auroraCurrentSection == Section.Novel
-        val inactiveNovelRawItems = if (showNovelSection && !shouldActivateNovelLibrary) {
-            val getLibraryNovel = remember { Injekt.get<GetLibraryNovel>() }
-            val items by getLibraryNovel.subscribe().collectAsStateWithLifecycle(initialValue = emptyList())
-            items
-        } else {
-            emptyList()
-        }
         val novelScreenModel = if (showNovelSection) {
-            rememberScreenModel { NovelLibraryScreenModel() }
+            rememberScreenModel { NovelLibraryScreenModel(startActive = false) }
         } else {
             null
         }
         val novelState = novelScreenModel?.state?.collectAsStateWithLifecycle()?.value ?: NovelLibraryScreenModel.State(
             isLoading = false,
-            library = mapOf(
-                Category(
-                    id = Category.UNCATEGORIZED_ID,
-                    name = "",
-                    order = 0,
-                    flags = 0,
-                    hidden = false,
-                    hiddenFromHomeHub = false,
-                ) to inactiveNovelRawItems.map { eu.kanade.presentation.library.novel.NovelLibraryItem.Single(it) },
-            ),
         )
+        LaunchedEffect(isAurora, auroraCurrentSection, showMangaSection, showNovelSection, novelScreenModel) {
+            if (!isAurora) {
+                mangaScreenModel.setLibraryPipelineActive(true)
+                novelScreenModel?.setLibraryPipelineActive(true)
+                return@LaunchedEffect
+            }
+
+            if (showMangaSection && auroraCurrentSection == Section.Manga) {
+                mangaScreenModel.setLibraryPipelineActive(true)
+            }
+            if (showNovelSection && auroraCurrentSection == Section.Novel) {
+                novelScreenModel?.setLibraryPipelineActive(true)
+            }
+
+            delay(AURORA_LIBRARY_IDLE_PRELOAD_DELAY_MS)
+            if (showMangaSection) mangaScreenModel.setLibraryPipelineActive(true)
+            if (showNovelSection) novelScreenModel?.setLibraryPipelineActive(true)
+        }
         val animeDisplayMode by remember(useSeparateDisplayModePerMedia) {
             screenModel.getDisplayMode(useSeparateDisplayModePerMedia)
         }
@@ -536,6 +538,7 @@ data object AnimeLibraryTab : Tab {
                     AnimeLibraryAuroraContent(
                         items = items,
                         selection = state.selection,
+                        selectedIds = state.selectedIds,
                         searchQuery = state.searchQuery,
                         hasActiveFilters = state.hasActiveFilters,
                         displayMode = animeDisplayMode,
@@ -597,6 +600,7 @@ data object AnimeLibraryTab : Tab {
                     MangaLibraryAuroraContent(
                         items = items,
                         selection = mangaState.selection,
+                        selectedIds = mangaState.selectedIds,
                         searchQuery = mangaState.searchQuery,
                         hasActiveFilters = mangaState.hasActiveFilters,
                         displayMode = mangaDisplayMode,
@@ -640,28 +644,6 @@ data object AnimeLibraryTab : Tab {
                 val activeNovelScreenModel = novelScreenModel
                     ?: return@TabContent LoadingScreen(Modifier.padding(contentPadding))
 
-                val epubImportLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.OpenDocument(),
-                    onResult = { uri ->
-                        if (uri != null) {
-                            scope.launchIO {
-                                try {
-                                    activeNovelScreenModel.importEpub(uri)
-                                    snackbarHostState.showSnackbar(
-                                        context.stringResource(AYMR.strings.novel_library_import_success),
-                                        duration = SnackbarDuration.Short,
-                                    )
-                                } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar(
-                                        context.stringResource(AYMR.strings.novel_library_import_failed),
-                                        duration = SnackbarDuration.Short,
-                                    )
-                                }
-                            }
-                        }
-                    },
-                )
-
                 val pagerState = rememberPagerState(
                     initialPage = novelCategoryIndex,
                     pageCount = { novelState.categories.size },
@@ -692,6 +674,7 @@ data object AnimeLibraryTab : Tab {
                     NovelLibraryAuroraContent(
                         items = items,
                         selection = novelState.selection,
+                        selectedIds = novelState.selectedIds,
                         searchQuery = novelState.searchQuery,
                         onSearchQueryChange = activeNovelScreenModel::search,
                         onNovelClicked = { id ->
@@ -807,7 +790,8 @@ data object AnimeLibraryTab : Tab {
             }
         }
         val isLoading = if (isAurora) {
-            sectionTabs.all { (section, _) -> isSectionLoading(section) }
+            auroraCurrentSection?.let(isSectionLoading)
+                ?: sectionTabs.all { (section, _) -> isSectionLoading(section) }
         } else {
             state.isLoading
         }

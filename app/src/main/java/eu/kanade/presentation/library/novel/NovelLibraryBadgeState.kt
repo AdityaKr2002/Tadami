@@ -14,9 +14,10 @@ internal fun resolveNovelLibraryBadgeState(
     showLanguageBadge: Boolean,
     sourceLanguage: String,
 ): NovelLibraryBadgeState {
+    val resolvedLanguage = sourceLanguage.ifBlank { item.sourceLanguage }
     return NovelLibraryBadgeState(
-        showDownloaded = showDownloadBadge && item.id in downloadedNovelIds,
+        showDownloaded = showDownloadBadge && (item.isDownloaded || item.id in downloadedNovelIds),
         unreadCount = item.unreadCount.takeIf { showUnreadBadge && it > 0L },
-        language = sourceLanguage.takeIf { showLanguageBadge && it.isNotBlank() },
+        language = resolvedLanguage.takeIf { showLanguageBadge && it.isNotBlank() },
     )
 }

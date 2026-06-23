@@ -1,8 +1,13 @@
 package eu.kanade.presentation.library.novel
 
+import eu.kanade.tachiyomi.ui.library.LibrarySearchQuery
+import tachiyomi.domain.entries.novel.model.Novel
 import tachiyomi.domain.entries.novel.model.asNovelCover
 import tachiyomi.domain.library.novel.LibraryNovel
 import tachiyomi.domain.series.novel.model.LibraryNovelSeries
+import tachiyomi.domain.source.novel.service.NovelSourceManager
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 sealed interface NovelLibraryItem {
     val id: Long
@@ -16,11 +21,20 @@ sealed interface NovelLibraryItem {
     val hasBookmarks: Boolean
     val dateAdded: Long
     val title: String
+    val isDownloaded: Boolean
+    val sourceLanguage: String
 
     /** Returns the underlying [Novel] for cover display, or null for Series. */
-    val coverNovel: tachiyomi.domain.entries.novel.model.Novel?
+    val coverNovel: Novel?
 
-    data class Single(val libraryNovel: LibraryNovel) : NovelLibraryItem {
+    fun matches(query: LibrarySearchQuery): Boolean
+
+    data class Single(
+        val libraryNovel: LibraryNovel,
+        override val isDownloaded: Boolean = false,
+        override val sourceLanguage: String = "",
+        private val sourceManager: NovelSourceManager = Injekt.get(),
+    ) : NovelLibraryItem {
         override val id = libraryNovel.id
         override val category = libraryNovel.category
         override val pinned = libraryNovel.pinned
@@ -33,9 +47,19 @@ sealed interface NovelLibraryItem {
         override val dateAdded = libraryNovel.novel.dateAdded
         override val title = libraryNovel.novel.title
         override val coverNovel = libraryNovel.novel
+
+        override fun matches(query: LibrarySearchQuery): Boolean {
+            query.id?.let { id -> return libraryNovel.id == id }
+            return libraryNovel.novel.matches(query, sourceManager)
+        }
     }
 
-    data class Series(val librarySeries: LibraryNovelSeries) : NovelLibraryItem {
+    data class Series(
+        val librarySeries: LibraryNovelSeries,
+        override val isDownloaded: Boolean = false,
+        override val sourceLanguage: String = "",
+        private val sourceManager: NovelSourceManager = Injekt.get(),
+    ) : NovelLibraryItem {
         override val id = -librarySeries.id // Negative to prevent collisions with single novels in compose keys
         override val category = librarySeries.categoryId
         override val pinned = librarySeries.pinned
@@ -49,5 +73,40 @@ sealed interface NovelLibraryItem {
         override val title = librarySeries.title
         override val coverNovel = librarySeries.selectedCoverNovel ?: librarySeries.coverNovels.firstOrNull()
         val covers = librarySeries.coverNovels.map { it.asNovelCover() }
+
+        override fun matches(query: LibrarySearchQuery): Boolean {
+            query.id?.let { id -> return librarySeries.id == id }
+            if (librarySeries.title.contains(query.raw, ignoreCase = true)) return true
+            return librarySeries.entries.any { it.novel.matches(query, sourceManager) }
+        }
+    }
+
+    companion object {
+        private fun Novel.matches(
+            query: LibrarySearchQuery,
+            sourceManager: NovelSourceManager,
+        ): Boolean {
+            val sourceName by lazy { sourceManager.getOrStub(source).name }
+            return title.contains(query.raw, ignoreCase = true) ||
+                (author?.contains(query.raw, ignoreCase = true) ?: false) ||
+                (description?.contains(query.raw, ignoreCase = true) ?: false) ||
+                query.terms.all { subconstraint ->
+                    checkNegatableConstraint(subconstraint) {
+                        sourceName.contains(it, ignoreCase = true) ||
+                            (genre?.any { genre -> genre.equals(it, ignoreCase = true) } ?: false)
+                    }
+                }
+        }
+
+        private fun checkNegatableConstraint(
+            constraint: String,
+            predicate: (String) -> Boolean,
+        ): Boolean {
+            return if (constraint.startsWith("-")) {
+                !predicate(constraint.substringAfter("-").trimStart())
+            } else {
+                predicate(constraint)
+            }
+        }
     }
 }

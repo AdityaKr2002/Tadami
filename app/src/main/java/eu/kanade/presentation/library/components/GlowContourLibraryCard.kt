@@ -515,6 +515,7 @@ internal fun GlowContourLibraryGridItem(
     gridColumns: Int? = null,
     customCover: @Composable (() -> Unit)? = null,
     genres: List<String> = emptyList(),
+    performanceMode: Boolean = false,
 ) {
     val colors = AuroraTheme.colors
     val blendSpec = resolveGlowContourUnifiedBlendSpec(colors.isDark)
@@ -546,6 +547,7 @@ internal fun GlowContourLibraryGridItem(
             gridColumns = gridColumns,
             customCover = customCover,
             genres = genres,
+            performanceMode = performanceMode,
         )
 
         if (textSpec.showTextBlock) {
@@ -680,6 +682,7 @@ private fun GlowContourLibraryCard(
     modifier: Modifier = Modifier,
     customCover: @Composable (() -> Unit)? = null,
     genres: List<String> = emptyList(),
+    performanceMode: Boolean = false,
 ) {
     val colors = AuroraTheme.colors
     val context = LocalContext.current
@@ -706,6 +709,8 @@ private fun GlowContourLibraryCard(
             .padding(4.dp)
             .drawWithCache {
                 val zones = createGlowContourZonedPaths(size)
+                val auraGlowAlpha = if (performanceMode) 0.14f else 0.28f
+                val auraGlowStrokeWidth = if (performanceMode) 2.5.dp.toPx() else 4.dp.toPx()
                 val selectedStrokeBrush = Brush.horizontalGradient(
                     colors = listOf(
                         colors.accent.copy(alpha = 0.92f),
@@ -728,8 +733,8 @@ private fun GlowContourLibraryCard(
                         drawPath(
                             path = zones.shellPath,
                             brush = auraStrokeBrush,
-                            alpha = 0.28f,
-                            style = Stroke(width = 4.dp.toPx()),
+                            alpha = auraGlowAlpha,
+                            style = Stroke(width = auraGlowStrokeWidth),
                         )
                         // Core outline pass
                         drawPath(

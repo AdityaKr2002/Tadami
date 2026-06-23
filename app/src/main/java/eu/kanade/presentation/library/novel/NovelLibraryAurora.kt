@@ -1,5 +1,6 @@
 package eu.kanade.presentation.library.novel
 
+import eu.kanade.presentation.library.AURORA_LARGE_GRID_PERFORMANCE_THRESHOLD
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -109,6 +110,7 @@ import androidx.compose.foundation.lazy.items as listItems
 fun NovelLibraryAuroraContent(
     items: List<NovelLibraryItem>,
     selection: List<NovelLibraryItem> = emptyList(),
+    selectedIds: Set<Long> = selection.idsToHashSet { it.id },
     searchQuery: String?,
     onSearchQueryChange: (String?) -> Unit,
     onNovelClicked: (Long) -> Unit,
@@ -160,42 +162,13 @@ fun NovelLibraryAuroraContent(
             auroraAdaptiveSpec = auroraAdaptiveSpec,
         )
     }
+    val useLargeGridPerformanceMode = items.size > AURORA_LARGE_GRID_PERFORMANCE_THRESHOLD
     val showDownloadBadge by libraryPreferences.downloadBadge().collectAsStateWithLifecycle()
     val showUnreadBadge by libraryPreferences.unreadBadge().collectAsStateWithLifecycle()
     val showLanguageBadge by libraryPreferences.languageBadge().collectAsStateWithLifecycle()
-    val downloadedIds by downloadCache.downloadedIds.collectAsStateWithLifecycle()
-    val downloadedNovelIds = remember(items, showDownloadBadge, downloadedIds) {
-        if (!showDownloadBadge) return@remember emptySet()
-
-        buildSet(capacity = items.size) {
-            items.forEach { item ->
-                val novel = item.coverNovel ?: return@forEach
-                if (novel.id in downloadedIds) {
-                    add(item.id)
-                }
-            }
-        }
-    }
-    val sourceLanguageByNovelId = remember(items, showLanguageBadge, sourceManager) {
-        if (!showLanguageBadge) return@remember emptyMap()
-
-        val languageBySourceId = HashMap<Long, String>()
-        buildMap(capacity = items.size) {
-            items.forEach { item ->
-                val sourceId = item.coverNovel?.source ?: return@forEach
-                put(
-                    item.id,
-                    languageBySourceId.getOrPut(sourceId) {
-                        sourceManager.getOrStub(sourceId).lang
-                    },
-                )
-            }
-        }
-    }
     val isSearchActive = searchQuery != null
     val showPinnedSection = remember(items) { items.containsAtLeastMatches(requiredCount = 2) { it.pinned } }
     val isSelectionMode = selection.isNotEmpty() && onToggleSelection != null
-    val selectedIds = remember(selection) { selection.idsToHashSet { it.id } }
     val onClickNovelItem: (NovelLibraryItem) -> Unit = { libraryItem ->
         if (isSelectionMode) {
             onToggleSelection(libraryItem)
@@ -322,10 +295,10 @@ fun NovelLibraryAuroraContent(
                     val badgeState = resolveNovelLibraryBadgeState(
                         item = item,
                         showDownloadBadge = showDownloadBadge,
-                        downloadedNovelIds = downloadedNovelIds,
+                        downloadedNovelIds = emptySet(),
                         showUnreadBadge = showUnreadBadge,
                         showLanguageBadge = showLanguageBadge,
-                        sourceLanguage = sourceLanguageByNovelId[item.id].orEmpty(),
+                        sourceLanguage = item.sourceLanguage,
                     )
                     NovelLibraryAuroraCard(
                         item = item,
@@ -345,6 +318,7 @@ fun NovelLibraryAuroraContent(
                         glowDisplayMode = LibraryDisplayMode.List,
                         gridColumns = null,
                         onTogglePinned = onTogglePinned,
+                        performanceMode = useLargeGridPerformanceMode,
                     )
                 }
             }
@@ -416,10 +390,10 @@ fun NovelLibraryAuroraContent(
                     val badgeState = resolveNovelLibraryBadgeState(
                         item = item,
                         showDownloadBadge = showDownloadBadge,
-                        downloadedNovelIds = downloadedNovelIds,
+                        downloadedNovelIds = emptySet(),
                         showUnreadBadge = showUnreadBadge,
                         showLanguageBadge = showLanguageBadge,
-                        sourceLanguage = sourceLanguageByNovelId[item.id].orEmpty(),
+                        sourceLanguage = item.sourceLanguage,
                     )
                     if (displaySpec.useCompactGridEntryStyle && !useGlowContourCards) {
                         NovelLibraryCompactGridItem(
@@ -430,6 +404,7 @@ fun NovelLibraryAuroraContent(
                             onLongClickNovel = onLongClickNovelItem,
                             onClickContinueReading = onContinueReadingClicked,
                             onTogglePinned = onTogglePinned,
+                            performanceMode = useLargeGridPerformanceMode,
                         )
                     } else {
                         NovelLibraryAuroraCard(
@@ -468,6 +443,7 @@ private fun NovelLibraryCompactGridItem(
     onLongClickNovel: ((NovelLibraryItem) -> Unit)?,
     onClickContinueReading: ((NovelLibraryItem) -> Unit)?,
     onTogglePinned: ((NovelLibraryItem) -> Unit)?,
+    performanceMode: Boolean = false,
 ) {
     val placeholderPainter = rememberAuroraCoverPlaceholderPainter()
 
@@ -542,6 +518,7 @@ private fun NovelLibraryAuroraCard(
     glowDisplayMode: LibraryDisplayMode,
     gridColumns: Int?,
     onTogglePinned: ((NovelLibraryItem) -> Unit)? = null,
+    performanceMode: Boolean = false,
 ) {
     val useGlowContourCards = cardStyle == AuroraLibraryCardStyle.GlowContour
     val progressText = if (showMetadata && item.totalChapters > 0) {
@@ -590,6 +567,7 @@ private fun NovelLibraryAuroraCard(
             cornerIndicatorState = cornerIndicatorState,
             textSpec = textSpec,
             genres = item.coverNovel?.genre ?: emptyList(),
+            performanceMode = performanceMode,
             badge = if (badgeState.hasBadge()) {
                 {
                     NovelAuroraBadgeGroup(

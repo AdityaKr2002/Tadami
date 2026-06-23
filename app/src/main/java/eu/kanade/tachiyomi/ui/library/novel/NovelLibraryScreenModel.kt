@@ -25,21 +25,28 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.ui.entries.novel.NovelDownloadAction
 import eu.kanade.tachiyomi.ui.entries.novel.NovelScreenModel
+import eu.kanade.tachiyomi.ui.library.LibrarySearchQuery
 import eu.kanade.tachiyomi.ui.library.resolveLibraryRangeSelectionAdditions
 import eu.kanade.tachiyomi.ui.library.sortPinnedSeriesFirst
 import eu.kanade.tachiyomi.ui.novel.resolveNovelResumeChapter
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -109,6 +116,7 @@ class NovelLibraryScreenModel(
     private val downloadedIdsFlow: StateFlow<Set<Long>> = downloadCache.downloadedIds,
     private val searchDebounceMillis: Long = SEARCH_DEBOUNCE_MILLIS,
     private val trackerManager: TrackerManager = Injekt.get(),
+    private val startActive: Boolean = true,
 ) : StateScreenModel<NovelLibraryScreenModel.State>(
     State(
         groupType = if (libraryPreferences.globalGroupLibrary().get()) {
@@ -129,74 +137,107 @@ class NovelLibraryScreenModel(
 ) {
     var activeCategoryIndex: Int by libraryPreferences.lastUsedNovelCategory().asState(screenModelScope)
 
+    private val libraryPipelineActive = MutableStateFlow(startActive)
+
+    fun setLibraryPipelineActive(active: Boolean) {
+        libraryPipelineActive.value = active
+    }
+
     init {
         screenModelScope.launch {
-            combine(
-                state.map { it.searchQuery }.debounce(searchDebounceMillis),
-                getLibraryFlow(),
-                getFilterPreferencesFlow(),
-                getSortPreferencesFlow(),
-                getTracksPerNovel.subscribe(),
-                state.map { it.groupType }.distinctUntilChanged(),
-                downloadedIdsFlow,
-            ) { flowsArray ->
-                val searchQuery = flowsArray[0] as String?
+            libraryPipelineActive
+                .flatMapLatest { active ->
+                    if (!active) {
+                        emptyFlow<NovelLibraryMap>()
+                    } else {
+                        val baseLibraryFlow = combine(
+                            getLibraryFlow(),
+                            getFilterPreferencesFlow(),
+                            getSortPreferencesFlow(),
+                            getTracksPerNovel.subscribe(),
+                            state.map { it.groupType }.distinctUntilChanged(),
+                            downloadedIdsFlow,
+                            getBadgePreferencesFlow(),
+                        ) { flowsArray ->
+                            @Suppress("UNCHECKED_CAST")
+                            val library = flowsArray[0] as NovelLibraryMap
+                            val filterPrefs = flowsArray[1] as FilterPreferences
+                            val sortPrefs = flowsArray[2] as SortPreferences
 
-                @Suppress("UNCHECKED_CAST")
-                val library = flowsArray[1] as NovelLibraryMap
-                val filterPrefs = flowsArray[2] as FilterPreferences
-                val sortPrefs = flowsArray[3] as SortPreferences
+                            @Suppress("UNCHECKED_CAST")
+                            val tracks = flowsArray[3] as Map<Long, List<NovelTrack>>
+                            val groupType = flowsArray[4] as Int
 
-                @Suppress("UNCHECKED_CAST")
-                val tracks = flowsArray[4] as Map<Long, List<NovelTrack>>
-                val groupType = flowsArray[5] as Int
+                            @Suppress("UNCHECKED_CAST")
+                            val downloadedIds = flowsArray[5] as Set<Long>
+                            val badgePrefs = flowsArray[6] as BadgePreferences
 
-                @Suppress("UNCHECKED_CAST")
-                val downloadedIds = flowsArray[6] as Set<Long>
+                            val effectiveDownloadedFilter = if (filterPrefs.downloadedOnly) {
+                                TriState.ENABLED_IS
+                            } else {
+                                filterPrefs.downloadedFilter
+                            }
+                            val downloadedNovelIds = if (effectiveDownloadedFilter != TriState.DISABLED) {
+                                val novelIdSet = library.values.flatten().mapNotNullTo(HashSet()) {
+                                    (it as? NovelLibraryItem.Single)?.libraryNovel?.novel?.id
+                                }
+                                downloadedIds.intersect(novelIdSet)
+                            } else {
+                                emptySet()
+                            }
 
-                val effectiveDownloadedFilter = if (filterPrefs.downloadedOnly) {
-                    TriState.ENABLED_IS
-                } else {
-                    filterPrefs.downloadedFilter
-                }
-                val downloadedNovelIds = if (effectiveDownloadedFilter != TriState.DISABLED) {
-                    val novelIdSet = library.values.flatten().mapNotNullTo(HashSet()) {
-                        (it as? NovelLibraryItem.Single)?.libraryNovel?.novel?.id
-                    }
-                    downloadedIds.intersect(novelIdSet)
-                } else {
-                    emptySet()
-                }
+                            val hasActiveFilters = filterPrefs.hasActiveFilters()
+                            val sourceCategories = library.keys.toList()
 
-                library
-                    .applyFilters(
-                        effectiveDownloadedFilter = effectiveDownloadedFilter,
-                        downloadedNovelIds = downloadedNovelIds,
-                        unreadFilter = filterPrefs.unreadFilter,
-                        startedFilter = filterPrefs.startedFilter,
-                        bookmarkedFilter = filterPrefs.bookmarkedFilter,
-                        completedFilter = filterPrefs.completedFilter,
-                        filterIntervalCustom = filterPrefs.filterIntervalCustom,
-                    )
-                    .applySort(sortPrefs.sortMode, sortPrefs.randomSortSeed)
-                    .applyGrouping(groupType, tracks)
-                    .mapValues { (_, value) ->
-                        if (searchQuery != null) {
-                            value.filter { it.title.contains(searchQuery, ignoreCase = true) }
-                        } else {
-                            value
+                            NovelBaseLibraryResult(
+                                groupType = groupType,
+                                hasActiveFilters = hasActiveFilters,
+                                library = library
+                                    .applyFilters(
+                                    effectiveDownloadedFilter = effectiveDownloadedFilter,
+                                    downloadedNovelIds = downloadedNovelIds,
+                                    unreadFilter = filterPrefs.unreadFilter,
+                                    startedFilter = filterPrefs.startedFilter,
+                                    bookmarkedFilter = filterPrefs.bookmarkedFilter,
+                                    completedFilter = filterPrefs.completedFilter,
+                                    filterIntervalCustom = filterPrefs.filterIntervalCustom,
+                                )
+                                    .applySort(sortPrefs.sortMode, sortPrefs.randomSortSeed)
+                                    .applyGrouping(groupType, tracks)
+                                    .withFilteredEmptyPlaceholder(sourceCategories, hasActiveFilters)
+                                    .withBadgeMetadata(downloadedIds, badgePrefs),
+                            )
+                        }
+
+                        combine(
+                            baseLibraryFlow,
+                            state.map { it.searchQuery }.debounce(searchDebounceMillis),
+                        ) { baseLibrary, searchQuery ->
+                            val librarySearchQuery = searchQuery?.let(::LibrarySearchQuery)
+                            baseLibrary.library
+                                .mapValues { (_, value) ->
+                                    if (librarySearchQuery != null) {
+                                        value.filter { it.matches(librarySearchQuery) }
+                                    } else {
+                                        value
+                                    }
+                                }
+                                .let { map ->
+                                    if (
+                                        baseLibrary.groupType == LibraryGroup.BY_DEFAULT ||
+                                        searchQuery != null ||
+                                        baseLibrary.hasActiveFilters
+                                    ) {
+                                        // Keep categories visible when searching so empty-result pages can
+                                        // still show the global search action.
+                                        map
+                                    } else {
+                                        map.filterValues { it.isNotEmpty() }
+                                    }
+                                }
                         }
                     }
-                    .let { map ->
-                        if (groupType == LibraryGroup.BY_DEFAULT || searchQuery != null) {
-                            // Keep categories visible when searching so empty-result pages can
-                            // still show the global search action.
-                            map
-                        } else {
-                            map.filterValues { it.isNotEmpty() }
-                        }
-                    }
-            }
+                }
                 .collectLatest { libraryMap ->
                     mutableState.update { state ->
                         state.copy(
@@ -333,13 +374,11 @@ class NovelLibraryScreenModel(
         mutableState.update { current ->
             val targetCategoryId = current.categories.getOrNull(index)?.id
             val scopeItems = if (targetCategoryId == null) {
-                current.library.values.flatten()
+                current.items
             } else {
-                current.library.entries.firstNotNullOfOrNull { entry ->
-                    entry.value.takeIf { entry.key.id == targetCategoryId }
-                }.orEmpty()
+                current.getLibraryItemsByCategoryId(targetCategoryId).orEmpty()
             }
-            val selectedIds = current.selection.map { it.id }.toSet()
+            val selectedIds = current.selectedIds
             val mutable = current.selection.toMutableList()
             mutable.addAll(scopeItems.filterNot { it.id in selectedIds })
             current.copy(selection = persistentListOf<NovelLibraryItem>().addAll(mutable))
@@ -350,14 +389,12 @@ class NovelLibraryScreenModel(
         mutableState.update { current ->
             val targetCategoryId = current.categories.getOrNull(index)?.id
             val scopeItems = if (targetCategoryId == null) {
-                current.library.values.flatten()
+                current.items
             } else {
-                current.library.entries.firstNotNullOfOrNull { entry ->
-                    entry.value.takeIf { entry.key.id == targetCategoryId }
-                }.orEmpty()
+                current.getLibraryItemsByCategoryId(targetCategoryId).orEmpty()
             }
-            val selectedIds = current.selection.map { it.id }.toSet()
-            val toRemoveIds = scopeItems.filter { it.id in selectedIds }.map { it.id }.toSet()
+            val selectedIds = current.selectedIds
+            val toRemoveIds = scopeItems.mapNotNullTo(HashSet()) { item -> item.id.takeIf { it in selectedIds } }
             val mutable = current.selection.filterNot { it.id in toRemoveIds }.toMutableList()
             mutable.addAll(scopeItems.filterNot { it.id in selectedIds })
             current.copy(selection = persistentListOf<NovelLibraryItem>().addAll(mutable))
@@ -805,6 +842,58 @@ class NovelLibraryScreenModel(
         return mapValues { (_, value) -> sortItems(value, sort, randomSortSeed) }
     }
 
+    private fun NovelLibraryMap.withFilteredEmptyPlaceholder(
+        sourceCategories: List<Category>,
+        hasActiveFilters: Boolean,
+    ): NovelLibraryMap {
+        if (isNotEmpty() || !hasActiveFilters) return this
+        val fallbackCategory = sourceCategories.firstOrNull() ?: return this
+        return mapOf(fallbackCategory to emptyList())
+    }
+
+    private fun FilterPreferences.hasActiveFilters(): Boolean {
+        return downloadedOnly || listOf(
+            downloadedFilter,
+            unreadFilter,
+            startedFilter,
+            bookmarkedFilter,
+            completedFilter,
+            filterIntervalCustom,
+        ).any { it != TriState.DISABLED }
+    }
+
+    private fun NovelLibraryMap.withBadgeMetadata(
+        downloadedIds: Set<Long>,
+        badgePreferences: BadgePreferences,
+    ): NovelLibraryMap {
+        if (isEmpty() || (!badgePreferences.showDownloadBadge && !badgePreferences.showLanguageBadge)) return this
+        val languageBySourceId = HashMap<Long, String>()
+        fun NovelLibraryItem.withBadgeMetadata(): NovelLibraryItem {
+            val novel = coverNovel
+            val isDownloaded = badgePreferences.showDownloadBadge && novel?.id in downloadedIds
+            val sourceLanguage = if (badgePreferences.showLanguageBadge) {
+                novel?.source?.let { sourceId ->
+                    languageBySourceId.getOrPut(sourceId) {
+                        sourceManager.getOrStub(sourceId).lang
+                    }
+                }.orEmpty()
+            } else {
+                ""
+            }
+            return when (this) {
+                is NovelLibraryItem.Single -> copy(
+                    isDownloaded = isDownloaded,
+                    sourceLanguage = sourceLanguage,
+                )
+                is NovelLibraryItem.Series -> copy(
+                    isDownloaded = isDownloaded,
+                    sourceLanguage = sourceLanguage,
+                )
+            }
+        }
+        return mapValues { (_, value) -> value.map { it.withBadgeMetadata() } }
+    }
+
     private fun NovelLibraryMap.applyGrouping(
         groupType: Int,
         tracks: Map<Long, List<NovelTrack>>,
@@ -973,11 +1062,15 @@ class NovelLibraryScreenModel(
             }
         }
         val isSeries: (NovelLibraryItem) -> Boolean = { it is NovelLibraryItem.Series }
+        val alphabeticSortKeys = HashMap<Long, String>()
+        fun NovelLibraryItem.alphabeticSortKey(): String {
+            return alphabeticSortKeys.getOrPut(id) { title.lowercase() }
+        }
 
         val comparator = Comparator<NovelLibraryItem> { left, right ->
             when (sort.type) {
                 NovelLibrarySort.Type.Alphabetical -> {
-                    left.title.lowercase().compareToWithCollator(right.title.lowercase())
+                    left.alphabeticSortKey().compareToWithCollator(right.alphabeticSortKey())
                 }
                 NovelLibrarySort.Type.LastRead -> left.lastRead.compareTo(right.lastRead)
                 NovelLibrarySort.Type.LastUpdate -> {
@@ -1013,7 +1106,7 @@ class NovelLibraryScreenModel(
         }
             .let { if (sort.isAscending) it else it.reversed() }
             .thenComparator { left, right ->
-                left.title.lowercase().compareToWithCollator(right.title.lowercase())
+                left.alphabeticSortKey().compareToWithCollator(right.alphabeticSortKey())
             }
 
         return items.sortPinnedSeriesFirst(
@@ -1062,18 +1155,19 @@ class NovelLibraryScreenModel(
         val randomSortSeed: Int = 0,
         val dialog: Dialog? = null,
     ) {
-        val items: List<NovelLibraryItem>
-            get() = library.values.flatten()
+        val categories = library.keys.toList()
+        private val pages = library.values.toList()
+
+        val items: List<NovelLibraryItem> by lazy { pages.flatten() }
 
         val rawItems: List<NovelLibraryItem>
-            get() = library.values.flatten()
+            get() = items
 
         val effectiveDownloadedFilter: TriState
             get() = if (downloadedOnly) TriState.ENABLED_IS else downloadedFilter
 
         private val libraryCount by lazy {
-            library.values
-                .flatten()
+            items
                 .distinctBy {
                     when (it) {
                         is NovelLibraryItem.Single -> it.libraryNovel.novel.id
@@ -1087,14 +1181,19 @@ class NovelLibraryScreenModel(
 
         val selectionMode = selection.isNotEmpty()
 
-        val categories = library.keys.toList()
+        val selectedIds: ImmutableSet<Long> by lazy {
+            persistentSetOf<Long>().mutate { ids ->
+                selection.forEach { ids.add(it.id) }
+            }
+        }
 
         fun getLibraryItemsByCategoryId(categoryId: Long): List<NovelLibraryItem>? {
-            return library.entries.firstOrNull { it.key.id == categoryId }?.value
+            val index = categories.indexOfFirst { it.id == categoryId }
+            return pages.getOrNull(index)
         }
 
         fun getLibraryItemsByPage(page: Int): List<NovelLibraryItem> {
-            return library.values.toTypedArray().getOrNull(page).orEmpty()
+            return pages.getOrNull(page).orEmpty()
         }
 
         fun getNovelCountForCategory(category: Category): Int? {
@@ -1136,6 +1235,17 @@ class NovelLibraryScreenModel(
         val randomSortSeed: Int,
     )
 
+    private data class BadgePreferences(
+        val showDownloadBadge: Boolean,
+        val showLanguageBadge: Boolean,
+    )
+
+    private data class NovelBaseLibraryResult(
+        val groupType: Int,
+        val hasActiveFilters: Boolean,
+        val library: NovelLibraryMap,
+    )
+
     private data class RecomputeInput(
         val query: String?,
         val novels: List<NovelLibraryItem>,
@@ -1148,6 +1258,18 @@ class NovelLibraryScreenModel(
         val items: List<NovelLibraryItem>,
         val downloadedNovelIds: Set<Long>,
     )
+
+    private fun getBadgePreferencesFlow(): Flow<BadgePreferences> {
+        return combine(
+            libraryPreferences.downloadBadge().changes(),
+            libraryPreferences.languageBadge().changes(),
+        ) { showDownloadBadge, showLanguageBadge ->
+            BadgePreferences(
+                showDownloadBadge = showDownloadBadge,
+                showLanguageBadge = showLanguageBadge,
+            )
+        }
+    }
 
     private fun getFilterPreferencesFlow(): Flow<FilterPreferences> {
         return combine(

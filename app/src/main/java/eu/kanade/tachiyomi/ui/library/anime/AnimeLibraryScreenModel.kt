@@ -28,15 +28,18 @@ import eu.kanade.tachiyomi.data.cache.AnimeCoverCache
 import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadCache
 import eu.kanade.tachiyomi.data.download.anime.AnimeDownloadManager
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.ui.library.LibrarySearchQuery
 import eu.kanade.tachiyomi.ui.library.resolveLibraryRangeSelectionAdditions
 import eu.kanade.tachiyomi.ui.library.sortPinnedFirst
 import eu.kanade.tachiyomi.util.episode.getNextUnseen
 import eu.kanade.tachiyomi.util.removeBackgrounds
 import eu.kanade.tachiyomi.util.removeCovers
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -120,39 +123,57 @@ class AnimeLibraryScreenModel(
 
     init {
         screenModelScope.launchIO {
-            combine(
-                state.map { it.searchQuery }.debounce(SEARCH_DEBOUNCE_MILLIS),
+            val baseLibraryFlow = combine(
                 getLibraryFlow(),
                 getTracksPerAnime.subscribe(),
                 getTrackingFilterFlow(),
                 state.map { it.groupType }.distinctUntilChanged(),
                 getDownloadFilterInvalidationFlow(),
+                getAnimelibItemPreferencesFlow(),
             ) { flowsArray ->
-                val searchQuery = flowsArray[0] as String?
+                @Suppress("UNCHECKED_CAST")
+                val library = flowsArray[0] as AnimeLibraryMap
 
                 @Suppress("UNCHECKED_CAST")
-                val library = flowsArray[1] as AnimeLibraryMap
+                val tracks = flowsArray[1] as Map<Long, List<AnimeTrack>>
 
                 @Suppress("UNCHECKED_CAST")
-                val tracks = flowsArray[2] as Map<Long, List<AnimeTrack>>
+                val trackingFilter = flowsArray[2] as Map<Long, TriState>
+                val groupType = flowsArray[3] as Int
+                val itemPreferences = flowsArray[5] as ItemPreferences
+                val hasActiveFilters = itemPreferences.hasActiveFilters(trackingFilter)
+                val sourceCategories = library.keys.toList()
 
-                @Suppress("UNCHECKED_CAST")
-                val trackingFilter = flowsArray[3] as Map<Long, TriState>
-                val groupType = flowsArray[4] as Int
+                AnimeBaseLibraryResult(
+                    groupType = groupType,
+                    hasActiveFilters = hasActiveFilters,
+                    library = library
+                        .applyFilters(tracks, trackingFilter)
+                        .applySort(tracks, trackingFilter.keys)
+                        .applyGrouping(groupType, tracks)
+                        .withFilteredEmptyPlaceholder(sourceCategories, hasActiveFilters),
+                )
+            }
 
-                library
-                    .applyFilters(tracks, trackingFilter)
-                    .applySort(tracks, trackingFilter.keys)
-                    .applyGrouping(groupType, tracks)
+            combine(
+                baseLibraryFlow,
+                state.map { it.searchQuery }.debounce(SEARCH_DEBOUNCE_MILLIS),
+            ) { baseLibrary, searchQuery ->
+                val librarySearchQuery = searchQuery?.let(::LibrarySearchQuery)
+                baseLibrary.library
                     .mapValues { (_, value) ->
-                        if (searchQuery != null) {
-                            value.filter { it.matches(searchQuery) }
+                        if (librarySearchQuery != null) {
+                            value.filter { it.matches(librarySearchQuery) }
                         } else {
                             value
                         }
                     }
                     .let { map ->
-                        if (groupType == LibraryGroup.BY_DEFAULT || searchQuery != null) {
+                        if (
+                            baseLibrary.groupType == LibraryGroup.BY_DEFAULT ||
+                            searchQuery != null ||
+                            baseLibrary.hasActiveFilters
+                        ) {
                             // Keep categories visible when searching so empty-result pages can
                             // still show the global search action.
                             map
@@ -262,9 +283,14 @@ class AnimeLibraryScreenModel(
 
         val isNotLoggedInAnyTrack = trackingFilter.isEmpty()
 
-        val excludedTracks = trackingFilter.mapNotNull { if (it.value == TriState.ENABLED_NOT) it.key else null }
-        val includedTracks = trackingFilter.mapNotNull { if (it.value == TriState.ENABLED_IS) it.key else null }
+        val excludedTracks = trackingFilter.mapNotNullTo(HashSet()) { if (it.value == TriState.ENABLED_NOT) it.key else null }
+        val includedTracks = trackingFilter.mapNotNullTo(HashSet()) { if (it.value == TriState.ENABLED_IS) it.key else null }
         val trackFiltersIsIgnored = includedTracks.isEmpty() && excludedTracks.isEmpty()
+        val trackIdsByAnimeId = if (trackFiltersIsIgnored) {
+            emptyMap()
+        } else {
+            trackMap.mapValues { entry -> entry.value.mapTo(HashSet(entry.value.size)) { it.trackerId } }
+        }
 
         val filterFnDownloaded: (AnimeLibraryItem) -> Boolean = {
             applyFilter(filterDownloaded) {
@@ -301,12 +327,10 @@ class AnimeLibraryScreenModel(
         val filterFnTracking: (AnimeLibraryItem) -> Boolean = tracking@{ item ->
             if (isNotLoggedInAnyTrack || trackFiltersIsIgnored) return@tracking true
 
-            val animeTracks = trackMap
-                .mapValues { entry -> entry.value.map { it.trackerId } }[item.libraryAnime.id]
-                .orEmpty()
+            val animeTracks = trackIdsByAnimeId[item.libraryAnime.id].orEmpty()
 
-            val isExcluded = excludedTracks.isNotEmpty() && animeTracks.fastAny { it in excludedTracks }
-            val isIncluded = includedTracks.isEmpty() || animeTracks.fastAny { it in includedTracks }
+            val isExcluded = excludedTracks.isNotEmpty() && animeTracks.any { it in excludedTracks }
+            val isIncluded = includedTracks.isEmpty() || animeTracks.any { it in includedTracks }
 
             !isExcluded && isIncluded
         }
@@ -328,8 +352,14 @@ class AnimeLibraryScreenModel(
         trackMap: Map<Long, List<AnimeTrack>>,
         loggedInTrackerIds: Set<Long>,
     ): AnimeLibraryMap {
+        val alphabeticSortKeys = HashMap<Long, String>()
+        fun AnimeLibraryItem.alphabeticSortKey(): String {
+            return alphabeticSortKeys.getOrPut(libraryAnime.id) {
+                libraryAnime.anime.title.lowercase()
+            }
+        }
         val sortAlphabetically: (AnimeLibraryItem, AnimeLibraryItem) -> Int = { i1, i2 ->
-            i1.libraryAnime.anime.title.lowercase().compareToWithCollator(i2.libraryAnime.anime.title.lowercase())
+            i1.alphabeticSortKey().compareToWithCollator(i2.alphabeticSortKey())
         }
         val isPinned: (AnimeLibraryItem) -> Boolean = { it.libraryAnime.pinned }
 
@@ -534,6 +564,26 @@ class AnimeLibraryScreenModel(
         return grouped.entries
             .sortedBy { entry -> entry.key.id }
             .associate { entry -> entry.key to entry.value }
+    }
+
+    private fun AnimeLibraryMap.withFilteredEmptyPlaceholder(
+        sourceCategories: List<Category>,
+        hasActiveFilters: Boolean,
+    ): AnimeLibraryMap {
+        if (isNotEmpty() || !hasActiveFilters) return this
+        val fallbackCategory = sourceCategories.firstOrNull() ?: return this
+        return mapOf(fallbackCategory to emptyList())
+    }
+
+    private fun ItemPreferences.hasActiveFilters(trackingFilter: Map<Long, TriState>): Boolean {
+        return listOf(
+            filterDownloaded,
+            filterUnseen,
+            filterStarted,
+            filterBookmarked,
+            filterCompleted,
+            filterIntervalCustom,
+        ).any { it != TriState.DISABLED } || trackingFilter.values.any { it != TriState.DISABLED }
     }
 
     private fun getAnimelibItemPreferencesFlow(): Flow<ItemPreferences> {
@@ -872,7 +922,7 @@ class AnimeLibraryScreenModel(
         mutableState.update { state ->
             val newSelection = state.selection.mutate { list ->
                 val categoryId = state.categories.getOrNull(index)?.id ?: -1
-                val selectedIds = list.fastMap { it.id }
+                val selectedIds = state.selectedIds
                 state.getAnimelibItemsByCategoryId(categoryId)
                     ?.fastMapNotNull { item ->
                         item.libraryAnime.takeUnless { it.id in selectedIds }
@@ -888,9 +938,9 @@ class AnimeLibraryScreenModel(
             val newSelection = state.selection.mutate { list ->
                 val categoryId = state.categories[index].id
                 val items = state.getAnimelibItemsByCategoryId(categoryId)?.fastMap { it.libraryAnime }.orEmpty()
-                val selectedIds = list.fastMap { it.id }
+                val selectedIds = state.selectedIds
                 val (toRemove, toAdd) = items.fastPartition { it.id in selectedIds }
-                val toRemoveIds = toRemove.fastMap { it.id }
+                val toRemoveIds = toRemove.mapTo(HashSet(toRemove.size)) { it.id }
                 list.removeAll { it.id in toRemoveIds }
                 list.addAll(toAdd)
             }
@@ -945,6 +995,12 @@ class AnimeLibraryScreenModel(
         data class DeleteAnime(val anime: List<Anime>) : Dialog
     }
 
+    private data class AnimeBaseLibraryResult(
+        val groupType: Int,
+        val hasActiveFilters: Boolean,
+        val library: AnimeLibraryMap,
+    )
+
     @Immutable
     private data class ItemPreferences(
         val downloadBadge: Boolean,
@@ -975,14 +1031,16 @@ class AnimeLibraryScreenModel(
         val groupType: Int = LibraryGroup.BY_DEFAULT,
         val dialog: Dialog? = null,
     ) {
-        val items: List<AnimeLibraryItem>
-            get() = library.values.flatten()
+        val categories = library.keys.toList()
+        private val pages = library.values.toList()
+
+        val items: List<AnimeLibraryItem> by lazy { pages.flatten() }
 
         val rawItems: List<AnimeLibraryItem>
-            get() = library.values.flatten()
+            get() = items
+
         private val libraryCount by lazy {
-            library.values
-                .flatten()
+            items
                 .fastDistinctBy { it.libraryAnime.anime.id }
                 .size
         }
@@ -991,14 +1049,19 @@ class AnimeLibraryScreenModel(
 
         val selectionMode = selection.isNotEmpty()
 
-        val categories = library.keys.toList()
+        val selectedIds: ImmutableSet<Long> by lazy {
+            persistentSetOf<Long>().mutate { ids ->
+                selection.forEach { ids.add(it.id) }
+            }
+        }
 
         fun getAnimelibItemsByCategoryId(categoryId: Long): List<AnimeLibraryItem>? {
-            return library.firstNotNullOfOrNull { (k, v) -> v.takeIf { k.id == categoryId } }
+            val index = categories.indexOfFirst { it.id == categoryId }
+            return pages.getOrNull(index)
         }
 
         fun getAnimelibItemsByPage(page: Int): List<AnimeLibraryItem> {
-            return library.values.toTypedArray().getOrNull(page).orEmpty()
+            return pages.getOrNull(page).orEmpty()
         }
 
         fun getAnimeCountForCategory(category: Category): Int? {

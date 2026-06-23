@@ -1,5 +1,6 @@
 package eu.kanade.presentation.library.manga
 
+import eu.kanade.presentation.library.AURORA_LARGE_GRID_PERFORMANCE_THRESHOLD
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -56,6 +57,7 @@ import androidx.compose.foundation.lazy.items as listItems
 fun MangaLibraryAuroraContent(
     items: List<MangaLibraryItem>,
     selection: List<MangaLibraryItem>,
+    selectedIds: Set<Long> = selection.idsToHashSet { it.id },
     searchQuery: String?,
     hasActiveFilters: Boolean,
     displayMode: LibraryDisplayMode,
@@ -103,6 +105,7 @@ fun MangaLibraryAuroraContent(
                 items = items,
                 contentPadding = contentPadding,
                 selection = selection,
+                selectedIds = selectedIds,
                 searchQuery = searchQuery,
                 onGlobalSearchClicked = onGlobalSearchClicked,
                 onClick = onClickManga,
@@ -123,6 +126,7 @@ fun MangaLibraryAuroraContent(
                     columns = safeColumns,
                     contentPadding = contentPadding,
                     selection = selection,
+                    selectedIds = selectedIds,
                     searchQuery = searchQuery,
                     onGlobalSearchClicked = onGlobalSearchClicked,
                     showMetadata = true,
@@ -160,6 +164,7 @@ fun MangaLibraryAuroraContent(
                 columns = safeColumns,
                 contentPadding = contentPadding,
                 selection = selection,
+                selectedIds = selectedIds,
                 searchQuery = searchQuery,
                 onGlobalSearchClicked = onGlobalSearchClicked,
                 showMetadata = false,
@@ -181,6 +186,7 @@ fun MangaLibraryAuroraContent(
                 columns = safeColumns,
                 contentPadding = contentPadding,
                 selection = selection,
+                selectedIds = selectedIds,
                 searchQuery = searchQuery,
                 onGlobalSearchClicked = onGlobalSearchClicked,
                 showMetadata = true,
@@ -203,6 +209,7 @@ private fun MangaLibraryAuroraList(
     items: List<MangaLibraryItem>,
     contentPadding: PaddingValues,
     selection: List<MangaLibraryItem>,
+    selectedIds: Set<Long>,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
     onClick: (MangaLibraryItem) -> Unit,
@@ -215,7 +222,6 @@ private fun MangaLibraryAuroraList(
 ) {
     val colors = AuroraTheme.colors
     val showPinnedSection = remember(items) { items.containsAtLeastMatches(requiredCount = 2) { it.pinned } }
-    val selectedIds = remember(selection) { selection.idsToHashSet { it.id } }
 
     FastScrollLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -387,6 +393,7 @@ private fun MangaLibraryAuroraCardGrid(
     columns: Int,
     contentPadding: PaddingValues,
     selection: List<MangaLibraryItem>,
+    selectedIds: Set<Long>,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
     showMetadata: Boolean,
@@ -402,7 +409,6 @@ private fun MangaLibraryAuroraCardGrid(
 ) {
     val useGlowContourCards = cardStyle == AuroraLibraryCardStyle.GlowContour
     val showPinnedSection = remember(items) { items.containsAtLeastMatches(requiredCount = 2) { it.pinned } }
-    val selectedIds = remember(selection) { selection.idsToHashSet { it.id } }
 
     LazyLibraryGrid(
         modifier = Modifier
@@ -499,6 +505,7 @@ private fun MangaLibraryAuroraCardGrid(
                     cornerIndicatorState = cornerIndicatorState,
                     seriesHeaderText = seriesHeaderText,
                     genres = manga.genre ?: emptyList(),
+                    performanceMode = items.size > AURORA_LARGE_GRID_PERFORMANCE_THRESHOLD,
                     customCover = if (isSeries) {
                         {
                             SeriesStackedCoverCard(

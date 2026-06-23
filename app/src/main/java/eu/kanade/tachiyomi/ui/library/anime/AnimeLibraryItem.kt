@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.library.anime
 
 import eu.kanade.tachiyomi.source.anime.getNameForAnimeInfo
+import eu.kanade.tachiyomi.ui.library.LibrarySearchQuery
 import tachiyomi.domain.library.anime.LibraryAnime
 import tachiyomi.domain.source.anime.service.AnimeSourceManager
 import uy.kohesive.injekt.Injekt
@@ -24,16 +25,17 @@ data class AnimeLibraryItem(
      * @return true if the anime matches the query, false otherwise.
      */
     fun matches(constraint: String): Boolean {
+        return matches(LibrarySearchQuery(constraint))
+    }
+
+    fun matches(query: LibrarySearchQuery): Boolean {
         val sourceName by lazy { sourceManager.getOrStub(libraryAnime.anime.source).getNameForAnimeInfo() }
-        if (constraint.startsWith("id:", true)) {
-            val id = constraint.substringAfter("id:").toLongOrNull()
-            return libraryAnime.id == id
-        }
-        return libraryAnime.anime.title.contains(constraint, true) ||
-            (libraryAnime.anime.author?.contains(constraint, true) ?: false) ||
-            (libraryAnime.anime.artist?.contains(constraint, true) ?: false) ||
-            (libraryAnime.anime.description?.contains(constraint, true) ?: false) ||
-            constraint.split(",").map { it.trim() }.all { subconstraint ->
+        query.id?.let { id -> return libraryAnime.id == id }
+        return libraryAnime.anime.title.contains(query.raw, true) ||
+            (libraryAnime.anime.author?.contains(query.raw, true) ?: false) ||
+            (libraryAnime.anime.artist?.contains(query.raw, true) ?: false) ||
+            (libraryAnime.anime.description?.contains(query.raw, true) ?: false) ||
+            query.terms.all { subconstraint ->
                 checkNegatableConstraint(subconstraint) {
                     sourceName.contains(it, true) ||
                         (libraryAnime.anime.genre?.any { genre -> genre.equals(it, true) } ?: false)

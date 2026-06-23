@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.library.manga
 
 import eu.kanade.tachiyomi.source.manga.getNameForMangaInfo
+import eu.kanade.tachiyomi.ui.library.LibrarySearchQuery
 import tachiyomi.domain.entries.manga.model.Manga
 import tachiyomi.domain.entries.manga.model.asMangaCover
 import tachiyomi.domain.library.manga.LibraryManga
@@ -34,6 +35,8 @@ sealed interface MangaLibraryItem {
 
     fun matches(constraint: String): Boolean
 
+    fun matches(query: LibrarySearchQuery): Boolean
+
     data class Single(
         val libraryMangaValue: LibraryManga,
         val downloadCountValue: Long = -1,
@@ -59,16 +62,17 @@ sealed interface MangaLibraryItem {
         override val libraryManga = libraryMangaValue
 
         override fun matches(constraint: String): Boolean {
+            return matches(LibrarySearchQuery(constraint))
+        }
+
+        override fun matches(query: LibrarySearchQuery): Boolean {
             val sourceName by lazy { sourceManager.getOrStub(libraryMangaValue.manga.source).getNameForMangaInfo() }
-            if (constraint.startsWith("id:", true)) {
-                val id = constraint.substringAfter("id:").toLongOrNull()
-                return libraryMangaValue.id == id
-            }
-            return libraryMangaValue.manga.title.contains(constraint, true) ||
-                (libraryMangaValue.manga.author?.contains(constraint, true) ?: false) ||
-                (libraryMangaValue.manga.artist?.contains(constraint, true) ?: false) ||
-                (libraryMangaValue.manga.description?.contains(constraint, true) ?: false) ||
-                constraint.split(",").map { it.trim() }.all { subconstraint ->
+            query.id?.let { id -> return libraryMangaValue.id == id }
+            return libraryMangaValue.manga.title.contains(query.raw, true) ||
+                (libraryMangaValue.manga.author?.contains(query.raw, true) ?: false) ||
+                (libraryMangaValue.manga.artist?.contains(query.raw, true) ?: false) ||
+                (libraryMangaValue.manga.description?.contains(query.raw, true) ?: false) ||
+                query.terms.all { subconstraint ->
                     checkNegatableConstraint(subconstraint) {
                         sourceName.contains(it, true) ||
                             (libraryMangaValue.manga.genre?.any { genre -> genre.equals(it, true) } ?: false)
@@ -104,21 +108,22 @@ sealed interface MangaLibraryItem {
         val covers = librarySeries.coverMangas.map { it.asMangaCover() }
 
         override fun matches(constraint: String): Boolean {
-            if (constraint.startsWith("id:", true)) {
-                val id = constraint.substringAfter("id:").toLongOrNull()
-                return librarySeries.id == id
-            }
+            return matches(LibrarySearchQuery(constraint))
+        }
 
-            val titleMatches = librarySeries.title.contains(constraint, true)
+        override fun matches(query: LibrarySearchQuery): Boolean {
+            query.id?.let { id -> return librarySeries.id == id }
+
+            val titleMatches = librarySeries.title.contains(query.raw, true)
             if (titleMatches) return true
 
             return librarySeries.entries.any { libraryManga ->
                 val sourceName by lazy { sourceManager.getOrStub(libraryManga.manga.source).getNameForMangaInfo() }
-                libraryManga.manga.title.contains(constraint, true) ||
-                    (libraryManga.manga.author?.contains(constraint, true) ?: false) ||
-                    (libraryManga.manga.artist?.contains(constraint, true) ?: false) ||
-                    (libraryManga.manga.description?.contains(constraint, true) ?: false) ||
-                    constraint.split(",").map { it.trim() }.all { subconstraint ->
+                libraryManga.manga.title.contains(query.raw, true) ||
+                    (libraryManga.manga.author?.contains(query.raw, true) ?: false) ||
+                    (libraryManga.manga.artist?.contains(query.raw, true) ?: false) ||
+                    (libraryManga.manga.description?.contains(query.raw, true) ?: false) ||
+                    query.terms.all { subconstraint ->
                         checkNegatableConstraint(subconstraint) {
                             sourceName.contains(it, true) ||
                                 (libraryManga.manga.genre?.any { genre -> genre.equals(it, true) } ?: false)

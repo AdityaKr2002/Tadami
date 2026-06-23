@@ -1,5 +1,6 @@
 package eu.kanade.presentation.library.anime
 
+import eu.kanade.presentation.library.AURORA_LARGE_GRID_PERFORMANCE_THRESHOLD
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,6 +56,7 @@ import androidx.compose.foundation.lazy.items as listItems
 fun AnimeLibraryAuroraContent(
     items: List<AnimeLibraryItem>,
     selection: List<LibraryAnime>,
+    selectedIds: Set<Long> = selection.idsToHashSet { it.id },
     searchQuery: String?,
     hasActiveFilters: Boolean,
     displayMode: LibraryDisplayMode,
@@ -98,6 +100,7 @@ fun AnimeLibraryAuroraContent(
                 items = items,
                 contentPadding = contentPadding,
                 selection = selection,
+                selectedIds = selectedIds,
                 searchQuery = searchQuery,
                 onGlobalSearchClicked = onGlobalSearchClicked,
                 onClick = onClickAnime,
@@ -117,6 +120,7 @@ fun AnimeLibraryAuroraContent(
                     columns = safeColumns,
                     contentPadding = contentPadding,
                     selection = selection,
+                    selectedIds = selectedIds,
                     searchQuery = searchQuery,
                     onGlobalSearchClicked = onGlobalSearchClicked,
                     showMetadata = true,
@@ -152,6 +156,7 @@ fun AnimeLibraryAuroraContent(
                 columns = safeColumns,
                 contentPadding = contentPadding,
                 selection = selection,
+                selectedIds = selectedIds,
                 searchQuery = searchQuery,
                 onGlobalSearchClicked = onGlobalSearchClicked,
                 showMetadata = false,
@@ -172,6 +177,7 @@ fun AnimeLibraryAuroraContent(
                 columns = safeColumns,
                 contentPadding = contentPadding,
                 selection = selection,
+                selectedIds = selectedIds,
                 searchQuery = searchQuery,
                 onGlobalSearchClicked = onGlobalSearchClicked,
                 showMetadata = true,
@@ -193,6 +199,7 @@ private fun AnimeLibraryAuroraList(
     items: List<AnimeLibraryItem>,
     contentPadding: PaddingValues,
     selection: List<LibraryAnime>,
+    selectedIds: Set<Long>,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
     onClick: (LibraryAnime) -> Unit,
@@ -204,7 +211,6 @@ private fun AnimeLibraryAuroraList(
 ) {
     val colors = AuroraTheme.colors
     val showPinnedSection = remember(items) { items.containsAtLeastMatches(requiredCount = 2) { it.pinned } }
-    val selectedIds = remember(selection) { selection.idsToHashSet { it.id } }
 
     FastScrollLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -338,6 +344,7 @@ private fun AnimeLibraryAuroraCardGrid(
     columns: Int,
     contentPadding: PaddingValues,
     selection: List<LibraryAnime>,
+    selectedIds: Set<Long>,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
     showMetadata: Boolean,
@@ -352,7 +359,6 @@ private fun AnimeLibraryAuroraCardGrid(
 ) {
     val useGlowContourCards = cardStyle == AuroraLibraryCardStyle.GlowContour
     val showPinnedSection = remember(items) { items.containsAtLeastMatches(requiredCount = 2) { it.pinned } }
-    val selectedIds = remember(selection) { selection.idsToHashSet { it.id } }
 
     LazyLibraryGrid(
         modifier = Modifier
@@ -430,6 +436,7 @@ private fun AnimeLibraryAuroraCardGrid(
                     cornerIndicatorState = cornerIndicatorState,
                     textSpec = textSpec,
                     genres = anime.genre ?: emptyList(),
+                    performanceMode = items.size > AURORA_LARGE_GRID_PERFORMANCE_THRESHOLD,
                     badge = if (hasBadge) {
                         {
                             AnimeAuroraBadgeGroup(
