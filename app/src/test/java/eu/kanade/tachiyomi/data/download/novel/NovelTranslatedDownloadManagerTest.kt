@@ -47,7 +47,80 @@ class NovelTranslatedDownloadManagerTest {
     }
 
     @Test
-    fun `deleteTranslatedChapter removes stable and legacy files`() {
+    fun `exported translated chapter is written under readable source and novel directories`() {
+        val source = MutableNovelSource(id = 10L, label = "Source A")
+        val manager = createManager(source)
+        val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel A")
+        val chapter = NovelChapter.create().copy(
+            id = 3L,
+            novelId = novel.id,
+            chapterNumber = 1.0,
+            name = "Prologue",
+        )
+
+        val readableFile = translatedReadableFile(
+            tempDir.resolve("downloads").toFile(),
+            source.label,
+            novel.title,
+            chapter,
+        )
+
+        // No stable file should be created
+        manager.isTranslatedChapterDownloaded(
+            novel = novel,
+            chapter = chapter,
+            format = NovelTranslatedDownloadFormat.TXT,
+        ) shouldBe false
+
+        // Place file in readable dir manually and verify detection works
+        readableFile.parentFile?.mkdirs()
+        readableFile.writeText("translated content")
+
+        manager.isTranslatedChapterDownloaded(
+            novel = novel,
+            chapter = chapter,
+            format = NovelTranslatedDownloadFormat.TXT,
+        ) shouldBe true
+        translatedStableFile(tempDir.resolve("downloads").toFile(), novel, chapter).exists() shouldBe false
+    }
+
+    @Test
+    fun `stable translated files are migrated to readable directories on lookup`() {
+        val source = MutableNovelSource(id = 10L, label = "Source A")
+        val manager = createManager(source)
+        val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel A")
+        val chapter = NovelChapter.create().copy(
+            id = 3L,
+            novelId = novel.id,
+            chapterNumber = 1.0,
+            name = "Prologue",
+        )
+
+        val stableFile = translatedStableFile(tempDir.resolve("downloads").toFile(), novel, chapter)
+            .apply {
+                parentFile?.mkdirs()
+                writeText("stable content")
+            }
+        val readableFile = translatedReadableFile(
+            tempDir.resolve("downloads").toFile(),
+            source.label,
+            novel.title,
+            chapter,
+        )
+
+        manager.isTranslatedChapterDownloaded(
+            novel = novel,
+            chapter = chapter,
+            format = NovelTranslatedDownloadFormat.TXT,
+        ) shouldBe true
+
+        readableFile.exists() shouldBe true
+        readableFile.readText() shouldBe "stable content"
+        stableFile.exists() shouldBe false
+    }
+
+    @Test
+    fun `deleteTranslatedChapter removes readable and stable files`() {
         val source = MutableNovelSource(id = 10L, label = "Source A")
         val manager = createManager(source)
         val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel A")
@@ -63,11 +136,15 @@ class NovelTranslatedDownloadManagerTest {
                 parentFile?.mkdirs()
                 writeText("stable")
             }
-        val legacyFile = translatedLegacyFile(tempDir.resolve("downloads").toFile(), novel, chapter)
-            .apply {
-                parentFile?.mkdirs()
-                writeText("legacy")
-            }
+        val readableFile = translatedReadableFile(
+            tempDir.resolve("downloads").toFile(),
+            source.label,
+            novel.title,
+            chapter,
+        ).apply {
+            parentFile?.mkdirs()
+            writeText("readable")
+        }
 
         manager.deleteTranslatedChapter(
             novel = novel,
@@ -76,11 +153,11 @@ class NovelTranslatedDownloadManagerTest {
         )
 
         stableFile.exists() shouldBe false
-        legacyFile.exists() shouldBe false
+        readableFile.exists() shouldBe false
     }
 
     @Test
-    fun `getDownloadSize includes translated exports and updates after delete`() {
+    fun `getDownloadSize includes readable translated exports and updates after delete`() {
         val source = MutableNovelSource(id = 10L, label = "Source A")
         val manager = createManager(source)
         val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel A")
@@ -91,13 +168,17 @@ class NovelTranslatedDownloadManagerTest {
             name = "Prologue",
         )
 
-        val stableFile = translatedStableFile(tempDir.resolve("downloads").toFile(), novel, chapter)
-            .apply {
-                parentFile?.mkdirs()
-                writeText("stable export")
-            }
+        val readableFile = translatedReadableFile(
+            tempDir.resolve("downloads").toFile(),
+            source.label,
+            novel.title,
+            chapter,
+        ).apply {
+            parentFile?.mkdirs()
+            writeText("readable export")
+        }
 
-        manager.getDownloadSize() shouldBe stableFile.length()
+        manager.getDownloadSize() shouldBe readableFile.length()
 
         manager.deleteTranslatedChapter(
             novel = novel,
@@ -128,6 +209,18 @@ class NovelTranslatedDownloadManagerTest {
         return File(
             baseDir,
             "novels_translated/${novel.source}/${novel.id}/${translatedFileName(chapter)}",
+        )
+    }
+
+    private fun translatedReadableFile(
+        baseDir: File,
+        sourceName: String,
+        novelTitle: String,
+        chapter: NovelChapter,
+    ): File {
+        return File(
+            baseDir,
+            "novels_translated/$sourceName/$novelTitle/${translatedFileName(chapter)}",
         )
     }
 

@@ -4,6 +4,8 @@ import android.app.Application
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.ui.reader.novel.translation.NovelReaderTranslationDiskCacheStore
 import eu.kanade.tachiyomi.util.storage.DiskUtil
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.entries.novel.model.Novel
 import tachiyomi.domain.items.novelchapter.model.NovelChapter
 import tachiyomi.domain.source.novel.service.NovelSourceManager
@@ -103,11 +105,16 @@ class NovelTranslatedDownloadManager(
         val fileName = buildTranslatedFileName(chapter, format)
         translatedFileInDirectory(
             baseDir = rootDir,
+            sourceDirName = getReadableSourceDirName(novel),
+            novelDirName = getReadableNovelDirName(novel),
+            fileName = fileName,
+        )?.delete()
+        translatedFileInDirectory(
+            baseDir = rootDir,
             sourceDirName = getStableSourceDirName(novel),
             novelDirName = getStableNovelDirName(novel),
             fileName = fileName,
         )?.delete()
-        legacyTranslatedFile(novel, fileName)?.delete()
 
         synchronized(downloadedIdsCache) {
             downloadedIdsCache.remove(Pair(novel.id, format))
@@ -175,8 +182,8 @@ class NovelTranslatedDownloadManager(
         format: NovelTranslatedDownloadFormat,
     ): UniFile? {
         val baseDir = rootDir ?: return null
-        val sourceDir = baseDir.createDirectory(getStableSourceDirName(novel)) ?: return null
-        val novelDir = sourceDir.createDirectory(getStableNovelDirName(novel)) ?: return null
+        val sourceDir = baseDir.createDirectory(getReadableSourceDirName(novel)) ?: return null
+        val novelDir = sourceDir.createDirectory(getReadableNovelDirName(novel)) ?: return null
         val fileName = buildTranslatedFileName(chapter, format)
         return novelDir.findFile(fileName) ?: novelDir.createFile(fileName)
     }
@@ -185,25 +192,52 @@ class NovelTranslatedDownloadManager(
         novel: Novel,
         fileName: String,
     ): UniFile? {
-        val stable = translatedFileInDirectory(
+        val readable = translatedFileInDirectory(
+            baseDir = rootDir,
+            sourceDirName = getReadableSourceDirName(novel),
+            novelDirName = getReadableNovelDirName(novel),
+            fileName = fileName,
+        )
+        if (readable != null) return readable
+
+        val stableFile = translatedFileInDirectory(
             baseDir = rootDir,
             sourceDirName = getStableSourceDirName(novel),
             novelDirName = getStableNovelDirName(novel),
             fileName = fileName,
-        )
-        if (stable != null) return stable
+        ) ?: return null
 
-        return legacyTranslatedFile(novel, fileName)
+        return migrateToReadable(novel, stableFile, fileName) ?: stableFile
+    }
+
+    private fun migrateToReadable(novel: Novel, stableFile: UniFile, fileName: String): UniFile? {
+        val baseDir = rootDir ?: return null
+        val sourceDir = baseDir.createDirectory(getReadableSourceDirName(novel)) ?: return null
+        val novelDir = sourceDir.createDirectory(getReadableNovelDirName(novel)) ?: return null
+        val readableFile = novelDir.findFile(fileName) ?: novelDir.createFile(fileName) ?: return null
+        return runCatching {
+            stableFile.openInputStream().use { input ->
+                readableFile.openOutputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (!stableFile.delete()) {
+                logcat(LogPriority.WARN) {
+                    "NovelTranslatedDownloadManager: migrated $fileName but could not remove stable file"
+                }
+            }
+            readableFile
+        }.getOrElse { null }
     }
 
     private fun translatedNovelDirectories(novel: Novel): List<UniFile> {
         val baseDir = rootDir ?: return emptyList()
         return listOfNotNull(
+            baseDir.findFile(getReadableSourceDirName(novel))
+                ?.findFile(getReadableNovelDirName(novel)),
             baseDir.findFile(getStableSourceDirName(novel))
                 ?.findFile(getStableNovelDirName(novel)),
-            baseDir.findFile(getLegacySourceDirName(novel))
-                ?.findFile(getLegacyNovelDirName(novel)),
-        )
+        ).distinctBy { it.filePath ?: it.name }
     }
 
     private fun translatedFileInDirectory(
@@ -223,8 +257,8 @@ class NovelTranslatedDownloadManager(
     ): UniFile? {
         return translatedFileInDirectory(
             baseDir = rootDir,
-            sourceDirName = getLegacySourceDirName(novel),
-            novelDirName = getLegacyNovelDirName(novel),
+            sourceDirName = getReadableSourceDirName(novel),
+            novelDirName = getReadableNovelDirName(novel),
             fileName = fileName,
         )
     }
@@ -338,13 +372,13 @@ class NovelTranslatedDownloadManager(
         return DiskUtil.buildValidFilename(novel.id.toString())
     }
 
-    private fun getLegacySourceDirName(novel: Novel): String {
+    private fun getReadableSourceDirName(novel: Novel): String {
         val sourceName = sourceManager?.getOrStub(novel.source)?.toString()?.ifBlank { null }
             ?: novel.source.toString()
         return DiskUtil.buildValidFilename(sourceName)
     }
 
-    private fun getLegacyNovelDirName(novel: Novel): String {
+    private fun getReadableNovelDirName(novel: Novel): String {
         val title = novel.title.ifBlank { novel.id.toString() }
         return DiskUtil.buildValidFilename(title)
     }

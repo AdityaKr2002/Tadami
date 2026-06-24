@@ -1023,7 +1023,11 @@ class NovelScreenModel(
 
             var downloadedIds = emptySet<Long>()
 
-            val cachedIds = downloadCache?.getDownloadedChapterIds(state.novel.id)
+            val cachedIds = if (deferFilesystemFallback) {
+                downloadCache?.getDownloadedChapterIds(state.novel.id)
+            } else {
+                null
+            }
             if (cachedIds != null) {
                 downloadedIds = cachedIds.intersect(state.chapters.map { it.id }.toSet())
                 logcat(LogPriority.DEBUG) {

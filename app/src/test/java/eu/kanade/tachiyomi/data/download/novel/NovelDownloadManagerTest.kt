@@ -48,7 +48,7 @@ class NovelDownloadManagerTest {
     }
 
     @Test
-    fun `downloaded chapter survives source representation changes`() {
+    fun `downloaded chapter is written under readable source and novel directories`() {
         runBlocking {
             val source = MutableNovelSource(id = 10L, label = "Source A")
             val expectedText = "<html><body>downloaded</body></html>"
@@ -56,7 +56,7 @@ class NovelDownloadManagerTest {
                 source = source,
                 chapterText = expectedText,
             )
-            val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel")
+            val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel Title")
             val chapter = NovelChapter.create().copy(id = 2L, novelId = 1L, url = "/chapter-2")
 
             val downloaded = manager.downloadChapter(
@@ -65,15 +65,34 @@ class NovelDownloadManagerTest {
             )
 
             downloaded shouldBe true
+            readableChapterFile(tempDir.resolve("downloads").toFile(), source.label, novel.title, chapter.id)
+                .exists() shouldBe true
+            manager.getDownloadedChapterText(novel, chapter.id) shouldBe expectedText
+        }
+    }
 
-            source.label = "Source B"
-            val restartedManager = createManager(
+    @Test
+    fun `stable numeric chapter files are migrated to readable directories`() {
+        runBlocking {
+            val source = MutableNovelSource(id = 10L, label = "Source A")
+            val manager = createManager(
                 source = source,
                 chapterText = null,
             )
+            val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel Title")
+            val chapterId = 2L
+            val stableFile = stableChapterFile(tempDir.resolve("downloads").toFile(), novel, chapterId)
+                .apply {
+                    parentFile?.mkdirs()
+                    writeText("stable")
+                }
+            val readableFile = readableChapterFile(tempDir.resolve("downloads").toFile(), source.label, novel.title, chapterId)
 
-            restartedManager.isChapterDownloaded(novel, chapter.id) shouldBe true
-            restartedManager.getDownloadedChapterText(novel, chapter.id) shouldBe expectedText
+            manager.isChapterDownloaded(novel, chapterId) shouldBe true
+
+            readableFile.exists() shouldBe true
+            readableFile.readText() shouldBe "stable"
+            stableFile.exists() shouldBe false
         }
     }
 
@@ -88,7 +107,7 @@ class NovelDownloadManagerTest {
             )
             val novel = Novel.create().copy(id = 1L, source = 10L, title = "Novel")
 
-            val stableChapterFile = chapterFile(tempDir.resolve("downloads").toFile(), novel, 2L)
+            val stableChapterFile = stableChapterFile(tempDir.resolve("downloads").toFile(), novel, 2L)
                 .apply {
                     parentFile?.mkdirs()
                     writeText("stable")
@@ -160,8 +179,17 @@ class NovelDownloadManagerTest {
         )
     }
 
-    private fun chapterFile(baseDir: File, novel: Novel, chapterId: Long): File {
+    private fun stableChapterFile(baseDir: File, novel: Novel, chapterId: Long): File {
         return File(baseDir, "novels/${novel.source}/${novel.id}/$chapterId.html")
+    }
+
+    private fun readableChapterFile(
+        baseDir: File,
+        sourceName: String,
+        novelTitle: String,
+        chapterId: Long,
+    ): File {
+        return File(baseDir, "novels/$sourceName/$novelTitle/$chapterId.html")
     }
 
     private fun legacyChapterFile(baseDir: File, novel: Novel, chapterId: Long): File {

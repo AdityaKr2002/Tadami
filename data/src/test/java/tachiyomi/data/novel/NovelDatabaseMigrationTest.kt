@@ -12,7 +12,7 @@ class NovelDatabaseMigrationTest {
 
     @Test
     fun `schema version increments for narrowed novel triggers`() {
-        NovelDatabase.Schema.version shouldBe 17L
+        NovelDatabase.Schema.version shouldBe 18L
     }
 
     @Test

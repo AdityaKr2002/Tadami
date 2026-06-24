@@ -63,8 +63,7 @@ class NovelDownloadManager(
     }
 
     fun getDownloadCount(novel: Novel): Int {
-        return calculateScopedDirectoryCount(novelDirectory(novel, create = false, useStablePath = true)) +
-            calculateScopedDirectoryCount(novelDirectory(novel, create = false, useStablePath = false)) +
+        return scopedNovelDirectories(novel).sumOf(::calculateScopedDirectoryCount) +
             calculateLegacyDirectoryCount(legacyNovelDirectory(novel))
     }
 
@@ -80,8 +79,7 @@ class NovelDownloadManager(
     }
 
     fun getDownloadSize(novel: Novel): Long {
-        return calculateScopedDirectorySize(novelDirectory(novel, create = false, useStablePath = true)) +
-            calculateScopedDirectorySize(novelDirectory(novel, create = false, useStablePath = false)) +
+        return scopedNovelDirectories(novel).sumOf(::calculateScopedDirectorySize) +
             calculateLegacyDirectorySize(legacyNovelDirectory(novel))
     }
 
@@ -167,14 +165,11 @@ class NovelDownloadManager(
     }
 
     fun deleteNovel(novel: Novel) {
-        val scopedDir = novelDirectory(novel)
-        if (scopedDir?.exists() == true) {
-            scopedDir.delete()
-        }
-
-        val legacyScopedDir = novelDirectory(novel, create = false, useStablePath = false)
-        if (legacyScopedDir?.exists() == true) {
-            legacyScopedDir.delete()
+        NovelDownloadPath.entries.forEach { path ->
+            val scopedDir = novelDirectory(novel, path = path)
+            if (scopedDir?.exists() == true) {
+                scopedDir.delete()
+            }
         }
 
         val legacyDir = legacyNovelDirectory(novel)
@@ -207,9 +202,9 @@ class NovelDownloadManager(
         novel: Novel,
         chapterId: Long,
         create: Boolean = false,
-        useStablePath: Boolean = true,
+        path: NovelDownloadPath = NovelDownloadPath.READABLE,
     ): UniFile? {
-        val novelDir = novelDirectory(novel, create = create, useStablePath = useStablePath) ?: return null
+        val novelDir = novelDirectory(novel, create = create, path = path) ?: return null
         val chapterName = "$chapterId.html"
         return if (create) {
             novelDir.findFile(chapterName) ?: novelDir.createFile(chapterName)
@@ -220,25 +215,25 @@ class NovelDownloadManager(
 
     private fun resolveChapterFile(novel: Novel, chapterId: Long): UniFile? {
         chapterFile(novel, chapterId)?.let { return it }
-        val legacyFile = chapterFile(novel, chapterId, useStablePath = false) ?: return null
-        val stableFile = chapterFile(novel, chapterId, create = true) ?: return legacyFile
+        val stableFile = chapterFile(novel, chapterId, path = NovelDownloadPath.STABLE_ID) ?: return null
+        val readableFile = chapterFile(novel, chapterId, create = true) ?: return stableFile
         return runCatching {
-            legacyFile.openInputStream().use { input ->
-                stableFile.openOutputStream().use { output ->
+            stableFile.openInputStream().use { input ->
+                readableFile.openOutputStream().use { output ->
                     input.copyTo(output)
                 }
             }
-            if (!legacyFile.delete()) {
+            if (!stableFile.delete()) {
                 logcat(LogPriority.WARN) {
                     "NovelDownloadManager: migrated chapter=$chapterId but could not remove legacy file"
                 }
             }
-            stableFile
-        }.getOrElse { legacyFile }
+            readableFile
+        }.getOrElse { stableFile }
     }
 
     private fun findChapterFile(novel: Novel, chapterId: Long): UniFile? {
-        return chapterFile(novel, chapterId) ?: chapterFile(novel, chapterId, useStablePath = false)
+        return chapterFile(novel, chapterId) ?: chapterFile(novel, chapterId, path = NovelDownloadPath.STABLE_ID)
     }
 
     private fun legacyChapterFile(novel: Novel, chapterId: Long): File? {
@@ -248,19 +243,11 @@ class NovelDownloadManager(
     private fun novelDirectory(
         novel: Novel,
         create: Boolean = false,
-        useStablePath: Boolean = true,
+        path: NovelDownloadPath = NovelDownloadPath.READABLE,
     ): UniFile? {
         val baseDir = rootDir ?: return null
-        val sourceDirName = if (useStablePath) {
-            getStableSourceDirName(novel)
-        } else {
-            getLegacySourceDirName(novel)
-        }
-        val novelDirName = if (useStablePath) {
-            getStableNovelDirName(novel)
-        } else {
-            getLegacyNovelDirName(novel)
-        }
+        val sourceDirName = getSourceDirName(novel, path)
+        val novelDirName = getNovelDirName(novel, path)
         val sourceDir = if (create) {
             baseDir.createDirectory(sourceDirName)
         } else {
@@ -274,18 +261,10 @@ class NovelDownloadManager(
     }
 
     private fun cleanupDirectories(novel: Novel) {
-        listOf(true, false).forEach { useStablePath ->
+        NovelDownloadPath.entries.forEach { path ->
             val baseDir = rootDir ?: return@forEach
-            val sourceDirName = if (useStablePath) {
-                getStableSourceDirName(novel)
-            } else {
-                getLegacySourceDirName(novel)
-            }
-            val novelDirName = if (useStablePath) {
-                getStableNovelDirName(novel)
-            } else {
-                getLegacyNovelDirName(novel)
-            }
+            val sourceDirName = getSourceDirName(novel, path)
+            val novelDirName = getNovelDirName(novel, path)
             val sourceDir = baseDir.findFile(sourceDirName)
             val novelDir = sourceDir?.findFile(novelDirName)
             if (novelDir != null && novelDir.isDirectory && novelDir.listFiles()?.isEmpty() == true) {
@@ -305,6 +284,12 @@ class NovelDownloadManager(
         if (legacySourceDir.exists() && legacySourceDir.listFiles().isNullOrEmpty()) {
             legacySourceDir.delete()
         }
+    }
+
+    private fun scopedNovelDirectories(novel: Novel): List<UniFile> {
+        return NovelDownloadPath.entries
+            .mapNotNull { path -> novelDirectory(novel, create = false, path = path) }
+            .distinctBy { directory -> directory.filePath ?: directory.name }
     }
 
     private fun calculateScopedDirectoryCount(directory: UniFile?): Int {
@@ -331,21 +316,27 @@ class NovelDownloadManager(
         return directory.listFiles()?.sumOf(::calculateLegacyDirectorySize) ?: 0L
     }
 
-    private fun getStableSourceDirName(novel: Novel): String {
-        return DiskUtil.buildValidFilename(novel.source.toString())
+    private fun getSourceDirName(novel: Novel, path: NovelDownloadPath): String {
+        return when (path) {
+            NovelDownloadPath.READABLE -> getReadableSourceDirName(novel)
+            NovelDownloadPath.STABLE_ID -> DiskUtil.buildValidFilename(novel.source.toString())
+        }
     }
 
-    private fun getStableNovelDirName(novel: Novel): String {
-        return DiskUtil.buildValidFilename(novel.id.toString())
+    private fun getNovelDirName(novel: Novel, path: NovelDownloadPath): String {
+        return when (path) {
+            NovelDownloadPath.READABLE -> getReadableNovelDirName(novel)
+            NovelDownloadPath.STABLE_ID -> DiskUtil.buildValidFilename(novel.id.toString())
+        }
     }
 
-    private fun getLegacySourceDirName(novel: Novel): String {
+    private fun getReadableSourceDirName(novel: Novel): String {
         val source = sourceManager?.getOrStub(novel.source)
         val sourceName = source?.toString()?.ifBlank { null } ?: novel.source.toString()
         return DiskUtil.buildValidFilename(sourceName)
     }
 
-    private fun getLegacyNovelDirName(novel: Novel): String {
+    private fun getReadableNovelDirName(novel: Novel): String {
         val title = novel.title.ifBlank { novel.id.toString() }
         return DiskUtil.buildValidFilename(title)
     }
@@ -358,5 +349,10 @@ class NovelDownloadManager(
     private companion object {
         const val ROOT_DIR_NAME = "novels"
         const val DEFAULT_CHAPTER_FETCH_TIMEOUT_MILLIS = 30_000L
+    }
+
+    private enum class NovelDownloadPath {
+        READABLE,
+        STABLE_ID,
     }
 }
