@@ -1453,4 +1453,17 @@
     <string name="unlockable_aura_shadow_monarch_desc">Фиолетово-чёрная мифическая тень</string>
     <string name="unlockable_aura_ascendant_gold">Аура «Восходящее золото»</string>
     <string name="unlockable_aura_ascendant_gold_desc">Белое золото для рангового престижа</string>
+
+    <!-- Onboarding: legal disclaimer step -->
+    <string name="onboarding_disclaimer_title">Прежде чем начать</string>
+    <string name="onboarding_disclaimer_body">Tadami — это менеджер и проигрыватель медиабиблиотеки. Он не содержит, не размещает и не предоставляет какой-либо контент, источники, расширения или репозитории.\n\nЧтобы использовать Tadami, вы должны добавить свои собственные источники, к которым у вас есть законный доступ. Вы несете единоличную ответственность за добавляемые источники и за соблюдение законов и прав третьих лиц в вашей стране.\n\nTadami не поощряет и не способствует нарушению авторских прав и не связан ни с какими правообладателями, стриминговыми сервисами, издателями или студиями.</string>
+    <string name="onboarding_disclaimer_accept">Я понимаю и принимаю Условия использования и Отказ от ответственности</string>
+    <string name="onboarding_disclaimer_terms">Условия использования</string>
+    <string name="onboarding_disclaimer_disclaimer_link">Отказ от ответственности</string>
+    <!-- Extension repository add warning (legal) -->
+    <string name="repo_add_legal_warning">Репозитории и расширения не предоставляются и не проверяются Tadami. Tadami не контролирует их контент или доступность. Вы несете ответственность за то, чтобы убедиться, что вы можете законно получать доступ к их контенту, и добавляете их исключительно на свой страх и риск.</string>
+    <!-- About: legal links -->
+    <string name="pref_disclaimer">Отказ от ответственности</string>
+    <string name="pref_terms_of_service">Условия использования</string>
+    <string name="pref_copyright_dmca">Политика авторского права / DMCA</string>
 </resources>
