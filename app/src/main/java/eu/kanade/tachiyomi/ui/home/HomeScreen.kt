@@ -81,6 +81,7 @@ import eu.kanade.presentation.components.LocalHostScaffoldContentPadding
 import eu.kanade.presentation.components.auroraMenuRimLightBrush
 import eu.kanade.presentation.theme.AuroraTheme
 import eu.kanade.presentation.theme.LocalIsEInkMode
+import eu.kanade.presentation.tutorial.coachAnchorForTab
 import eu.kanade.presentation.util.BottomNavVisibilityController
 import eu.kanade.presentation.util.LocalBottomNavVisibilityController
 import eu.kanade.presentation.util.ResolvedNavigationTransitionMode
@@ -153,343 +154,384 @@ object HomeScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val bottomNavVisibilityController = remember { BottomNavVisibilityController() }
         val hazeState = remember { HazeState() }
-        TabNavigator(
-            tab = defaultTab,
-            key = TAB_NAVIGATOR_KEY,
-        ) { tabNavigator ->
-            // Provide usable navigator to content screen
-            CompositionLocalProvider(
-                LocalNavigator provides navigator,
-                LocalBottomNavVisibilityController provides bottomNavVisibilityController,
-            ) {
-                Scaffold(
-                    startBar = {
-                        if (useNavigationRail) {
-                            NavigationRail {
-                                navStyle.tabs.fastForEach {
-                                    NavigationRailItem(it)
-                                }
+        eu.kanade.presentation.tutorial.TutorialHost {
+            TabNavigator(
+                tab = defaultTab,
+                key = TAB_NAVIGATOR_KEY,
+            ) { tabNavigator ->
+                val coachMarkState = eu.kanade.presentation.tutorial.LocalCoachMarkState.current
+                LaunchedEffect(useNavigationRail) {
+                    if (useNavigationRail) {
+                        coachMarkState.isBottomBarVisible = false
+                    }
+                }
+                LaunchedEffect(coachMarkState.activeTip) {
+                    val activeTip = coachMarkState.activeTip ?: return@LaunchedEffect
+                    val targetTabName = when (activeTip.anchor) {
+                        eu.kanade.presentation.tutorial.TipAnchor.LIBRARY_TAB -> "Library"
+                        eu.kanade.presentation.tutorial.TipAnchor.BROWSE_TAB -> "Browse"
+                        eu.kanade.presentation.tutorial.TipAnchor.UPDATES_TAB -> "Updates"
+                        eu.kanade.presentation.tutorial.TipAnchor.MORE_TAB -> "More"
+                        eu.kanade.presentation.tutorial.TipAnchor.ADD_REPO_BUTTON -> "Browse"
+                        else -> null
+                    }
+                    if (targetTabName != null) {
+                        val matchingTab = navStyle.tabs.firstOrNull { tab ->
+                            tab::class.simpleName.orEmpty().contains(targetTabName, ignoreCase = true)
+                        } ?: if (targetTabName == "More") navStyle.moreTab else null
+
+                        if (matchingTab != null && tabNavigator.current != matchingTab) {
+                            tabNavigator.current = matchingTab
+                        }
+                        if (activeTip.anchor == eu.kanade.presentation.tutorial.TipAnchor.ADD_REPO_BUTTON) {
+                            val uiPrefs = uy.kohesive.injekt.Injekt.get<eu.kanade.domain.ui.UiPreferences>()
+                            if (uiPrefs.showAnimeSection().get()) {
+                                eu.kanade.tachiyomi.ui.browse.BrowseTab.showAnimeExtension()
+                            } else if (uiPrefs.showMangaSection().get()) {
+                                eu.kanade.tachiyomi.ui.browse.BrowseTab.showExtension()
+                            } else if (uiPrefs.showNovelSection().get()) {
+                                eu.kanade.tachiyomi.ui.browse.BrowseTab.showNovelExtension()
                             }
                         }
-                    },
-                    bottomBar = {
-                        if (!useNavigationRail) {
-                            val bottomNavVisible by produceState(initialValue = true) {
-                                showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
-                            }
-                            val showBottomNav = bottomNavVisible &&
-                                bottomNavVisibilityController.isVisible &&
-                                tabNavigator.current != currentMoreTab
-                            val auroraColors = if (useAuroraBottomNav) AuroraTheme.colorsForCurrentTheme() else null
-                            val navBarShape = if (useAuroraBottomNav) {
-                                CircleShape
-                            } else {
-                                RoundedCornerShape(
-                                    topStart = 20.dp,
-                                    topEnd = 20.dp,
-                                )
-                            }
-                            val navContainerColor = if (useAuroraBottomNav) {
-                                if (auroraColors!!.isDark) {
-                                    Color.Transparent
-                                } else {
-                                    Color.Transparent
+                    }
+                }
+                // Provide usable navigator to content screen
+                CompositionLocalProvider(
+                    LocalNavigator provides navigator,
+                    LocalBottomNavVisibilityController provides bottomNavVisibilityController,
+                ) {
+                    Scaffold(
+                        startBar = {
+                            if (useNavigationRail) {
+                                NavigationRail {
+                                    navStyle.tabs.fastForEach {
+                                        NavigationRailItem(it)
+                                    }
                                 }
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainer
                             }
-                            val navShadowElevation = 0.dp
-                            val navTonalElevation = if (useAuroraBottomNav) {
-                                if (auroraColors!!.isDark) 0.dp else 0.dp
-                            } else {
-                                0.dp
-                            }
-                            val navModifier = if (useAuroraBottomNav) {
-                                val baseModifier = Modifier
-                                    .windowInsetsPadding(NavigationBarDefaults.windowInsets)
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                                if (auroraColors!!.isDark) {
-                                    baseModifier
-                                        .shadow(
-                                            elevation = 10.dp,
-                                            shape = navBarShape,
-                                            ambientColor = Color.White.copy(alpha = 0.12f),
-                                            spotColor = Color.White.copy(alpha = 0.08f),
-                                        )
-                                        .shadow(
-                                            elevation = 3.dp,
-                                            shape = navBarShape,
-                                            ambientColor = Color.White.copy(alpha = 0.18f),
-                                            spotColor = Color.White.copy(alpha = 0.12f),
-                                        )
-                                        .clip(navBarShape)
-                                        .hazeEffect(
-                                            state = hazeState,
-                                            style = HazeStyle(
-                                                backgroundColor = auroraColors.background,
-                                                tint = HazeTint(auroraColors.surface.copy(alpha = 0.65f)),
-                                                blurRadius = 24.dp,
-                                                noiseFactor = 0.12f,
-                                            ),
-                                        )
-                                        .border(
-                                            BorderStroke(
-                                                width = 1.dp,
-                                                brush = auroraMenuRimLightBrush(auroraColors),
-                                            ),
-                                            shape = navBarShape,
-                                        )
+                        },
+                        bottomBar = {
+                            if (!useNavigationRail) {
+                                val bottomNavVisible by produceState(initialValue = true) {
+                                    showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
+                                }
+                                val showBottomNav = bottomNavVisible &&
+                                    bottomNavVisibilityController.isVisible &&
+                                    tabNavigator.current != currentMoreTab
+                                LaunchedEffect(showBottomNav) {
+                                    coachMarkState.isBottomBarVisible = showBottomNav
+                                }
+                                val auroraColors = if (useAuroraBottomNav) AuroraTheme.colorsForCurrentTheme() else null
+                                val navBarShape = if (useAuroraBottomNav) {
+                                    CircleShape
                                 } else {
-                                    baseModifier
-                                        .shadow(
-                                            elevation = 8.dp,
-                                            shape = navBarShape,
-                                        )
-                                        .clip(navBarShape)
-                                        .hazeEffect(
-                                            state = hazeState,
-                                            style = HazeStyle(
-                                                backgroundColor = auroraColors.background,
-                                                tint = HazeTint(auroraColors.surface.copy(alpha = 0.65f)),
-                                                blurRadius = 24.dp,
-                                                noiseFactor = 0.12f,
-                                            ),
-                                        )
-                                        .border(
-                                            BorderStroke(
-                                                width = 1.dp,
-                                                brush = Brush.verticalGradient(
-                                                    listOf(
-                                                        Color.White.copy(alpha = 0.80f),
-                                                        Color.White.copy(alpha = 0.20f),
+                                    RoundedCornerShape(
+                                        topStart = 20.dp,
+                                        topEnd = 20.dp,
+                                    )
+                                }
+                                val navContainerColor = if (useAuroraBottomNav) {
+                                    if (auroraColors!!.isDark) {
+                                        Color.Transparent
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainer
+                                }
+                                val navShadowElevation = 0.dp
+                                val navTonalElevation = if (useAuroraBottomNav) {
+                                    if (auroraColors!!.isDark) 0.dp else 0.dp
+                                } else {
+                                    0.dp
+                                }
+                                val navModifier = if (useAuroraBottomNav) {
+                                    val baseModifier = Modifier
+                                        .windowInsetsPadding(NavigationBarDefaults.windowInsets)
+                                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    if (auroraColors!!.isDark) {
+                                        baseModifier
+                                            .shadow(
+                                                elevation = 10.dp,
+                                                shape = navBarShape,
+                                                ambientColor = Color.White.copy(alpha = 0.12f),
+                                                spotColor = Color.White.copy(alpha = 0.08f),
+                                            )
+                                            .shadow(
+                                                elevation = 3.dp,
+                                                shape = navBarShape,
+                                                ambientColor = Color.White.copy(alpha = 0.18f),
+                                                spotColor = Color.White.copy(alpha = 0.12f),
+                                            )
+                                            .clip(navBarShape)
+                                            .hazeEffect(
+                                                state = hazeState,
+                                                style = HazeStyle(
+                                                    backgroundColor = auroraColors.background,
+                                                    tint = HazeTint(auroraColors.surface.copy(alpha = 0.65f)),
+                                                    blurRadius = 24.dp,
+                                                    noiseFactor = 0.12f,
+                                                ),
+                                            )
+                                            .border(
+                                                BorderStroke(
+                                                    width = 1.dp,
+                                                    brush = auroraMenuRimLightBrush(auroraColors),
+                                                ),
+                                                shape = navBarShape,
+                                            )
+                                    } else {
+                                        baseModifier
+                                            .shadow(
+                                                elevation = 8.dp,
+                                                shape = navBarShape,
+                                            )
+                                            .clip(navBarShape)
+                                            .hazeEffect(
+                                                state = hazeState,
+                                                style = HazeStyle(
+                                                    backgroundColor = auroraColors.background,
+                                                    tint = HazeTint(auroraColors.surface.copy(alpha = 0.65f)),
+                                                    blurRadius = 24.dp,
+                                                    noiseFactor = 0.12f,
+                                                ),
+                                            )
+                                            .border(
+                                                BorderStroke(
+                                                    width = 1.dp,
+                                                    brush = Brush.verticalGradient(
+                                                        listOf(
+                                                            Color.White.copy(alpha = 0.80f),
+                                                            Color.White.copy(alpha = 0.20f),
+                                                        ),
                                                     ),
                                                 ),
-                                            ),
+                                                shape = navBarShape,
+                                            )
+                                    }
+                                } else {
+                                    Modifier
+                                }
+                                if (isEInkMode) {
+                                    if (showBottomNav) {
+                                        NavigationBar(
+                                            containerColor = navContainerColor,
+                                            contentColor = if (useAuroraBottomNav) {
+                                                auroraColors!!.textPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.contentColorFor(navContainerColor)
+                                            },
+                                            shadowElevation = navShadowElevation,
+                                            tonalElevation = navTonalElevation,
+                                            windowInsets = if (useAuroraBottomNav) {
+                                                WindowInsets(
+                                                    0,
+                                                )
+                                            } else {
+                                                NavigationBarDefaults.windowInsets
+                                            },
+                                            modifier = navModifier,
                                             shape = navBarShape,
-                                        )
-                                }
-                            } else {
-                                Modifier
-                            }
-                            if (isEInkMode) {
-                                if (showBottomNav) {
-                                    NavigationBar(
-                                        containerColor = navContainerColor,
-                                        contentColor = if (useAuroraBottomNav) {
-                                            auroraColors!!.textPrimary
-                                        } else {
-                                            MaterialTheme.colorScheme.contentColorFor(navContainerColor)
-                                        },
-                                        shadowElevation = navShadowElevation,
-                                        tonalElevation = navTonalElevation,
-                                        windowInsets = if (useAuroraBottomNav) {
-                                            WindowInsets(
-                                                0,
-                                            )
-                                        } else {
-                                            NavigationBarDefaults.windowInsets
-                                        },
-                                        modifier = navModifier,
-                                        shape = navBarShape,
-                                        contentPadding = if (useAuroraBottomNav) {
-                                            PaddingValues(horizontal = 8.dp)
-                                        } else {
-                                            PaddingValues(0.dp)
-                                        },
-                                    ) {
-                                        navStyle.tabs.fastForEach {
-                                            NavigationBarItem(it, useAuroraBottomNav)
+                                            contentPadding = if (useAuroraBottomNav) {
+                                                PaddingValues(horizontal = 8.dp)
+                                            } else {
+                                                PaddingValues(0.dp)
+                                            },
+                                        ) {
+                                            navStyle.tabs.fastForEach {
+                                                NavigationBarItem(it, useAuroraBottomNav)
+                                            }
                                         }
                                     }
-                                }
-                            } else {
-                                AnimatedVisibility(
-                                    visible = showBottomNav,
-                                    enter = expandVertically(expandFrom = Alignment.Bottom),
-                                    exit = shrinkVertically(shrinkTowards = Alignment.Bottom),
-                                ) {
-                                    NavigationBar(
-                                        containerColor = navContainerColor,
-                                        contentColor = if (useAuroraBottomNav) {
-                                            auroraColors!!.textPrimary
-                                        } else {
-                                            MaterialTheme.colorScheme.contentColorFor(navContainerColor)
-                                        },
-                                        shadowElevation = navShadowElevation,
-                                        tonalElevation = navTonalElevation,
-                                        windowInsets = if (useAuroraBottomNav) {
-                                            WindowInsets(
-                                                0,
-                                            )
-                                        } else {
-                                            NavigationBarDefaults.windowInsets
-                                        },
-                                        modifier = navModifier,
-                                        shape = navBarShape,
-                                        contentPadding = if (useAuroraBottomNav) {
-                                            PaddingValues(horizontal = 8.dp)
-                                        } else {
-                                            PaddingValues(0.dp)
-                                        },
+                                } else {
+                                    AnimatedVisibility(
+                                        visible = showBottomNav,
+                                        enter = expandVertically(expandFrom = Alignment.Bottom),
+                                        exit = shrinkVertically(shrinkTowards = Alignment.Bottom),
                                     ) {
-                                        navStyle.tabs.fastForEach {
-                                            NavigationBarItem(it, useAuroraBottomNav)
+                                        NavigationBar(
+                                            containerColor = navContainerColor,
+                                            contentColor = if (useAuroraBottomNav) {
+                                                auroraColors!!.textPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.contentColorFor(navContainerColor)
+                                            },
+                                            shadowElevation = navShadowElevation,
+                                            tonalElevation = navTonalElevation,
+                                            windowInsets = if (useAuroraBottomNav) {
+                                                WindowInsets(
+                                                    0,
+                                                )
+                                            } else {
+                                                NavigationBarDefaults.windowInsets
+                                            },
+                                            modifier = navModifier,
+                                            shape = navBarShape,
+                                            contentPadding = if (useAuroraBottomNav) {
+                                                PaddingValues(horizontal = 8.dp)
+                                            } else {
+                                                PaddingValues(0.dp)
+                                            },
+                                        ) {
+                                            navStyle.tabs.fastForEach {
+                                                NavigationBarItem(it, useAuroraBottomNav)
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                    },
-                    contentWindowInsets = WindowInsets(0),
-                ) { contentPadding ->
-                    Box(
-                        modifier = Modifier
-                            .padding(top = contentPadding.calculateTopPadding())
-                            .consumeWindowInsets(contentPadding)
-                            .hazeSource(hazeState),
-                    ) {
-                        CompositionLocalProvider(
-                            LocalHostScaffoldContentPadding provides contentPadding,
+                        },
+                        contentWindowInsets = WindowInsets(0),
+                    ) { contentPadding ->
+                        Box(
+                            modifier = Modifier
+                                .padding(top = contentPadding.calculateTopPadding())
+                                .consumeWindowInsets(contentPadding)
+                                .hazeSource(hazeState),
                         ) {
-                            if (resolvedTransitionMode == ResolvedNavigationTransitionMode.NONE) {
-                                val currentTab = tabNavigator.current
-                                tabNavigator.saveableState(key = "currentTab", currentTab) {
-                                    currentTab.Content()
-                                }
-                            } else {
-                                AnimatedContent(
-                                    targetState = tabNavigator.current,
-                                    transitionSpec = {
-                                        when (resolvedTransitionMode) {
-                                            ResolvedNavigationTransitionMode.NONE -> {
-                                                EnterTransition.None togetherWith ExitTransition.None
-                                            }
-                                            ResolvedNavigationTransitionMode.LEGACY -> {
-                                                materialFadeThroughIn(
-                                                    initialScale = 1f,
-                                                    durationMillis = TAB_FADE_DURATION,
-                                                ) togetherWith
-                                                    materialFadeThroughOut(durationMillis = TAB_FADE_DURATION)
-                                            }
-                                            ResolvedNavigationTransitionMode.MODERN -> {
-                                                val direction = tabDirection(
-                                                    initialTab = initialState,
-                                                    targetTab = targetState,
-                                                    currentMoreTab = currentMoreTab,
-                                                    navStyle = navStyle,
-                                                )
-                                                val enter = slideInHorizontally(
-                                                    animationSpec = tween(
-                                                        durationMillis = TAB_MODERN_ENTER_DURATION,
-                                                        easing = AURORA_EASING,
-                                                    ),
-                                                    initialOffsetX = { width -> direction * (width / 4) },
-                                                ) + fadeIn(
-                                                    animationSpec = tween(
-                                                        durationMillis = TAB_MODERN_ENTER_DURATION,
-                                                        easing = AURORA_EASING,
-                                                    ),
-                                                )
-                                                val exit = slideOutHorizontally(
-                                                    animationSpec = tween(
-                                                        durationMillis = TAB_MODERN_EXIT_DURATION,
-                                                        easing = AURORA_EASING,
-                                                    ),
-                                                    targetOffsetX = { width -> -direction * (width / 5) },
-                                                ) + fadeOut(
-                                                    animationSpec = tween(
-                                                        durationMillis = TAB_MODERN_EXIT_DURATION,
-                                                        easing = AURORA_EASING,
-                                                    ),
-                                                )
-                                                (enter togetherWith exit).apply {
-                                                    targetContentZIndex = 1f
-                                                }
-                                            }
-                                        }
-                                    },
-                                    label = "tabContent",
-                                ) { currentTab ->
+                            CompositionLocalProvider(
+                                LocalHostScaffoldContentPadding provides contentPadding,
+                            ) {
+                                if (resolvedTransitionMode == ResolvedNavigationTransitionMode.NONE) {
+                                    val currentTab = tabNavigator.current
                                     tabNavigator.saveableState(key = "currentTab", currentTab) {
                                         currentTab.Content()
                                     }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            val goToStartScreen = {
-                tabNavigator.current = resolveHomeStartTab(
-                    defaultTab = defaultTab,
-                    currentMoreTab = currentMoreTab,
-                )
-            }
-            BackHandler(
-                enabled = shouldHandleBackInHome(
-                    currentTab = tabNavigator.current,
-                    defaultTab = defaultTab,
-                    currentMoreTab = currentMoreTab,
-                ),
-                onBack = goToStartScreen,
-            )
-
-            LaunchedEffect(Unit) {
-                if (startScreen == StartScreen.NOVEL) {
-                    AnimeLibraryTab.showNovelSection()
-                }
-                launch {
-                    librarySearchEvent.receiveAsFlow().collectLatest {
-                        goToStartScreen()
-                        when {
-                            defaultTab == AnimeLibraryTab && startScreen == StartScreen.NOVEL -> {
-                                AnimeLibraryTab.searchNovel(it)
-                            }
-                            defaultTab == AnimeLibraryTab -> {
-                                AnimeLibraryTab.search(it)
-                            }
-                            defaultTab == MangaLibraryTab -> MangaLibraryTab.search(it)
-                            else -> Unit
-                        }
-                    }
-                }
-                launch {
-                    openTabEvent.receiveAsFlow().collectLatest {
-                        tabNavigator.current = when (it) {
-                            is Tab.AnimeLib -> AnimeLibraryTab
-                            is Tab.Library -> MangaLibraryTab
-                            is Tab.NovelLib -> AnimeLibraryTab
-                            is Tab.Updates -> UpdatesTab
-                            is Tab.History -> HistoriesTab
-                            is Tab.Browse -> {
-                                if (it.toExtensions) {
-                                    if (!it.anime) {
-                                        BrowseTab.showExtension()
-                                    } else {
-                                        BrowseTab.showAnimeExtension()
+                                } else {
+                                    AnimatedContent(
+                                        targetState = tabNavigator.current,
+                                        transitionSpec = {
+                                            when (resolvedTransitionMode) {
+                                                ResolvedNavigationTransitionMode.NONE -> {
+                                                    EnterTransition.None togetherWith ExitTransition.None
+                                                }
+                                                ResolvedNavigationTransitionMode.LEGACY -> {
+                                                    materialFadeThroughIn(
+                                                        initialScale = 1f,
+                                                        durationMillis = TAB_FADE_DURATION,
+                                                    ) togetherWith
+                                                        materialFadeThroughOut(durationMillis = TAB_FADE_DURATION)
+                                                }
+                                                ResolvedNavigationTransitionMode.MODERN -> {
+                                                    val direction = tabDirection(
+                                                        initialTab = initialState,
+                                                        targetTab = targetState,
+                                                        currentMoreTab = currentMoreTab,
+                                                        navStyle = navStyle,
+                                                    )
+                                                    val enter = slideInHorizontally(
+                                                        animationSpec = tween(
+                                                            durationMillis = TAB_MODERN_ENTER_DURATION,
+                                                            easing = AURORA_EASING,
+                                                        ),
+                                                        initialOffsetX = { width -> direction * (width / 4) },
+                                                    ) + fadeIn(
+                                                        animationSpec = tween(
+                                                            durationMillis = TAB_MODERN_ENTER_DURATION,
+                                                            easing = AURORA_EASING,
+                                                        ),
+                                                    )
+                                                    val exit = slideOutHorizontally(
+                                                        animationSpec = tween(
+                                                            durationMillis = TAB_MODERN_EXIT_DURATION,
+                                                            easing = AURORA_EASING,
+                                                        ),
+                                                        targetOffsetX = { width -> -direction * (width / 5) },
+                                                    ) + fadeOut(
+                                                        animationSpec = tween(
+                                                            durationMillis = TAB_MODERN_EXIT_DURATION,
+                                                            easing = AURORA_EASING,
+                                                        ),
+                                                    )
+                                                    (enter togetherWith exit).apply {
+                                                        targetContentZIndex = 1f
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        label = "tabContent",
+                                    ) { currentTab ->
+                                        tabNavigator.saveableState(key = "currentTab", currentTab) {
+                                            currentTab.Content()
+                                        }
                                     }
                                 }
-                                BrowseTab
                             }
-                            is Tab.More -> MoreTab
-                            is Tab.HomeHub -> HomeHubTab
                         }
-                        if (it is Tab.NovelLib) {
-                            AnimeLibraryTab.showNovelSection()
-                        }
+                    }
+                }
 
-                        if (it is Tab.AnimeLib && it.animeIdToOpen != null) {
-                            navigator.push(AnimeScreen(it.animeIdToOpen))
+                val goToStartScreen = {
+                    tabNavigator.current = resolveHomeStartTab(
+                        defaultTab = defaultTab,
+                        currentMoreTab = currentMoreTab,
+                    )
+                }
+                BackHandler(
+                    enabled = shouldHandleBackInHome(
+                        currentTab = tabNavigator.current,
+                        defaultTab = defaultTab,
+                        currentMoreTab = currentMoreTab,
+                    ),
+                    onBack = goToStartScreen,
+                )
+
+                LaunchedEffect(Unit) {
+                    if (startScreen == StartScreen.NOVEL) {
+                        AnimeLibraryTab.showNovelSection()
+                    }
+                    launch {
+                        librarySearchEvent.receiveAsFlow().collectLatest {
+                            goToStartScreen()
+                            when {
+                                defaultTab == AnimeLibraryTab && startScreen == StartScreen.NOVEL -> {
+                                    AnimeLibraryTab.searchNovel(it)
+                                }
+                                defaultTab == AnimeLibraryTab -> {
+                                    AnimeLibraryTab.search(it)
+                                }
+                                defaultTab == MangaLibraryTab -> MangaLibraryTab.search(it)
+                                else -> Unit
+                            }
                         }
-                        if (it is Tab.Library && it.mangaIdToOpen != null) {
-                            navigator.push(MangaScreen(it.mangaIdToOpen))
-                        }
-                        if (it is Tab.NovelLib && it.novelIdToOpen != null) {
-                            navigator.push(eu.kanade.tachiyomi.ui.entries.novel.NovelScreen(it.novelIdToOpen))
-                        }
-                        if (it is Tab.More && it.toDownloads) {
-                            navigator.push(DownloadsTab)
+                    }
+                    launch {
+                        openTabEvent.receiveAsFlow().collectLatest {
+                            tabNavigator.current = when (it) {
+                                is Tab.AnimeLib -> AnimeLibraryTab
+                                is Tab.Library -> MangaLibraryTab
+                                is Tab.NovelLib -> AnimeLibraryTab
+                                is Tab.Updates -> UpdatesTab
+                                is Tab.History -> HistoriesTab
+                                is Tab.Browse -> {
+                                    if (it.toExtensions) {
+                                        if (!it.anime) {
+                                            BrowseTab.showExtension()
+                                        } else {
+                                            BrowseTab.showAnimeExtension()
+                                        }
+                                    }
+                                    BrowseTab
+                                }
+                                is Tab.More -> MoreTab
+                                is Tab.HomeHub -> HomeHubTab
+                            }
+                            if (it is Tab.NovelLib) {
+                                AnimeLibraryTab.showNovelSection()
+                            }
+
+                            if (it is Tab.AnimeLib && it.animeIdToOpen != null) {
+                                navigator.push(AnimeScreen(it.animeIdToOpen))
+                            }
+                            if (it is Tab.Library && it.mangaIdToOpen != null) {
+                                navigator.push(MangaScreen(it.mangaIdToOpen))
+                            }
+                            if (it is Tab.NovelLib && it.novelIdToOpen != null) {
+                                navigator.push(eu.kanade.tachiyomi.ui.entries.novel.NovelScreen(it.novelIdToOpen))
+                            }
+                            if (it is Tab.More && it.toDownloads) {
+                                navigator.push(DownloadsTab)
+                            }
                         }
                     }
                 }
@@ -513,6 +555,7 @@ object HomeScreen : Screen() {
         val colors = NavigationBarItemDefaults.colors()
 
         NavigationBarItem(
+            modifier = Modifier.coachAnchorForTab(tab),
             selected = selected,
             onClick = {
                 appHaptics.tap()
@@ -579,6 +622,7 @@ object HomeScreen : Screen() {
         Box(
             modifier = Modifier
                 .weight(1f)
+                .coachAnchorForTab(tab)
                 .padding(horizontal = 1.dp)
                 .padding(top = 8.dp, bottom = 0.dp)
                 .selectable(

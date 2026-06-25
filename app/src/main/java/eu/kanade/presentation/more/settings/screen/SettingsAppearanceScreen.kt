@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.domain.tutorial.TutorialPreferences
+import eu.kanade.domain.tutorial.model.TutorialMode
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.UserProfilePreferences
 import eu.kanade.domain.ui.model.AnimeMetadataSource
@@ -51,11 +53,13 @@ import eu.kanade.presentation.reader.novel.buildNovelReaderFontCatalog
 import eu.kanade.presentation.reader.novel.importNovelReaderCustomFont
 import eu.kanade.presentation.reader.novel.removeNovelReaderCustomFont
 import eu.kanade.presentation.theme.rememberAppFontFamily
+import eu.kanade.presentation.tutorial.CoachTipRegistry
 import eu.kanade.tachiyomi.ui.home.HomeHeaderLayoutEditorScreen
 import eu.kanade.tachiyomi.ui.reader.novel.setting.NovelReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toPersistentList
 import tachiyomi.core.common.i18n.stringResource
@@ -79,6 +83,7 @@ object SettingsAppearanceScreen : SearchableSettings {
     override fun getPreferences(): List<Preference> {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
         val userProfilePreferences = remember { Injekt.get<UserProfilePreferences>() }
+        val tutorialPreferences = remember { Injekt.get<TutorialPreferences>() }
 
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),
@@ -86,6 +91,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                 uiPreferences = uiPreferences,
                 userProfilePreferences = userProfilePreferences,
             ),
+            getTutorialGroup(tutorialPreferences = tutorialPreferences),
             getMetadataGroup(uiPreferences = uiPreferences),
         )
     }
@@ -675,6 +681,44 @@ object SettingsAppearanceScreen : SearchableSettings {
                         .toImmutableMap(),
                     title = stringResource(AYMR.strings.pref_anime_metadata_source),
                     subtitle = stringResource(AYMR.strings.pref_anime_metadata_source_summary),
+                ),
+            ),
+        )
+    }
+
+    @Composable
+    private fun getTutorialGroup(
+        tutorialPreferences: TutorialPreferences,
+    ): Preference.PreferenceGroup {
+        return Preference.PreferenceGroup(
+            title = stringResource(MR.strings.pref_tutorial_category),
+            preferenceItems = persistentListOf(
+                Preference.PreferenceItem.ListPreference(
+                    preference = tutorialPreferences.tutorialMode(),
+                    entries = persistentMapOf(
+                        TutorialMode.GUIDED to stringResource(MR.strings.onboarding_experience_beginner),
+                        TutorialMode.OFF to stringResource(MR.strings.onboarding_experience_expert),
+                    ),
+                    title = stringResource(MR.strings.pref_tutorial_mode),
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.pref_tutorial_restart_tour),
+                    onClick = {
+                        // Replay the welcome tour: forget tour completion + tour ids.
+                        tutorialPreferences.tourCompleted().set(false)
+                        val tourIds = CoachTipRegistry.tour.map { it.id }.toSet()
+                        tutorialPreferences.shownTips().set(
+                            tutorialPreferences.shownTips().get() - tourIds,
+                        )
+                    },
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.pref_tutorial_reset_tips),
+                    onClick = {
+                        // Reset every coach mark.
+                        tutorialPreferences.shownTips().set(emptySet())
+                        tutorialPreferences.tourCompleted().set(false)
+                    },
                 ),
             ),
         )

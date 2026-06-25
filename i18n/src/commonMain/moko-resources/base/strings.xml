@@ -249,6 +249,26 @@
     <string name="pref_terms_of_service">Terms of Service</string>
     <string name="pref_copyright_dmca">Copyright / DMCA policy</string>
 
+    <!-- Beginner tutorial / coach marks -->
+    <string name="onboarding_experience_title">Your experience level</string>
+    <string name="onboarding_experience_desc">Choose how much guidance you want while using the app.</string>
+    <string name="onboarding_experience_beginner">I am new — show me tips</string>
+    <string name="onboarding_experience_expert">I am experienced — skip tips</string>
+    <string name="tip_action_next">Got it</string>
+    <string name="tip_action_skip">Skip tour</string>
+    <string name="tip_library_title">Your library</string>
+    <string name="tip_library_body">This is your library. It is empty for now — titles you add will appear here.</string>
+    <string name="tip_browse_title">Sources live here</string>
+    <string name="tip_browse_body">Sources are not included in the app. You add your own repositories from this tab.</string>
+    <string name="tip_add_repo_title">Adding a repository</string>
+    <string name="tip_add_repo_body">To add sources and extensions use the import feature (see settings).Repositories and extensions are not provided or verified by Tadami. Tadami does not control their content or availability. You are responsible for ensuring you may lawfully access their content, and you add them entirely at your own risk.</string>
+    <string name="tip_more_title">More options</string>
+    <string name="tip_more_body">Settings, downloads and the tutorial controls live here. You can replay this guide anytime from Settings.</string>
+    <string name="pref_tutorial_category">Tutorial</string>
+    <string name="pref_tutorial_mode">Show beginner tips</string>
+    <string name="pref_tutorial_restart_tour">Restart guided tour</string>
+    <string name="pref_tutorial_reset_tips">Reset all tips</string>
+
 
     <!-- Preferences -->
       <!-- Subsections -->

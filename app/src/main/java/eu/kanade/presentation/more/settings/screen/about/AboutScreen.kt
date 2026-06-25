@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Card
@@ -615,7 +614,6 @@ private fun aboutFooterLinkLabel(label: AboutFooterLinkLabel): String = when (la
     AboutFooterLinkLabel.GitHub -> "GitHub"
     AboutFooterLinkLabel.Tadami -> "Tadami"
     AboutFooterLinkLabel.TelegramChannel -> "Telegram Channel"
-    AboutFooterLinkLabel.TelegramGroup -> "Telegram Group"
 }
 
 private fun aboutFooterLinkIcon(icon: AboutFooterLinkIcon) = when (icon) {
@@ -623,7 +621,6 @@ private fun aboutFooterLinkIcon(icon: AboutFooterLinkIcon) = when (icon) {
     AboutFooterLinkIcon.Discord -> CustomIcons.Discord
     AboutFooterLinkIcon.Github -> CustomIcons.Github
     AboutFooterLinkIcon.TelegramChannel -> Icons.AutoMirrored.Outlined.Send
-    AboutFooterLinkIcon.TelegramGroup -> Icons.AutoMirrored.Outlined.Chat
 }
 
 internal fun buildAboutFooterSections(): List<AboutFooterLinkSection> {
@@ -661,11 +658,6 @@ internal fun buildAboutFooterSections(): List<AboutFooterLinkSection> {
                     icon = AboutFooterLinkIcon.TelegramChannel,
                     url = "https://t.me/TadamiApp",
                 ),
-                AboutFooterLink(
-                    label = AboutFooterLinkLabel.TelegramGroup,
-                    icon = AboutFooterLinkIcon.TelegramGroup,
-                    url = "https://t.me/TadamiSupport",
-                ),
             ),
         ),
     )
@@ -688,7 +680,6 @@ internal enum class AboutFooterLinkLabel {
     GitHub,
     Tadami,
     TelegramChannel,
-    TelegramGroup,
 }
 
 internal enum class AboutFooterLinkIcon {
@@ -696,7 +687,6 @@ internal enum class AboutFooterLinkIcon {
     Discord,
     Github,
     TelegramChannel,
-    TelegramGroup,
 }
 
 internal fun buildAboutVersionSubtitle(normalVersionName: String, isPrimed: Boolean): String {

@@ -103,6 +103,7 @@ import eu.kanade.presentation.theme.AuroraColors
 import eu.kanade.presentation.theme.AuroraTheme
 import eu.kanade.presentation.theme.aurora.adaptive.auroraCenteredMaxWidth
 import eu.kanade.presentation.theme.aurora.adaptive.rememberAuroraAdaptiveSpec
+import eu.kanade.presentation.tutorial.coachAnchor
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -822,11 +823,20 @@ internal fun AuroraTabRow(
         ) {
             tabs.forEachIndexed { index, tab ->
                 val isSelected = index == selectedIndex
+                val isExtensionsTab = tab.titleRes == tachiyomi.i18n.aniyomi.AYMR.strings.label_manga_extensions ||
+                    tab.titleRes == tachiyomi.i18n.aniyomi.AYMR.strings.label_anime_extensions ||
+                    tab.titleRes == tachiyomi.i18n.aniyomi.AYMR.strings.label_novel_extensions
                 val tabModifier = if (scrollable) {
                     Modifier
                 } else {
                     Modifier.weight(1f)
-                }
+                }.then(
+                    if (isExtensionsTab) {
+                        Modifier.coachAnchor(eu.kanade.presentation.tutorial.TipAnchor.ADD_REPO_BUTTON)
+                    } else {
+                        Modifier
+                    },
+                )
                 AuroraTab(
                     text = stringResource(tab.titleRes),
                     isSelected = isSelected,

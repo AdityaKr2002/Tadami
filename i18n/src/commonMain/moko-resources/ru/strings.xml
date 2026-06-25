@@ -1466,4 +1466,24 @@
     <string name="pref_disclaimer">Отказ от ответственности</string>
     <string name="pref_terms_of_service">Условия использования</string>
     <string name="pref_copyright_dmca">Политика авторского права / DMCA</string>
+
+    <!-- Beginner tutorial / coach marks -->
+    <string name="onboarding_experience_title">Ваш уровень опыта</string>
+    <string name="onboarding_experience_desc">Выберите, сколько подсказок вы хотите видеть при использовании приложения.</string>
+    <string name="onboarding_experience_beginner">Я новичок — показывать подсказки</string>
+    <string name="onboarding_experience_expert">У меня есть опыт — пропустить обучение</string>
+    <string name="tip_action_next">Понятно</string>
+    <string name="tip_action_skip">Пропустить</string>
+    <string name="tip_library_title">Ваша библиотека</string>
+    <string name="tip_library_body">Это ваша библиотека. Пока она пуста — добавленные вами произведения появятся здесь.</string>
+    <string name="tip_browse_title">Здесь живут источники</string>
+    <string name="tip_browse_body">Источники не входят в приложение. Вы добавляете свои собственные репозитории на этой вкладке.</string>
+    <string name="tip_add_repo_title">Добавление репозитория</string>
+    <string name="tip_add_repo_body">Добавляйте только те репозитории, которые вы имеете право использовать по закону — пожалуйста, используйте только легальные источники. Приложение не предоставляет и не проверяет репозитории.</string>
+    <string name="tip_more_title">Дополнительные параметры</string>
+    <string name="tip_more_body">Настройки, загрузки и управление обучением находятся здесь. Вы можете перезапустить это руководство в любое время из Настроек.</string>
+    <string name="pref_tutorial_category">Обучение</string>
+    <string name="pref_tutorial_mode">Показывать подсказки для новичков</string>
+    <string name="pref_tutorial_restart_tour">Перезапустить обучение</string>
+    <string name="pref_tutorial_reset_tips">Сбросить все подсказки</string>
 </resources>

@@ -25,6 +25,8 @@ import com.tadami.aurora.R
 import eu.kanade.domain.ui.model.NavStyle
 import eu.kanade.presentation.more.settings.widget.SwitchPreferenceWidget
 import eu.kanade.presentation.more.settings.widget.TextPreferenceWidget
+import eu.kanade.presentation.tutorial.TipAnchor
+import eu.kanade.presentation.tutorial.TutorialScreenEntry
 import eu.kanade.tachiyomi.ui.more.DownloadQueueState
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.aniyomi.AYMR
@@ -57,6 +59,7 @@ fun MoreScreen(
     onClickDebugAppUpdatePreview: () -> Unit,
     onClickDebugUpdatedChangelogPreview: () -> Unit,
 ) {
+    TutorialScreenEntry(TipAnchor.MORE_TAB)
     Scaffold { contentPadding ->
         ScrollbarLazyColumn(
             modifier = Modifier.padding(contentPadding),

@@ -46,11 +46,6 @@ class AboutFooterLinksTest {
                         icon = AboutFooterLinkIcon.TelegramChannel,
                         url = "https://t.me/TadamiApp",
                     ),
-                    AboutFooterLink(
-                        label = AboutFooterLinkLabel.TelegramGroup,
-                        icon = AboutFooterLinkIcon.TelegramGroup,
-                        url = "https://t.me/TadamiSupport",
-                    ),
                 ),
             )
     }

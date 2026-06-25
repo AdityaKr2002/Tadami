@@ -35,6 +35,7 @@ fun OnboardingScreen(
             DisclaimerStep(),
             LanguageStep(),
             ThemeStep(),
+            ExperienceStep(),
             MediaModesStep(),
             StorageStep(),
             PermissionStep(),
