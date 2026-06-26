@@ -9,6 +9,7 @@ class MigrationStrategyFactory(
         val strategy = when {
             old == 0 -> InitialMigrationStrategy(
                 strategy = DefaultMigrationStrategy(factory, migrationCompletedListener, Migrator.scope),
+                migrationCompletedListener = migrationCompletedListener,
             )
             old >= new -> NoopMigrationStrategy(false)
             else -> VersionRangeMigrationStrategy(

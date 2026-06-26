@@ -56,4 +56,5 @@ val migrations: List<Migration>
         DefaultChapterSortAscendingMigration(),
         EInkProfileMigration(),
         MoveLatestToFeedMigration(),
+        RecomputeGenreAchievementsMigration(),
     )

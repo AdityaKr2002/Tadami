@@ -145,11 +145,19 @@ class RuleContextImpl(
     }
 
     override suspend fun hasLibraryGenre(genre: String): Int {
-        return GenreAliases.allGenreSearchTerms(genre).sumOf { term ->
-            val manga = mangaHandler.awaitOneOrNull { db -> db.mangasQueries.getLibraryGenreCount(term) } ?: 0L
-            val anime = animeHandler.awaitOneOrNull { db -> db.animesQueries.getLibraryGenreCount(term) } ?: 0L
-            val novel = novelHandler.awaitOneOrNull { db -> db.novelsQueries.getLibraryGenreCount(term) } ?: 0L
-            (manga + anime + novel).toInt()
+        // NOTE: matching is done in Kotlin instead of via SQL LOWER() because
+        // SQLite's built-in LOWER() only lowercases ASCII - it leaves Cyrillic
+        // (and other non-Latin scripts) untouched, which made the SQL genre
+        // comparison effectively case-SENSITIVE for localized genres like
+        // "Гарем"/"гарем". GenreAliases.genreMatches uses Kotlin's Unicode-aware
+        // lowercase() plus ё/э folding and alias expansion, so a library entry
+        // counts regardless of the casing/spelling the source used.
+        val canonical = listOf(genre)
+        val mangaGenres = mangaHandler.awaitList { db -> db.mangasQueries.getLibraryGenres() }
+        val animeGenres = animeHandler.awaitList { db -> db.animesQueries.getLibraryGenres() }
+        val novelGenres = novelHandler.awaitList { db -> db.novelsQueries.getLibraryGenres() }
+        return (mangaGenres + animeGenres + novelGenres).count { entryGenres ->
+            entryGenres.orEmpty().any { g -> GenreAliases.genreMatches(g, canonical) }
         }
     }
 

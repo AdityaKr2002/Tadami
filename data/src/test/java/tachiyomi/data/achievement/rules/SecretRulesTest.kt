@@ -57,7 +57,8 @@ class SecretRulesTest {
         val rule = HaremKingRule()
         coEvery { context.hasLibraryGenre("Harem") } returns 20
 
-        rule.evaluateFull(context) shouldBe 1
+        // Progress now reflects the real count (target is 20), not a binary 1.
+        rule.evaluateFull(context) shouldBe 20
     }
 
     @Test
@@ -65,7 +66,7 @@ class SecretRulesTest {
         val rule = IsekaiTruckRule()
         coEvery { context.hasLibraryGenre("Isekai") } returns 20
 
-        rule.evaluateFull(context) shouldBe 1
+        rule.evaluateFull(context) shouldBe 20
     }
 
     @Test
@@ -90,7 +91,7 @@ class SecretRulesTest {
         coEvery { context.hasLibraryGenre("Shounen") } returns 6
         coEvery { context.hasLibraryGenre("Shonen") } returns 4
 
-        rule.evaluateFull(context) shouldBe 1
+        rule.evaluateFull(context) shouldBe 10
     }
 
     @Test

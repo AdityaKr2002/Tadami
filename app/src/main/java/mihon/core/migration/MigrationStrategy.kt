@@ -30,10 +30,19 @@ class DefaultMigrationStrategy(
     }
 }
 
-class InitialMigrationStrategy(private val strategy: DefaultMigrationStrategy) : MigrationStrategy {
+class InitialMigrationStrategy(
+    private val strategy: DefaultMigrationStrategy,
+    private val migrationCompletedListener: MigrationCompletedListener,
+) : MigrationStrategy {
 
     override operator fun invoke(migrations: List<Migration>): Deferred<Boolean> {
-        return strategy(migrations.filter { it.isAlways })
+        val alwaysMigrations = migrations.filter { it.isAlways }
+        return if (alwaysMigrations.isEmpty()) {
+            migrationCompletedListener()
+            CompletableDeferred(true)
+        } else {
+            strategy(alwaysMigrations)
+        }
     }
 }
 

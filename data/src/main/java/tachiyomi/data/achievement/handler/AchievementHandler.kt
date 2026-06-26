@@ -94,6 +94,81 @@ class AchievementHandler(
         }
     }
 
+    /**
+     * One-time, safe recompute of rule-backed achievement progress.
+     *
+     * Invoked by a versioned migration after fixing localized (Cyrillic) genre
+     * matching: previously SQLite's ASCII-only LOWER() failed to match genres
+     * like "Гарем"/"гарем", so genre achievements were under-counted. This
+     * re-evaluates every rule-backed achievement via evaluateFull and applies the
+     * result MONOTONICALLY:
+     *  - already-unlocked achievements are never touched;
+     *  - progress is only ever raised, never lowered, so partial progress that
+     *    was accrued through delta-only rules is preserved.
+     *
+     * It reads fresh data from the DB and clears the diversity cache first, so it
+     * is safe to run without any user interaction.
+     */
+    suspend fun recomputeGenreAchievements() {
+        try {
+            diversityChecker.clearCache()
+
+            val allAchievements = repository.getAll().first()
+            val allProgress = repository.getAllProgress().first()
+                .associateBy { it.achievementId }
+                .toMutableMap()
+            val context = RuleContextImpl(
+                mangaHandler = mangaHandler,
+                animeHandler = animeHandler,
+                novelHandler = novelHandler,
+                mangaRepository = mangaRepository,
+                animeRepository = animeRepository,
+                novelRepository = novelRepository,
+                diversityChecker = diversityChecker,
+                streakChecker = streakChecker,
+                featureCollector = featureCollector,
+                allProgress = allProgress,
+                allAchievementsMap = allAchievements.associateBy { it.id },
+            )
+
+            var repaired = 0
+            for (achievement in allAchievements) {
+                val rule = ruleRegistry.getRule(achievement.id) ?: continue
+                val currentProgress = allProgress[achievement.id]
+                // Never re-touch something already earned.
+                if (currentProgress?.isUnlocked == true) continue
+
+                val newProgress = try {
+                    rule.evaluateFull(context)
+                } catch (e: Exception) {
+                    logcat(LogPriority.WARN) {
+                        "[ACHIEVEMENTS] recompute evaluateFull failed for ${achievement.id}: ${e.message}"
+                    }
+                    continue
+                }
+
+                // Monotonic guard: only ever raise progress, so a rule whose
+                // evaluateFull is a stub (returns 0) can never wipe out progress
+                // earned via incremental events.
+                val existing = currentProgress?.progress ?: 0
+                if (newProgress > existing) {
+                    val updated = applyProgressUpdate(achievement, currentProgress, newProgress)
+                    if (updated != null) {
+                        allProgress[achievement.id] = updated
+                    }
+                    repaired++
+                }
+            }
+            logcat(LogPriority.INFO) {
+                "[ACHIEVEMENTS] One-time genre recompute complete ($repaired achievements updated)"
+            }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) {
+                "[ACHIEVEMENTS] Genre recompute failed: ${e.message}"
+            }
+        }
+    }
+
     private suspend fun sanitizeCrossCategoryFirstAchievements() {
         val mangaRead = (mangaHandler.awaitOneOrNull { db -> db.historyQueries.getTotalChaptersRead() } ?: 0L) > 0L
         val animeWatched =

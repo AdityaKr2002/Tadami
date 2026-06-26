@@ -73,12 +73,13 @@ class HaremKingRule : AchievementRule {
             return RuleResult.NoChange
         }
         val count = context.hasLibraryGenre("Harem")
-        return if (count >= 20) RuleResult.Update(1) else RuleResult.NoChange
+        // Report the real count so progress shows "count / 20" and unlocks at the
+        // threshold. Previously returned a binary 1 that could never reach 20.
+        return RuleResult.Update(count)
     }
 
     override suspend fun evaluateFull(context: RuleContext): Int {
-        val count = context.hasLibraryGenre("Harem")
-        return if (count >= 20) 1 else 0
+        return context.hasLibraryGenre("Harem")
     }
 }
 
@@ -96,12 +97,13 @@ class IsekaiTruckRule : AchievementRule {
             return RuleResult.NoChange
         }
         val count = context.hasLibraryGenre("Isekai")
-        return if (count >= 20) RuleResult.Update(1) else RuleResult.NoChange
+        // Report the real count so progress shows "count / 20" and unlocks at the
+        // threshold. Previously returned a binary 1 that could never reach 20.
+        return RuleResult.Update(count)
     }
 
     override suspend fun evaluateFull(context: RuleContext): Int {
-        val count = context.hasLibraryGenre("Isekai")
-        return if (count >= 20) 1 else 0
+        return context.hasLibraryGenre("Isekai")
     }
 }
 
@@ -185,12 +187,13 @@ class ShonenRule : AchievementRule {
         }
 
         val total = context.hasLibraryGenre("Shounen") + context.hasLibraryGenre("Shonen")
-        return if (total >= 10) RuleResult.Update(1) else RuleResult.NoChange
+        // Report the real count so progress shows "total / 10" and unlocks at the
+        // threshold. Previously returned a binary 1 that could never reach 10.
+        return RuleResult.Update(total)
     }
 
     override suspend fun evaluateFull(context: RuleContext): Int {
-        val total = context.hasLibraryGenre("Shounen") + context.hasLibraryGenre("Shonen")
-        return if (total >= 10) 1 else 0
+        return context.hasLibraryGenre("Shounen") + context.hasLibraryGenre("Shonen")
     }
 }
 
