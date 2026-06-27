@@ -200,7 +200,10 @@ data object NovelLibraryTab : Tab {
         ) { contentPadding ->
             when {
                 state.isLoading -> LoadingScreen(Modifier.padding(contentPadding))
-                state.searchQuery.isNullOrEmpty() && !state.hasActiveFilters && state.isLibraryEmpty -> {
+                state.searchQuery.isNullOrEmpty() &&
+                    !state.hasActiveFilters &&
+                    state.hasLoaded &&
+                    state.isLibraryEmpty -> {
                     EmptyScreen(
                         stringRes = MR.strings.information_empty_library,
                         modifier = Modifier.padding(contentPadding),

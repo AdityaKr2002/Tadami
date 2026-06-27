@@ -242,6 +242,7 @@ class NovelLibraryScreenModel(
                     mutableState.update { state ->
                         state.copy(
                             isLoading = false,
+                            hasLoaded = true,
                             library = libraryMap,
                         )
                     }
@@ -1136,6 +1137,7 @@ class NovelLibraryScreenModel(
     @Immutable
     data class State(
         val isLoading: Boolean = true,
+        val hasLoaded: Boolean = false,
         val library: NovelLibraryMap = emptyMap(),
         val searchQuery: String? = null,
         val selection: PersistentList<NovelLibraryItem> = persistentListOf(),

@@ -33,9 +33,12 @@ import dev.mihon.injekt.patchInjekt
 import eu.kanade.domain.DomainModule
 import eu.kanade.domain.SYDomainModule
 import eu.kanade.domain.base.BasePreferences
+import eu.kanade.domain.tutorial.TutorialPreferences
+import eu.kanade.domain.tutorial.model.TutorialMode
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.setAppCompatDelegateThemeMode
 import eu.kanade.presentation.achievement.components.AchievementBannerManager
+import eu.kanade.presentation.tutorial.CoachTipRegistry
 import eu.kanade.tachiyomi.crash.CrashActivity
 import eu.kanade.tachiyomi.crash.GlobalExceptionHandler
 import eu.kanade.tachiyomi.data.coil.AnimeCoverKeyer
@@ -342,6 +345,19 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         ) {
             pendingUpdatedChangelogPreviousVersionCode.set(oldVersionCode)
         }
+
+        if (oldVersionCode > 0) {
+            if (!basePreferences.shownOnboardingFlow().get()) {
+                basePreferences.shownOnboardingFlow().set(true)
+                val tutorialPreferences = Injekt.get<TutorialPreferences>()
+                tutorialPreferences.tutorialMode().set(TutorialMode.OFF)
+                tutorialPreferences.tourCompleted().set(true)
+                tutorialPreferences.shownTips().set(
+                    CoachTipRegistry.tips.map { it.id }.toSet(),
+                )
+            }
+        }
+
         logcat { "Migration from $oldVersionCode to ${BuildConfig.VERSION_CODE}" }
         Migrator.initialize(
             old = oldVersionCode,

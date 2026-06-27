@@ -768,7 +768,9 @@ data object AnimeLibraryTab : Tab {
         val isMangaLibraryEmpty = mangaState.searchQuery.isNullOrEmpty() &&
             !mangaState.hasActiveFilters &&
             mangaState.isLibraryEmpty
-        val isNovelLibraryEmpty = novelState.searchQuery.isNullOrEmpty() && novelState.isLibraryEmpty
+        val isNovelLibraryEmpty =
+            novelState.searchQuery.isNullOrEmpty() &&
+                (!showNovelSection || (novelState.hasLoaded && novelState.isLibraryEmpty))
         val isSectionEmpty: (Section) -> Boolean = { section ->
             when (section) {
                 Section.Anime -> isAnimeLibraryEmpty

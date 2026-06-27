@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Card
@@ -328,8 +329,11 @@ object AboutScreen : Screen() {
                             modifier = itemModifier,
                             title = stringResource(MR.strings.pref_disclaimer),
                             onPreferenceClick = {
-                                uriHandler.openUri(
-                                    "https://github.com/andarcanum/Tadami-Aniyomi-fork/blob/ranobe-novel/DISCLAIMER.md",
+                                navigator.push(
+                                    AboutTextScreen(
+                                        titleRes = MR.strings.pref_disclaimer,
+                                        contentRes = MR.strings.pref_disclaimer_text,
+                                    ),
                                 )
                             },
                         )
@@ -340,8 +344,11 @@ object AboutScreen : Screen() {
                             modifier = itemModifier,
                             title = stringResource(MR.strings.pref_terms_of_service),
                             onPreferenceClick = {
-                                uriHandler.openUri(
-                                    "https://github.com/andarcanum/Tadami-Aniyomi-fork/blob/ranobe-novel/TERMS_OF_SERVICE.MD",
+                                navigator.push(
+                                    AboutTextScreen(
+                                        titleRes = MR.strings.pref_terms_of_service,
+                                        contentRes = MR.strings.pref_terms_of_service_text,
+                                    ),
                                 )
                             },
                         )
@@ -352,8 +359,11 @@ object AboutScreen : Screen() {
                             modifier = itemModifier,
                             title = stringResource(MR.strings.privacy_policy),
                             onPreferenceClick = {
-                                uriHandler.openUri(
-                                    "https://github.com/andarcanum/Tadami-Aniyomi-fork/blob/ranobe-novel/PRIVACY.MD",
+                                navigator.push(
+                                    AboutTextScreen(
+                                        titleRes = MR.strings.privacy_policy,
+                                        contentRes = MR.strings.privacy_policy_text_content,
+                                    ),
                                 )
                             },
                         )
@@ -364,8 +374,11 @@ object AboutScreen : Screen() {
                             modifier = itemModifier,
                             title = stringResource(MR.strings.pref_copyright_dmca),
                             onPreferenceClick = {
-                                uriHandler.openUri(
-                                    "https://github.com/andarcanum/Tadami-Aniyomi-fork/blob/ranobe-novel/DMCA.md",
+                                navigator.push(
+                                    AboutTextScreen(
+                                        titleRes = MR.strings.pref_copyright_dmca,
+                                        contentRes = MR.strings.pref_copyright_dmca_text,
+                                    ),
                                 )
                             },
                         )
@@ -614,6 +627,7 @@ private fun aboutFooterLinkLabel(label: AboutFooterLinkLabel): String = when (la
     AboutFooterLinkLabel.GitHub -> "GitHub"
     AboutFooterLinkLabel.Tadami -> "Tadami"
     AboutFooterLinkLabel.TelegramChannel -> "Telegram Channel"
+    AboutFooterLinkLabel.TelegramGroup -> "Telegram Group"
 }
 
 private fun aboutFooterLinkIcon(icon: AboutFooterLinkIcon) = when (icon) {
@@ -621,6 +635,7 @@ private fun aboutFooterLinkIcon(icon: AboutFooterLinkIcon) = when (icon) {
     AboutFooterLinkIcon.Discord -> CustomIcons.Discord
     AboutFooterLinkIcon.Github -> CustomIcons.Github
     AboutFooterLinkIcon.TelegramChannel -> Icons.AutoMirrored.Outlined.Send
+    AboutFooterLinkIcon.TelegramGroup -> Icons.AutoMirrored.Outlined.Chat
 }
 
 internal fun buildAboutFooterSections(): List<AboutFooterLinkSection> {
@@ -658,6 +673,11 @@ internal fun buildAboutFooterSections(): List<AboutFooterLinkSection> {
                     icon = AboutFooterLinkIcon.TelegramChannel,
                     url = "https://t.me/TadamiApp",
                 ),
+                AboutFooterLink(
+                    label = AboutFooterLinkLabel.TelegramGroup,
+                    icon = AboutFooterLinkIcon.TelegramGroup,
+                    url = "https://t.me/TadamiSupport",
+                ),
             ),
         ),
     )
@@ -680,6 +700,7 @@ internal enum class AboutFooterLinkLabel {
     GitHub,
     Tadami,
     TelegramChannel,
+    TelegramGroup,
 }
 
 internal enum class AboutFooterLinkIcon {
@@ -687,6 +708,7 @@ internal enum class AboutFooterLinkIcon {
     Discord,
     Github,
     TelegramChannel,
+    TelegramGroup,
 }
 
 internal fun buildAboutVersionSubtitle(normalVersionName: String, isPrimed: Boolean): String {
